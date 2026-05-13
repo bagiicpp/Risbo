@@ -1,4 +1,4 @@
-# 🤝 Moj najboljši prijatelj(RizzBo) — Projektni README
+# 🤝 Moj najboljši prijatelj (RizzBo) — Projektni README
 
 > Poenostavljen pogovorni asistent za vsakodnevno pomoč pri učenju, organizaciji in ustvarjanju vsebin.
 
@@ -22,7 +22,7 @@ Projekt je zasnovan modularno — asistenta je mogoče specializirati za določe
 
 Za začetek se osredotočamo na **osnovno delujočo aplikacijo** s sledečimi funkcionalnostmi:
 
-### ✅ Faza 1 — MVP (Minimum Viable Product)
+### ✅ MVP (Minimum Viable Product)
 
 - [ ] Pogovor z asistentom v naravnem jeziku (chat vmesnik)
 - [ ] Shranjevanje zgodovine pogovorov
@@ -39,47 +39,75 @@ Za začetek se osredotočamo na **osnovno delujočo aplikacijo** s sledečimi fu
 ## 🛠️ Tehnološki sklad
 
 ```
-Frontend:   React + Tailwind CSS
-Backend:    Python Flask  +  Bun (JS runtime)
-Baza:       MongoDB
-AI model:   Claude API (Anthropic)
+Frontend:    React + Tailwind CSS + Bun
+App Backend: Python FastAPI + MongoDB
+AI Backend:  Python FastAPI (HuggingFace wrapper)
+AI Model:    Gemma 4 prek HuggingFace Serverless API
 ```
 
 ### Zakaj ta izbor?
 
-| Tehnologija          | Razlog                                                                                 |
-| -------------------- | -------------------------------------------------------------------------------------- |
-| **React + Tailwind** | Hiter razvoj UI, komponente, responsive design brez napora                             |
-| **Python Flask**     | Enostaven REST API, odlična podpora za AI/ML knjižnice                                 |
-| **Bun**              | Hiter JS runtime za orodja, skripte in paketni manager namesto npm                     |
-| **MongoDB**          | Fleksibilna NoSQL baza — idealna za shranjevanje pogovorov in dokumentov v JSON obliki |
+| Tehnologija              | Razlog                                                                                 |
+| ------------------------ | -------------------------------------------------------------------------------------- |
+| **React + Tailwind**     | Hiter razvoj UI, komponente, responsive design brez napora                             |
+| **Python FastAPI**       | Hiter async REST API, avtomatska OpenAPI dokumentacija, odlična podpora za AI/ML       |
+| **Bun**                  | Hiter JS runtime za orodja, skripte in paketni manager namesto npm                     |
+| **MongoDB**              | Fleksibilna NoSQL baza — idealna za shranjevanje pogovorov in dokumentov v JSON obliki |
+| **Gemma 4 via HF API**   | Brezplačen hosted AI model, brez lastnega strežnika                                    |
 
 ---
 
-## 🗂️ Struktura projekta (načrtovana)
+## 🏗️ Arhitektura
 
 ```
-moj-najboljsi-prijatelj/
+┌─────────────┐     REST      ┌─────────────────┐     REST      ┌──────────────────┐
+│   Frontend  │ ◄───────────► │   App Backend   │ ◄───────────► │   AI Backend     │
+│  React SPA  │               │   FastAPI       │               │   FastAPI        │
+│  port 5173  │               │   MongoDB       │               │   HF wrapper     │
+│             │               │   port 8000     │               │   port 8001      │
+└─────────────┘               └─────────────────┘               └──────────┬───────┘
+                                                                            │
+                                                                 ┌──────────▼───────────┐
+                                                                 │  HuggingFace         │
+                                                                 │  Serverless API      │
+                                                                 │  Gemma 4             │
+                                                                 └──────────────────────┘
+```
+
+**AI Backend** — edina točka komunikacije z HuggingFace. Zamenjava modela = samo `.env`, App Backend se ne dotakne.
+
+**App Backend** — vsa poslovna logika: pogovori, dokumenti, izvoz. Kliče AI Backend prek REST.
+
+**Frontend** — React SPA, UI podoben ChatGPT/Claude.
+
+---
+
+## 🗂️ Struktura projekta
+
+```
+rizzbo/
+├── ai-backend/             # HuggingFace wrapper
+│   ├── main.py
+│   ├── requirements.txt
+│   └── .env.example
 │
-├── frontend/               # React aplikacija
-│   ├── components/
-│   │   ├── Chat/           # Pogovorno okno
-│   │   ├── Sidebar/        # Zgodovina pogovorov
-│   │   ├── DocumentPanel/  # Nalaganje in prikaz dokumentov
-│   │   └── ResultsPanel/   # Izvozljivi rezultati
-│   └── pages/
+├── app-backend/            # App logika
+│   ├── main.py
+│   ├── requirements.txt
+│   └── .env.example
 │
-├── backend/                # API strežnik
-│   ├── routes/
-│   │   ├── chat.py         # Pogovorna logika
-│   │   ├── documents.py    # Nalaganje in obdelava dokumentov
-│   │   └── export.py       # Generiranje izhodnih datotek
-│   ├── services/
-│   │   ├── ai_service.py   # Integracija z AI modelom
-│   │   └── file_parser.py  # Branje PDF, Word, Excel
-│   └── models/             # Podatkovni modeli
+├── frontend/               # React SPA
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── Chat/       # Pogovorno okno
+│   │   │   ├── Sidebar/    # Zgodovina pogovorov
+│   │   │   └── FilePanel/  # Datoteke pogovora
+│   │   └── pages/
+│   ├── package.json
+│   └── .env.example
 │
-├── docs/                   # Projektna dokumentacija
+├── docker-compose.yml      # MongoDB
+├── .gitignore
 └── README.md
 ```
 
@@ -87,105 +115,176 @@ moj-najboljsi-prijatelj/
 
 ## 🖼️ Uporabniški vmesnik — zasnova
 
-Aplikacija bo imela **3 ločene panele**:
-
 ```
-┌─────────────────────────────────────────────────────────┐
-│  Moj najboljši prijatelj                           🔍    │
-├──────────────┬──────────────────────┬───────────────────┤
-│              │                      │                   │
-│  POGOVORI    │    CHAT OKNO         │   DOKUMENTI       │
-│              │                      │                   │
-│  • Pogovor 1 │  Asistent: Zdravo!   │  📄 dokument.pdf  │
-│  • Pogovor 2 │                      │  📊 tabela.xlsx   │
-│  • Pogovor 3 │  Jaz: Povzemi mi ... │                   │
-│              │                      │  [ Naloži datot.] │
-│  [+ Nov]     │  [_________________] │                   │
-│              │           [ Pošlji ] │  [ Izvozi ▼ ]     │
-└──────────────┴──────────────────────┴───────────────────┘
+┌───────────────────────────────────────────────────────────────────┐
+│  RizzBo                                              [+ Nov chat] │
+├─────────────────┬─────────────────────────┬───────────────────────┤
+│                 │                         │                       │
+│  ZGODOVINA      │    CHAT OKNO            │   DATOTEKE            │
+│                 │                         │   (tega pogovora)     │
+│  🔍 Iskanje...  │  Asistent: Zdravo!      │                       │
+│                 │                         │  📄 dokument.pdf      │
+│  Danes          │  Jaz: Povzemi mi ...    │  📊 tabela.xlsx       │
+│  • Pogovor 1    │                         │  📝 povzetek.docx     │
+│  • Pogovor 2    │  Asistent: ...          │   ↑ ustvaril AI       │
+│                 │                         │                       │
+│  Včeraj         │                         │  [ Naloži datoteko ]  │
+│  • Pogovor 3    │  [___________________]  │                       │
+│                 │              [ Pošlji ] │                       │
+└─────────────────┴─────────────────────────┴───────────────────────┘
 ```
 
 ---
 
-## 🚀 Kako začnemo
+## 🚀 Lokalni zagon
 
-### Korak 1 — Postavitev okolja
+### Zahteve
 
-```bash
-# Kloniranje repozitorija
-git clone https://github.com/projekt/moj-najboljsi-prijatelj.git
-cd moj-najboljsi-prijatelj
+Pred začetkom preveri, da imaš nameščeno:
+- [Docker](https://www.docker.com/) (za MongoDB)
+- [Python 3.11+](https://www.python.org/)
+- [Bun](https://bun.sh/)
+- [Git](https://git-scm.com/)
 
-# Namestitev odvisnosti (frontend) — z Bun
-cd frontend && bun install
+---
 
-# Namestitev odvisnosti (backend)
-cd ../backend && pip install -r requirements.txt
-```
-
-### Korak 2 — Konfiguracija
+### Korak 1 — Kloniranje repozitorija
 
 ```bash
-# Kopiraj vzorec konfiguracijske datoteke
-cp .env.example .env
-
-# Nastavi spremenljivke
-ANTHROPIC_API_KEY=your_key_here
-MONGODB_URI=mongodb://localhost:27017/moj-najboljsi-prijatelj
-FLASK_ENV=development
+git clone https://github.com/vaš-repo/rizzbo.git
+cd rizzbo
 ```
+
+---
+
+### Korak 2 — Konfiguracija `.env` datotek
+
+Vsak servis ima svojo `.env` datoteko. Kopiraj vzorce in jih izpolni:
+
+```bash
+cp ai-backend/.env.example ai-backend/.env
+cp app-backend/.env.example app-backend/.env
+cp frontend/.env.example frontend/.env
+```
+
+**`ai-backend/.env`** — dodaj HuggingFace API ključ:
+```
+HF_API_KEY=your_huggingface_api_key_here
+HF_MODEL=google/gemma-4
+```
+> API ključ dobiš na [huggingface.co](https://huggingface.co) → Settings → Access Tokens
+
+**`app-backend/.env`** — pusti kot je za lokalni razvoj:
+```
+MONGODB_URI=mongodb://localhost:27017/rizzbo
+AI_BACKEND_URL=http://localhost:8001
+```
+
+**`frontend/.env`** — pusti kot je za lokalni razvoj:
+```
+VITE_API_URL=http://localhost:8000
+```
+
+---
 
 ### Korak 3 — Zagon MongoDB
 
 ```bash
-# Lokalno (zahteva nameščen MongoDB)
-mongod --dbpath ./data/db
-
-# Ali z Dockerjem
-docker run -d -p 27017:27017 --name mongo mongo:latest
+docker compose up -d
 ```
 
-### Korak 4 — Zagon aplikacije
+> MongoDB bo dosegljiv na `localhost:27017`.
+
+---
+
+### Korak 4 — AI Backend
 
 ```bash
-# Backend (Flask)
-cd backend && flask run
+cd ai-backend
 
-# Frontend (v novem terminalu, z Bun)
-cd frontend && bun run dev
+# Ustvari virtualno okolje
+python -m venv .venv
+
+# Aktiviraj (Linux / macOS)
+source .venv/bin/activate
+
+# Aktiviraj (Windows)
+.venv\Scripts\activate
+
+# Namesti odvisnosti
+pip install -r requirements.txt
+
+# Zaženi (port 8001)
+uvicorn main:app --reload --port 8001
 ```
 
 ---
 
-## 📋 Naslednji koraki
+### Korak 5 — App Backend
 
-1. **Definirati domeno** — Ali bo asistent splošen ali specializiran?
-2. **Postaviti osnovno infrastrukturo** — Baza, API, frontend skeleton
-3. **Implementirati chat vmesnik** — Osnoven pogovor z AI modelom
-4. **Dodati podporo za dokumente** — Nalaganje in branje PDF/Word/Excel
-5. **Testirati z realnimi primeri** — Preizkus z dejanskimi gradivi
+V novem terminalu:
+
+```bash
+cd app-backend
+
+python -m venv .venv
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
+
+pip install -r requirements.txt
+
+# Zaženi (port 8000)
+uvicorn main:app --reload --port 8000
+```
+
+---
+
+### Korak 6 — Frontend
+
+V novem terminalu:
+
+```bash
+cd frontend
+
+bun install
+bun run dev
+```
+
+> Frontend bo dosegljiv na `http://localhost:5173`.
+
+---
+
+### Korak 7 — Preveri
+
+```bash
+curl http://localhost:8001/ping
+# → {"status":"ok","service":"ai-backend"}
+
+curl http://localhost:8000/ping
+# → {"status":"ok","service":"app-backend"}
+```
+
+Odpri `http://localhost:5173` v brskalniku.
 
 ---
 
 ## 👥 Ekipa
 
-| Vloga              | Odgovoren za                            |
-| ------------------ | --------------------------------------- |
-| Frontend developer | UI, React komponente                    |
-| Backend developer  | API, integracija AI, baza               |
-| UX Designer        | Zasnova vmesnika, uporabniška izkušnja  |
-| Projektni vodja    | Koordinacija, testiranje, dokumentacija |
+| Vloga              | Odgovoren za                           |
+| ------------------ | -------------------------------------- |
+| Frontend developer | UI, React komponente                   |
+| Backend developer  | API, integracija AI, baza              |
+| Projektni vodja    | Koordinacija, testiranje, dokumentacija|
 
 ---
 
 ## 📝 Opombe
 
-- Aplikacija v prvi fazi **ne zahteva registracije** — pogovori se shranjujejo lokalno ali v enostavni bazi.
+- Aplikacija v prvi fazi **ne zahteva registracije**.
 - Podprti formati dokumentov: `.pdf`, `.docx`, `.xlsx`
 - Izvozni formati: `.pdf`, `.docx`, `.xlsx`
-- Dolgoročno je mogoče dodati **glasovni vnos**, **mobilno aplikacijo** ali **integracijo z Google Drive/OneDrive**.
+- Zamenjava AI modela: samo `HF_MODEL` v `ai-backend/.env`
+- `.env` datoteke **nikoli ne commitamo** v git.
 
 ---
 
 _Zadnja posodobitev: Maj 2026_
-
