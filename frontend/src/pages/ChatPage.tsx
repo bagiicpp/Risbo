@@ -26,7 +26,7 @@ export default function ChatPage() {
     setOutput("");
 
     try {
-      const response = await fetch("http://localhost:8000/test-chat", {
+      const response = await fetch("http://localhost:8080/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt: input }),
