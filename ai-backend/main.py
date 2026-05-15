@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 
 from dotenv import load_dotenv
@@ -38,13 +39,8 @@ ATHLETE_SYSTEM_PROMPT = (
 
 
 async def generate_stream(user_prompt: str):
-    """
-    Generator that fetches chunks from Google GenAI and yields them
-    in Server-Sent Events (SSE) format.
-    """
     try:
-        # Request a stream from the model
-        stream = client.models.generate_content_stream(
+        response_stream = await client.aio.models.generate_content_stream(
             model=os.getenv("AI_STUDIO_MODEL", "gemma-4-26b-a4b-it"),
             contents=user_prompt,
             config=types.GenerateContentConfig(
@@ -54,21 +50,17 @@ async def generate_stream(user_prompt: str):
             ),
         )
 
-        for chunk in stream:
+        async for chunk in response_stream:
             if chunk.text:
-                # SSE standard: data must be prefixed with 'data: ' and end with '\n\n'
-                yield f"data: {chunk.text}\n\n"
-                # Small sleep to ensure smooth event loop handling
-                await asyncio.sleep(0.01)
+                yield f"data: {json.dumps(chunk.text)}\n\n"
 
     except Exception as e:
         print(f"Streaming Error: {e}")
-        yield f"data: [ERROR]: {str(e)}\n\n"
+        yield f"data: {json.dumps(f'**[ERROR]:** {str(e)}')}\n\n"
 
 
-@app.post("/test-chat")
+@app.post("/chat")
 async def chat_with_gemma(request: ChatRequest):
-    # Verify the API key exists before starting the stream
     if not os.getenv("AI_STUDIO_API"):
         raise HTTPException(status_code=500, detail="API Key missing in .env")
 
