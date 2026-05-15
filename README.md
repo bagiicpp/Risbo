@@ -24,14 +24,14 @@ Za začetek se osredotočamo na **osnovno delujočo aplikacijo** s sledečimi fu
 
 ### ✅ MVP (Minimum Viable Product)
 
-- [ ] Pogovor z asistentom v naravnem jeziku (chat vmesnik)
-- [ ] Shranjevanje zgodovine pogovorov
-- [ ] Iskanje po preteklih pogovorih po ključnih besedah
-- [ ] Ustvarjanje novih pogovorov po temah
-- [ ] Nalaganje dokumentov (PDF, Word, Excel)
-- [ ] Povzemanje naloženih dokumentov
-- [ ] Odgovarjanje na vprašanja na podlagi vsebine dokumentov
-- [ ] Izvoz rezultatov (Word, Excel, PDF)
+- [x] Pogovor z asistentom v naravnem jeziku (chat vmesnik)
+- [x] Shranjevanje zgodovine pogovorov
+- [x] Iskanje po preteklih pogovorih po ključnih besedah
+- [x] Ustvarjanje novih pogovorov po temah
+- [x] Nalaganje dokumentov (PDF, Word, Excel)
+- [x] Povzemanje naloženih dokumentov
+- [x] Odgovarjanje na vprašanja na podlagi vsebine dokumentov
+- [x] Izvoz rezultatov (Word, Excel, PDF)
 - [ ] Enostaven in pregleden uporabniški vmesnik
 
 ---
@@ -41,8 +41,8 @@ Za začetek se osredotočamo na **osnovno delujočo aplikacijo** s sledečimi fu
 ```
 Frontend:    React + Tailwind CSS + Bun
 App Backend: Python FastAPI + MongoDB
-AI Backend:  Python FastAPI (HuggingFace wrapper)
-AI Model:    Gemma 4 prek HuggingFace Serverless API
+AI Backend:  Python FastAPI (Google AI Studio wrapper)
+AI Model:    Gemma 4 prek Google AI Studio API
 ```
 
 ### Zakaj ta izbor?
@@ -74,7 +74,7 @@ AI Model:    Gemma 4 prek HuggingFace Serverless API
                                                                  └──────────────────────┘
 ```
 
-**AI Backend** — edina točka komunikacije z HuggingFace. Zamenjava modela = samo `.env`, App Backend se ne dotakne.
+**AI Backend** — edina točka komunikacije z Google AI Studio. Zamenjava modela = samo `.env`, App Backend se ne dotakne.
 
 **App Backend** — vsa poslovna logika: pogovori, dokumenti, izvoz. Kliče AI Backend prek REST.
 
@@ -169,10 +169,10 @@ cp frontend/.env.example frontend/.env
 
 **`ai-backend/.env`** — dodaj HuggingFace API ključ:
 ```
-HF_API_KEY=your_huggingface_api_key_here
-HF_MODEL=google/gemma-4
+AI_STUDIO_API=your_googleaistudio_api_key_here
+AI_STUDIO_MODEL=gemma-4-26b-a4b-it
 ```
-> API ključ dobiš na [huggingface.co](https://huggingface.co) → Settings → Access Tokens
+> API ključ dobiš na Google AI Studio
 
 **`app-backend/.env`** — pusti kot je za lokalni razvoj:
 ```
@@ -279,11 +279,11 @@ Odpri `http://localhost:5173` v brskalniku.
 
 ## 📝 Opombe
 
-- Aplikacija v prvi fazi **ne zahteva registracije**.
-- Podprti formati dokumentov: `.pdf`, `.docx`, `.xlsx`
-- Izvozni formati: `.pdf`, `.docx`, `.xlsx`
-- Zamenjava AI modela: samo `HF_MODEL` v `ai-backend/.env`
-- `.env` datoteke **nikoli ne commitamo** v git.
+- Aplikacija sedaj **podpira registracijo in prijavo (JWT)**. Neregistrirani uporabniki lahko uporabljajo aplikacijo *(Guest mode)*, vendar se njihova zgodovina ne shranjuje v bazo.
+
+- Podprti formati za RAG: `.pdf`, `.docx`, `.xlsx`.
+
+- Avtomatiziran izvoz pogovorov ustvari obogateno `.docx` datoteko.
 
 ---
 
