@@ -8,18 +8,22 @@ interface AuthProviderProps {
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [token, setToken] = useState<string | null>(() => {
-    return localStorage.getItem("rizzbo_token");
+    const stored = localStorage.getItem("risbo_token");
+    if (!stored || stored === "null" || stored === "undefined") {
+      return null;
+    }
+    return stored;
   });
 
   const [loading] = useState<boolean>(false);
 
   const login = (newToken: string) => {
-    localStorage.setItem("rizzbo_token", newToken);
+    localStorage.setItem("risbo_token", newToken);
     setToken(newToken);
   };
 
   const logout = () => {
-    localStorage.removeItem("rizzbo_token");
+    localStorage.removeItem("risbo_token");
     setToken(null);
   };
 

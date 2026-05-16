@@ -3,6 +3,7 @@ import io
 import json
 import os
 from contextlib import asynccontextmanager
+from datetime import datetime
 from typing import Optional
 
 import httpx
@@ -16,7 +17,15 @@ from auth import (
 from bson import ObjectId
 from docx import Document
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, File, HTTPException, UploadFile, status
+from fastapi import (
+    BackgroundTasks,
+    Depends,
+    FastAPI,
+    File,
+    HTTPException,
+    UploadFile,
+    status,
+)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.security import OAuth2PasswordRequestForm
@@ -133,9 +142,56 @@ async def upload_document(
     return {"message": "Document processed", "filename": file.filename}
 
 
+async def generate_title_background(
+    conversation_id: str, first_prompt: str, ai_backend_url: str
+):
+    system_instruction = (
+        "You are a precise title generator. Create a concise, professional title (3-5 words) "
+        "summarizing the user request. Do not include quotes, punctuation, markdown formatting, "
+        "or filler text. Return ONLY the raw title string."
+    )
+
+    title_prompt = f"{system_instruction}\n\nUser Request: {first_prompt}"
+
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(
+                f"{ai_backend_url}/chat", json={"prompt": title_prompt}
+            )
+            response.raise_for_status()
+
+            raw_title = ""
+            for line in response.text.splitlines():
+                if line.startswith("data: "):
+                    try:
+                        clean_chunk = json.loads(line.replace("data: ", ""))
+                        raw_title += clean_chunk
+                    except json.JSONDecodeError:
+                        pass
+
+            refined_title = raw_title.strip().replace('"', "").replace("'", "")[:40]
+
+            if refined_title:
+                await db.conversations.update_one(
+                    {"_id": ObjectId(conversation_id)},
+                    {
+                        "$set": {
+                            "title": refined_title,
+                            "updated_at": datetime.utcnow(),
+                        }
+                    },
+                )
+    except httpx.TimeoutException:
+        print(f"⚠️ Background title generation timed out for {conversation_id}.")
+    except Exception as e:
+        print(f"⚠️ Background title generation failed for {conversation_id}: {repr(e)}")
+
+
 @app.post("/chat")
 async def chat(
-    request: ChatRequest, email: Optional[str] = Depends(get_optional_user_email)
+    request: ChatRequest,
+    background_tasks: BackgroundTasks,
+    email: Optional[str] = Depends(get_optional_user_email),
 ):
     # 1. Identify User
     user_id = None
@@ -144,27 +200,34 @@ async def chat(
         if user:
             user_id = str(user["_id"])
 
-    async def generate():
-        user_msg = Message(role="user", content=request.prompt)
-        ai_content = ""  # <--- THIS IS THE LINE THAT WAS MISSING!
+    # Determine or generate the conversation ID ahead of the stream
+    # so the frontend can receive it via custom headers or early payloads.
+    is_new_conversation = not request.conversation_id
+    current_conv_id = request.conversation_id or str(ObjectId())
 
-        # 2. Build the context and connect to AI
+    async def generate():
+        user_msg = {
+            "role": "user",
+            "content": request.prompt,
+            "timestamp": datetime.utcnow(),
+        }
+        ai_content = ""
         full_prompt = request.prompt
 
-        # If this is an existing conversation, grab history and documents
-        if request.conversation_id:
-            conv = await db.conversations.find_one(
-                {"_id": ObjectId(request.conversation_id)}
-            )
+        # Pull history if appending to existing conversation
+        if not is_new_conversation:
+            conv = await db.conversations.find_one({"_id": ObjectId(current_conv_id)})
             if conv and "messages" in conv:
                 history = ""
-                # Get the last 8 messages to give the AI context without overloading tokens
                 for m in conv["messages"][-8:]:
                     history += f"{m['role'].upper()}: {m['content']}\n\n"
-
-                full_prompt = f"Here is the context of our conversation and any documents I uploaded:\n{history}\n\nPlease respond to my next prompt based on this context.\n\nUSER PROMPT: {request.prompt}"
+                full_prompt = (
+                    f"Here is the context of our conversation and any documents I uploaded:\n{history}"
+                    f"\nPlease respond to my next prompt based on this context.\n\nUSER PROMPT: {request.prompt}"
+                )
 
         ai_backend_url = os.getenv("AI_BACKEND_URL", "http://127.0.0.1:8000")
+
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 req_data = {"prompt": full_prompt}
@@ -172,7 +235,6 @@ async def chat(
                     "POST", f"{ai_backend_url}/chat", json=req_data
                 ) as response:
                     response.raise_for_status()
-
                     async for line in response.aiter_lines():
                         if line.startswith("data: "):
                             try:
@@ -181,53 +243,55 @@ async def chat(
                             except json.JSONDecodeError:
                                 pass
                         yield line + "\n"
-        except httpx.HTTPStatusError as e:
-            # The AI backend received the request but crashed or rejected it (e.g., 500 or 422)
-            print(f"❌ HTTP Error from AI Backend: {e.response.status_code}")
-            print(f"❌ Details: {e.response.text}")
-
+        except (httpx.HTTPStatusError, httpx.RequestError) as e:
+            print(f"❌ AI Backend connection failure: {e}")
             mock_words = ["I", " couldn't", " reach", " the", " AI..."]
             for word in mock_words:
                 ai_content += word
                 yield f"data: {word}\n\n"
                 await asyncio.sleep(0.1)
 
-        except httpx.RequestError as e:
-            # The App Backend couldn't even connect (e.g., wrong port, AI backend is offline, or timeout)
-            print(f"❌ Connection Error to AI Backend: {e}")
-
-            mock_words = ["I", " couldn't", " reach", " the", " AI..."]
-            for word in mock_words:
-                ai_content += word
-                yield f"data: {word}\n\n"
-                await asyncio.sleep(0.1)
-
-        # 4. Save to MongoDB (ONLY if the user is logged in)
+        # 4. Save to MongoDB if the user context is authenticated
         if user_id:
-            ai_msg = Message(role="assistant", content=ai_content)
+            ai_msg = {
+                "role": "assistant",
+                "content": ai_content,
+                "timestamp": datetime.utcnow(),
+            }
 
-            if request.conversation_id:
-                # Append to existing conversation
+            if not is_new_conversation:
                 await db.conversations.update_one(
-                    {"_id": ObjectId(request.conversation_id)},
+                    {"_id": ObjectId(current_conv_id)},
                     {
-                        "$push": {
-                            "messages": {
-                                "$each": [user_msg.model_dump(), ai_msg.model_dump()]
-                            }
-                        }
+                        "$push": {"messages": {"$each": [user_msg, ai_msg]}},
+                        "$set": {"updated_at": datetime.utcnow()},
                     },
                 )
             else:
-                # Create brand new conversation
-                new_conv = Conversation(
-                    user_id=user_id,
-                    title=request.prompt[:25] + "...",  # Auto-generate a short title
-                    messages=[user_msg, ai_msg],
-                )
-                await db.conversations.insert_one(new_conv.model_dump())
+                # Store the provisional conversation document
+                provisional_title = request.prompt[:30] + "..."
+                new_conv = {
+                    "_id": ObjectId(current_conv_id),
+                    "user_id": user_id,
+                    "title": provisional_title,
+                    "messages": [user_msg, ai_msg],
+                    "created_at": datetime.utcnow(),
+                    "updated_at": datetime.utcnow(),
+                }
+                await db.conversations.insert_one(new_conv)
 
-    return StreamingResponse(generate(), media_type="text/event-stream")
+                background_tasks.add_task(
+                    generate_title_background,
+                    current_conv_id,
+                    request.prompt,
+                    ai_backend_url,
+                )
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={"X-Conversation-Id": current_conv_id},
+    )
 
 
 @app.get("/conversations")

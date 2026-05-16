@@ -1,26 +1,78 @@
 import { useState, useRef, useEffect } from "react";
+import { useParams, useNavigate } from "react-router";
 import { AppSidebar } from "@/components/common/AppSidebar";
 import ChatInput from "@/components/chat/ChatInput";
 import StreamWindow from "@/components/chat/StreamWindow";
 import type { Message } from "@/components/chat/StreamWindow";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { useAuth } from "@/hooks/useAuth";
+import { useConversations } from "@/hooks/useConversations";
 
 export default function ChatPage() {
-  const { token } = useAuth(); // Pull the JWT from our context
+  const { token } = useAuth();
+  const navigate = useNavigate();
+  const { conversationId } = useParams<{ conversationId?: string }>();
+
+  const {
+    activeConversationId,
+    setActiveConversationId,
+    addProvisionalConversation,
+    fetchConversations,
+    swapProvisionalId,
+    setGeneratingTitleId,
+  } = useConversations();
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [activeConversationId, setActiveConversationId] = useState<
-    string | null
-  >("6a06f40fa821637dd9a28070");
 
   const isChatActive = messages.length > 0 || loading;
 
-  // Auto-scroll whenever messages update
+  useEffect(() => {
+    const abortController = new AbortController();
+
+    if (conversationId) {
+      setActiveConversationId(conversationId);
+
+      const loadHistoryLog = async () => {
+        try {
+          const response = await fetch(
+            `http://localhost:8080/conversations/${conversationId}`,
+            {
+              headers: { Authorization: `Bearer ${token}` },
+              signal: abortController.signal,
+            },
+          );
+          if (response.ok) {
+            const data = await response.json();
+            setMessages(data.messages || []);
+          } else {
+            console.error("Conversation not found, falling back.");
+            // Send them back to a clean chat state if the ID is invalid
+            navigate("/chat", { replace: true });
+          }
+        } catch (err: any) {
+          if (err.name !== "AbortError") {
+            console.error("Failed loading chat history:", err);
+          }
+        }
+      };
+
+      loadHistoryLog();
+    } else {
+      setActiveConversationId(null);
+      setMessages([]);
+    }
+
+    // Cleanup function cancels in-flight fetch if user navigates away rapidly
+    return () => {
+      abortController.abort();
+    };
+  }, [conversationId, setActiveConversationId, token, navigate]);
+
+  // Auto-scroll logic
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollIntoView({ behavior: "smooth" });
@@ -39,9 +91,7 @@ export default function ChatPage() {
         `http://localhost:8080/upload/${activeConversationId}`,
         {
           method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          headers: { Authorization: `Bearer ${token}` },
           body: formData,
         },
       );
@@ -78,6 +128,17 @@ export default function ChatPage() {
     setInput("");
     setLoading(true);
 
+    const isNewChat = !activeConversationId;
+    const tempId = `optimistic_${Date.now()}`;
+    const provisionalTitle = userMessage.substring(0, 25) + "...";
+
+    if (isNewChat) {
+      // 1. INSTANT OPTIMISTIC UI
+      addProvisionalConversation(tempId, provisionalTitle);
+      setGeneratingTitleId(tempId);
+      setActiveConversationId(tempId);
+    }
+
     try {
       const response = await fetch("http://localhost:8080/chat", {
         method: "POST",
@@ -85,33 +146,87 @@ export default function ChatPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ prompt: userMessage }),
+        body: JSON.stringify({
+          prompt: userMessage,
+          conversation_id: isNewChat ? null : activeConversationId,
+          client_context: {
+            timestamp: new Date().toISOString(),
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          },
+        }),
       });
 
       if (!response.ok)
         throw new Error(`HTTP error! status: ${response.status}`);
       if (!response.body) throw new Error("No response body");
 
+      const returnedConvId = response.headers.get("X-Conversation-Id");
+
+      if (isNewChat && returnedConvId) {
+        // 2. THE ID SWAP
+        swapProvisionalId(tempId, returnedConvId);
+        navigate(`/chat/${returnedConvId}`, { replace: true });
+
+        // 3. HARDENED SMART POLLING
+        let attempts = 0;
+        const maxAttempts = 8; // Poll up to 8 times (32 seconds max for local LLM)
+        const pollIntervalMs = 4000;
+
+        const pollForTitle = setInterval(async () => {
+          attempts++;
+
+          try {
+            // Direct metadata check bypassing local array closure mutations
+            const res = await fetch(
+              `http://localhost:8080/conversations/${returnedConvId}`,
+              {
+                headers: { Authorization: `Bearer ${token}` },
+              },
+            );
+
+            if (res.ok) {
+              const chatDoc = await res.json();
+
+              // If the backend has generated a real title that is different from our placeholder
+              if (chatDoc && chatDoc.title && !chatDoc.title.endsWith("...")) {
+                clearInterval(pollForTitle);
+                setGeneratingTitleId(null);
+                await fetchConversations(); // Global sync to trigger React re-render
+                return;
+              }
+            }
+          } catch (pollErr) {
+            console.error("Error during title polling iteration:", pollErr);
+          }
+
+          if (attempts >= maxAttempts) {
+            clearInterval(pollForTitle);
+            setGeneratingTitleId(null);
+            await fetchConversations(); // Final fallback sync
+          }
+        }, pollIntervalMs);
+      }
+
+      // Initialize Assistant Frame
       setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
 
+      // Stream text tokens
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
 
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n");
-
         buffer = lines.pop() || "";
 
         for (const line of lines) {
           if (line.startsWith("data: ")) {
             try {
               const rawText = JSON.parse(line.replace("data: ", ""));
-
               setMessages((prev) => {
                 const updatedMessages = [...prev];
                 const lastIndex = updatedMessages.length - 1;
@@ -127,6 +242,10 @@ export default function ChatPage() {
       }
     } catch (err) {
       console.error("Stream failed:", err);
+      if (isNewChat) {
+        setGeneratingTitleId(null);
+        await fetchConversations();
+      }
       setMessages((prev) => [
         ...prev,
         {
@@ -151,13 +270,11 @@ export default function ChatPage() {
                   R
                 </span>
               </div>
-
               <div className="text-center mb-4 shrink-0">
                 <h2 className="text-2xl md:text-3xl font-bold tracking-tight mb-2 text-foreground">
                   How can I help you today?
                 </h2>
               </div>
-
               <div className="w-full mt-4 shrink-0">
                 <ChatInput
                   input={input}
@@ -175,7 +292,6 @@ export default function ChatPage() {
           <main className="flex-1 w-full flex flex-col relative items-center overflow-hidden">
             <div className="flex-1 w-full overflow-y-auto px-4 pt-8 pb-32">
               <div className="max-w-3xl mx-auto">
-                {/* Pass the messages array to the StreamWindow */}
                 <StreamWindow messages={messages} scrollRef={scrollRef} />
               </div>
             </div>

@@ -1,12 +1,21 @@
+# Web Server & Framework
 fastapi
 uvicorn[standard]
+python-multipart
+
+# Database & Environment
 motor
 python-dotenv
+
+# External Connections
 httpx
+
+# Security & Authentication
 bcrypt
-python-jose[cryptography]
+PyJWT
 pydantic[email]
-python-multipart
+
+# Document Processing (RAG / Export)
 pypdf
 python-docx
 openpyxl

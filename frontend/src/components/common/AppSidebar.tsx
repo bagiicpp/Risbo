@@ -8,6 +8,8 @@ import {
   Plus,
   Sun,
   Moon,
+  MessageSquare,
+  Loader2,
 } from "lucide-react";
 import {
   Sidebar,
@@ -32,6 +34,7 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router";
 import { useTheme } from "@/context/ThemeProvider";
+import { useConversations } from "@/hooks/useConversations";
 
 export function AppSidebar() {
   const { theme, setTheme } = useTheme();
@@ -43,6 +46,24 @@ export function AppSidebar() {
   const handleLogout = () => {
     logout();
     navigate("/login");
+  };
+
+  const {
+    conversations,
+    loading,
+    activeConversationId,
+    setActiveConversationId,
+    generatingTitleId,
+  } = useConversations();
+
+  const handleSelectConversation = (id: string) => {
+    setActiveConversationId(id);
+    navigate(`/chat/${id}`);
+  };
+
+  const handleNewChat = () => {
+    setActiveConversationId(null);
+    navigate("/chat");
   };
 
   return (
@@ -81,16 +102,15 @@ export function AppSidebar() {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
-              className="w-full h-10 mt-4 gap-3 rounded-xl bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground transition-all duration-300 cursor-pointer font-medium shadow-sm group-data-[collapsible=icon]:w-10 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:justify-center"
+              onClick={handleNewChat}
+              className="w-full h-10 mt-4 gap-3 rounded-xl bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground transition-all duration-300 cursor-pointer font-medium shadow-sm"
               tooltip="New Chat"
             >
               <Plus
                 size={18}
                 className="shrink-0 transition-transform group-hover:rotate-90 duration-300"
               />
-              <span className="group-data-[collapsible=icon]:hidden">
-                New chat
-              </span>
+              <span>New chat</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
@@ -103,7 +123,48 @@ export function AppSidebar() {
             Recent Conversations
           </SidebarGroupLabel>
           <SidebarGroupContent>
-            {/* Future history mapping */}
+            {loading && conversations.length === 0 ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground/50" />
+              </div>
+            ) : (
+              <SidebarMenu>
+                {conversations.map((conv) => {
+                  const isActive = conv._id === activeConversationId;
+                  const isGenerating = conv._id === generatingTitleId;
+
+                  if (isGenerating) {
+                    return (
+                      <SidebarMenuItem key={conv._id}>
+                        <div className="flex w-full gap-3 px-3 py-2 items-center rounded-lg bg-primary/5 border border-primary/10">
+                          <Loader2 className="w-4 h-4 animate-spin text-primary/60 shrink-0" />
+                          <div className="h-3.5 w-3/4 bg-primary/15 rounded-md animate-pulse"></div>
+                        </div>
+                      </SidebarMenuItem>
+                    );
+                  }
+
+                  return (
+                    <SidebarMenuItem key={conv._id}>
+                      <SidebarMenuButton
+                        onClick={() => handleSelectConversation(conv._id)}
+                        className={`w-full gap-3 rounded-lg transition-all duration-200 justify-start align-middle px-3 py-2 ${
+                          isActive
+                            ? "bg-primary/10 text-primary font-medium"
+                            : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                        }`}
+                        tooltip={conv.title}
+                      >
+                        <MessageSquare size={16} className="shrink-0" />
+                        <span className="truncate max-w-[160px] text-sm group-data-[collapsible=icon]:hidden">
+                          {conv.title}
+                        </span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            )}
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
