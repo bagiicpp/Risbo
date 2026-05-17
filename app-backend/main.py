@@ -221,9 +221,15 @@ async def chat(
                 history = ""
                 for m in conv["messages"][-8:]:
                     history += f"{m['role'].upper()}: {m['content']}\n\n"
+                
+                # --- UPDATED PROMPT OVERRIDE ---
                 full_prompt = (
-                    f"Here is the context of our conversation and any documents I uploaded:\n{history}"
-                    f"\nPlease respond to my next prompt based on this context.\n\nUSER PROMPT: {request.prompt}"
+                    f"Here is our conversation history, which includes text automatically extracted from documents I uploaded (labeled as SYSTEM):\n\n"
+                    f"{history}\n"
+                    f"IMPORTANT INSTRUCTION: If I ask you about a file or document, DO NOT say you cannot access or read it. "
+                    f"The contents of the files have already been extracted and placed in the history above. "
+                    f"Just read the history to find the document text, and answer my prompt directly.\n\n"
+                    f"USER PROMPT: {request.prompt}"
                 )
 
         ai_backend_url = os.getenv("AI_BACKEND_URL", "http://127.0.0.1:8000")
