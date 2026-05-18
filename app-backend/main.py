@@ -15,9 +15,12 @@ from auth import (
     verify_password,
 )
 from bson import ObjectId
+from bson.errors import InvalidId
+from bson.objectid import ObjectId
 from docx import Document
 from dotenv import load_dotenv
 from fastapi import (
+    APIRouter,
     BackgroundTasks,
     Depends,
     FastAPI,
@@ -187,6 +190,10 @@ async def generate_title_background(
         print(f"⚠️ Background title generation failed for {conversation_id}: {repr(e)}")
 
 
+# Assuming your router and dependencies are imported appropriately
+# router = APIRouter()
+
+
 @app.post("/chat")
 async def chat(
     request: ChatRequest,
@@ -200,10 +207,23 @@ async def chat(
         if user:
             user_id = str(user["_id"])
 
-    # Determine or generate the conversation ID ahead of the stream
-    # so the frontend can receive it via custom headers or early payloads.
-    is_new_conversation = not request.conversation_id
-    current_conv_id = request.conversation_id or str(ObjectId())
+    # 2. Check if the incoming conversation ID is a valid MongoDB ObjectId hex string
+    # If the frontend sent an optimistic ID like 'optimistic_1234', this evaluates to False
+    is_valid_id = (
+        ObjectId.is_valid(request.conversation_id) if request.conversation_id else False
+    )
+
+    # Force "is_new_conversation" tracking if no ID was provided OR if the provided ID is a fake optimistic one
+    is_new_conversation = not request.conversation_id or not is_valid_id
+
+    # Establish the ID context safely
+    if is_new_conversation:
+        # Generate a real, structurally flawless MongoDB ObjectId immediately
+        db_assigned_id = ObjectId()
+        current_conv_id = str(db_assigned_id)
+    else:
+        current_conv_id = request.conversation_id
+        db_assigned_id = ObjectId(current_conv_id)
 
     async def generate():
         user_msg = {
@@ -214,23 +234,41 @@ async def chat(
         ai_content = ""
         full_prompt = request.prompt
 
-        # Pull history if appending to existing conversation
+        # Pull history only if it's an existing conversation and we have a valid ID sequence
+        # Pull history if appending to an existing conversation
         if not is_new_conversation:
-            conv = await db.conversations.find_one({"_id": ObjectId(current_conv_id)})
-            if conv and "messages" in conv:
-                history = ""
-                for m in conv["messages"][-8:]:
-                    history += f"{m['role'].upper()}: {m['content']}\n\n"
-                
-                # --- UPDATED PROMPT OVERRIDE ---
-                full_prompt = (
-                    f"Here is our conversation history, which includes text automatically extracted from documents I uploaded (labeled as SYSTEM):\n\n"
-                    f"{history}\n"
-                    f"IMPORTANT INSTRUCTION: If I ask you about a file or document, DO NOT say you cannot access or read it. "
-                    f"The contents of the files have already been extracted and placed in the history above. "
-                    f"Just read the history to find the document text, and answer my prompt directly.\n\n"
-                    f"USER PROMPT: {request.prompt}"
-                )
+            try:
+                conv = await db.conversations.find_one({"_id": db_assigned_id})
+                if conv and "messages" in conv:
+                    history_chunks = []
+
+                    for m in conv["messages"][-8:]:
+                        role = m.get("role", "user").upper()
+                        content = m.get("content", "")
+
+                        if len(content) > 3000:
+                            content = (
+                                content[:3000]
+                                + "... [Content truncated for length] ..."
+                            )
+
+                        history_chunks.append(f"{role}: {content}")
+
+                    history = "\n\n".join(history_chunks)
+
+                    full_prompt = (
+                        f"CONTEXT & CONVERSATION HISTORY:\n"
+                        f"=================================\n"
+                        f"{history}\n"
+                        f"=================================\n\n"
+                        f"[SYSTEM INSTRUCTION]: The history above contains previous turns and text automatically "
+                        f"extracted from user-uploaded documents (labeled as SYSTEM or USER). If the user asks about a "
+                        f"file, document, or past context, DO NOT state that you cannot access it. The content is fully "
+                        f"available in the history block provided above. Read it carefully to formulate your answer.\n\n"
+                        f"USER PROMPT: {request.prompt}"
+                    )
+            except InvalidId:
+                pass
 
         ai_backend_url = os.getenv("AI_BACKEND_URL", "http://127.0.0.1:8000")
 
@@ -267,17 +305,17 @@ async def chat(
 
             if not is_new_conversation:
                 await db.conversations.update_one(
-                    {"_id": ObjectId(current_conv_id)},
+                    {"_id": db_assigned_id},
                     {
                         "$push": {"messages": {"$each": [user_msg, ai_msg]}},
                         "$set": {"updated_at": datetime.utcnow()},
                     },
                 )
             else:
-                # Store the provisional conversation document
+                # Store the provisional conversation document using our verified safe ObjectId
                 provisional_title = request.prompt[:30] + "..."
                 new_conv = {
-                    "_id": ObjectId(current_conv_id),
+                    "_id": db_assigned_id,
                     "user_id": user_id,
                     "title": provisional_title,
                     "messages": [user_msg, ai_msg],
@@ -286,6 +324,7 @@ async def chat(
                 }
                 await db.conversations.insert_one(new_conv)
 
+                # Pass the structurally sound clean string representation to your background task
                 background_tasks.add_task(
                     generate_title_background,
                     current_conv_id,

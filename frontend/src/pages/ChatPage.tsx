@@ -50,7 +50,6 @@ export default function ChatPage() {
             setMessages(data.messages || []);
           } else {
             console.error("Conversation not found, falling back.");
-            // Send them back to a clean chat state if the ID is invalid
             navigate("/chat", { replace: true });
           }
         } catch (err: any) {
@@ -66,13 +65,11 @@ export default function ChatPage() {
       setMessages([]);
     }
 
-    // Cleanup function cancels in-flight fetch if user navigates away rapidly
     return () => {
       abortController.abort();
     };
   }, [conversationId, setActiveConversationId, token, navigate]);
 
-  // Auto-scroll logic
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollIntoView({ behavior: "smooth" });
@@ -133,7 +130,6 @@ export default function ChatPage() {
     const provisionalTitle = userMessage.substring(0, 25) + "...";
 
     if (isNewChat) {
-      // 1. INSTANT OPTIMISTIC UI
       addProvisionalConversation(tempId, provisionalTitle);
       setGeneratingTitleId(tempId);
       setActiveConversationId(tempId);
@@ -163,20 +159,17 @@ export default function ChatPage() {
       const returnedConvId = response.headers.get("X-Conversation-Id");
 
       if (isNewChat && returnedConvId) {
-        // 2. THE ID SWAP
         swapProvisionalId(tempId, returnedConvId);
         navigate(`/chat/${returnedConvId}`, { replace: true });
 
-        // 3. HARDENED SMART POLLING
         let attempts = 0;
-        const maxAttempts = 8; // Poll up to 8 times (32 seconds max for local LLM)
+        const maxAttempts = 8;
         const pollIntervalMs = 4000;
 
         const pollForTitle = setInterval(async () => {
           attempts++;
 
           try {
-            // Direct metadata check bypassing local array closure mutations
             const res = await fetch(
               `http://localhost:8080/conversations/${returnedConvId}`,
               {
@@ -186,12 +179,10 @@ export default function ChatPage() {
 
             if (res.ok) {
               const chatDoc = await res.json();
-
-              // If the backend has generated a real title that is different from our placeholder
               if (chatDoc && chatDoc.title && !chatDoc.title.endsWith("...")) {
                 clearInterval(pollForTitle);
                 setGeneratingTitleId(null);
-                await fetchConversations(); // Global sync to trigger React re-render
+                await fetchConversations();
                 return;
               }
             }
@@ -202,19 +193,17 @@ export default function ChatPage() {
           if (attempts >= maxAttempts) {
             clearInterval(pollForTitle);
             setGeneratingTitleId(null);
-            await fetchConversations(); // Final fallback sync
+            await fetchConversations();
           }
         }, pollIntervalMs);
       }
 
-      // Initialize Assistant Frame
       setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
 
-      // Stream text tokens
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
@@ -259,19 +248,21 @@ export default function ChatPage() {
   };
 
   return (
-    <SidebarProvider className="h-screen w-full overflow-hidden bg-background">
+    <SidebarProvider className="h-screen w-full overflow-hidden bg-background font-dmsans">
       <AppSidebar />
       <SidebarInset className="flex flex-col h-full relative overflow-hidden bg-background">
         {!isChatActive ? (
           <main className="flex-1 flex flex-col items-center justify-center p-4 w-full h-full overflow-hidden">
             <div className="flex flex-col items-center w-full max-w-3xl animate-in fade-in duration-700 space-y-6">
+              {/* Decorative App Initial containing Bricolage Typography */}
               <div className="w-16 h-16 bg-gradient-to-br from-primary/20 to-primary/10 rounded-2xl flex items-center justify-center shadow-sm border border-primary/20 shrink-0">
-                <span className="text-primary text-2xl font-black italic leading-none">
+                <span className="text-primary text-2xl font-bricolage font-black italic leading-none">
                   R
                 </span>
               </div>
               <div className="text-center mb-4 shrink-0">
-                <h2 className="text-2xl md:text-3xl font-bold tracking-tight mb-2 text-foreground">
+                {/* Hero Greeting explicitly styled with Bricolage Grotesque */}
+                <h2 className="text-2xl md:text-4xl font-bricolage font-black tracking-tight mb-2 text-foreground">
                   How can I help you today?
                 </h2>
               </div>

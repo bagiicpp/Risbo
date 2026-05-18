@@ -18,6 +18,9 @@
   --color-risbo-green-800: #065f46;
   --color-risbo-green-900: #064e3b;
   --color-risbo-green-950: #022c22;
+
+  --font-bricolage: "Bricolage Grotesque", sans-serif;
+  --font-dmsans: "DM Sans", sans-serif;
 }
 
 @theme inline {

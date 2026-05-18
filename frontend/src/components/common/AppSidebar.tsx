@@ -71,15 +71,17 @@ export function AppSidebar() {
       <SidebarHeader className="p-4 group-data-[collapsible=icon]:p-2">
         <div className="flex items-center justify-between group-data-[collapsible=icon]:justify-center mb-2 min-h-8">
           <div className="flex items-center gap-3 overflow-hidden group-data-[collapsible=icon]:hidden">
+            {/* Branding container initial letter using font-bricolage */}
             <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shrink-0 shadow-sm shadow-primary/20">
-              <span className="text-primary-foreground font-bold italic text-lg leading-none">
+              <span className="text-primary-foreground font-bricolage font-extrabold italic text-lg leading-none">
                 R
               </span>
             </div>
             {!isCollapsed && (
-              <h1 className="text-xl font-bold tracking-tight text-foreground whitespace-nowrap flex items-baseline gap-1">
+              /* Title using font-bricolage explicitly */
+              <h1 className="text-xl font-bricolage font-bold tracking-tight text-foreground whitespace-nowrap flex items-baseline gap-1">
                 Risbo{" "}
-                <span className="text-primary/70 text-[10px] font-semibold uppercase tracking-widest">
+                <span className="font-dmsans text-primary/70 text-[10px] font-semibold uppercase tracking-widest">
                   v1.0
                 </span>
               </h1>
@@ -103,7 +105,7 @@ export function AppSidebar() {
           <SidebarMenuItem>
             <SidebarMenuButton
               onClick={handleNewChat}
-              className="w-full h-10 mt-4 gap-3 rounded-xl bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground transition-all duration-300 cursor-pointer font-medium shadow-sm"
+              className="w-full h-10 mt-4 gap-3 rounded-xl bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground transition-all duration-300 cursor-pointer font-dmsans font-medium shadow-sm"
               tooltip="New Chat"
             >
               <Plus
@@ -119,7 +121,7 @@ export function AppSidebar() {
       <SidebarContent className="px-2">
         {/* Recents Section */}
         <SidebarGroup>
-          <SidebarGroupLabel className="text-[11px] font-semibold text-muted-foreground/60 uppercase tracking-widest mb-1 group-data-[collapsible=icon]:hidden">
+          <SidebarGroupLabel className="font-dmsans text-[11px] font-semibold text-muted-foreground/60 uppercase tracking-widest mb-1 group-data-[collapsible=icon]:hidden">
             Recent Conversations
           </SidebarGroupLabel>
           <SidebarGroupContent>
@@ -148,7 +150,7 @@ export function AppSidebar() {
                     <SidebarMenuItem key={conv._id}>
                       <SidebarMenuButton
                         onClick={() => handleSelectConversation(conv._id)}
-                        className={`w-full gap-3 rounded-lg transition-all duration-200 justify-start align-middle px-3 py-2 ${
+                        className={`w-full gap-3 rounded-lg font-dmsans transition-all duration-200 justify-start align-middle px-3 py-2 ${
                           isActive
                             ? "bg-primary/10 text-primary font-medium"
                             : "text-muted-foreground hover:bg-accent hover:text-foreground"
@@ -178,10 +180,10 @@ export function AppSidebar() {
                   size="lg"
                   className="w-full h-14 rounded-xl data-[state=open]:bg-accent data-[state=open]:text-accent-foreground hover:bg-accent transition-all duration-200 cursor-pointer border border-transparent hover:border-border/50 group-data-[collapsible=icon]:w-10 group-data-[collapsible=icon]:h-10 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:justify-center"
                 >
-                  <div className="flex aspect-square size-9 items-center justify-center rounded-lg bg-gradient-to-br from-primary/20 to-primary/10 text-primary font-bold border border-primary/20 shadow-sm shrink-0">
+                  <div className="flex aspect-square size-9 items-center justify-center rounded-lg bg-gradient-to-br from-primary/20 to-primary/10 text-primary font-bricolage font-bold border border-primary/20 shadow-sm shrink-0">
                     B
                   </div>
-                  <div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden ml-2">
+                  <div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden ml-2 font-dmsans">
                     <span className="truncate font-semibold text-foreground">
                       Blagoja
                     </span>
@@ -195,7 +197,7 @@ export function AppSidebar() {
 
               <DropdownMenuContent
                 side="top"
-                className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-xl p-1.5 shadow-xl border-border/50 bg-background/95 backdrop-blur-xl"
+                className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-xl p-1.5 shadow-xl border-border/50 bg-background/95 backdrop-blur-xl font-dmsans"
                 align="start"
                 sideOffset={8}
               >
