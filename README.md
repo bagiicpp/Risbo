@@ -1,290 +1,208 @@
-# 🤝 Moj najboljši prijatelj (RizzBo) — Projektni README
+# Risbo (Moj najboljši prijatelj) — Projektni README
 
-> Poenostavljen pogovorni asistent za vsakodnevno pomoč pri učenju, organizaciji in ustvarjanju vsebin.
-
----
-
-## 📌 O projektu
-
-**Moj najboljši prijatelj** je spletna aplikacija, ki deluje kot osebni AI asistent. Uporabnik se z njim pogovarja v naravnem jeziku, mu nalaga dokumente in dobiva koristne odgovore, povzetke ter ustvarjene datoteke.
-
-Projekt je zasnovan modularno — asistenta je mogoče specializirati za določeno področje, na primer:
-
-| Domena                | Primer uporabe                                              |
-| --------------------- | ----------------------------------------------------------- |
-| 📚 Študijski asistent | Razlaga gradiv, povzetki, priprava na izpite                |
-| 💼 Karierni asistent  | Pisanje CV-jev, motivacijskih pisem, priprava na intervjuje |
-| 🏢 Poslovni asistent  | Priprava poročil, povzetki sestankov, analize               |
+Specializiran, podatkovno voden AI asistent za športnike, trenerje in kineziologe, ki ga poganjajo lokalni jezikovni modeli za maksimalno zasebnost.
 
 ---
 
-## 🎯 Cilj prve faze
+## O projektu
 
-Za začetek se osredotočamo na **osnovno delujočo aplikacijo** s sledečimi funkcionalnostmi:
+Risbo (Projekt Moj najboljši prijatelj) je spletna aplikacija in osebni AI asistent, ki je ekspertno usposobljen za področja biomehanike, tempiranja prehrane, hipertrofije in regeneracije. Uporabnik se z njim pogovarja v naravnem jeziku, mu nalaga dokumente (npr. plane treningov, raziskave) in dobiva strokovne, podatkovno podprte odgovore in analize.
 
-### ✅ MVP (Minimum Viable Product)
+Ker aplikacija za delovanje uporablja lokalne LLM modele (preko Ollame), vsi vaši pogovori in naloženi dokumenti ostanejo izključno na vaši napravi. Ni pošiljanja podatkov v oblak!
 
+| Domena | Primer uporabe |
+|---|---|
+| Trening in kineziologija | Analiza biomehanike vaj, nasveti za hipertrofijo in moč |
+| Prehrana in regeneracija | Tempiranje makrohranil, protokoli za spanec in okrevanje |
+| Analiza podatkov | Branje in povzemanje PDF raziskav, analiziranje Excel tabel z rezultati |
+
+---
+
+## Trenutno stanje projekta
+
+Uspešno smo zaključili prvo fazo razvoja in dosegli popolnoma delujoč MVP (Minimum Viable Product).
+
+### MVP funkcionalnosti
 - [x] Pogovor z asistentom v naravnem jeziku (chat vmesnik)
-- [x] Shranjevanje zgodovine pogovorov
+- [x] Shranjevanje zgodovine pogovorov v podatkovno bazo
 - [x] Iskanje po preteklih pogovorih po ključnih besedah
 - [x] Ustvarjanje novih pogovorov po temah
 - [x] Nalaganje dokumentov (PDF, Word, Excel)
 - [x] Povzemanje naloženih dokumentov
 - [x] Odgovarjanje na vprašanja na podlagi vsebine dokumentov
 - [x] Izvoz rezultatov (Word, Excel, PDF)
-- [ ] Enostaven in pregleden uporabniški vmesnik
+- [x] Enostaven, pregleden in odziven uporabniški vmesnik
 
 ---
 
-## 🛠️ Tehnološki sklad
+## Tehnološki sklad
 
-```
-Frontend:    React + Tailwind CSS + Bun
-App Backend: Python FastAPI + MongoDB
-AI Backend:  Python FastAPI (Google AI Studio wrapper)
-AI Model:    Gemma 4 prek Google AI Studio API
-```
+**Frontend:** React + Tailwind CSS + Vite (npm/bun)  
+**App Backend:** Python FastAPI + MongoDB  
+**AI Backend:** Python FastAPI + Ollama (Lokalni modeli)  
+**AI Model:** Gemma 3 (4B) ali katerikoli drug lokalni model  
+**Infrastruktura:** Docker + Docker Compose
 
 ### Zakaj ta izbor?
 
-| Tehnologija              | Razlog                                                                                 |
-| ------------------------ | -------------------------------------------------------------------------------------- |
-| **React + Tailwind**     | Hiter razvoj UI, komponente, responsive design brez napora                             |
-| **Python FastAPI**       | Hiter async REST API, avtomatska OpenAPI dokumentacija, odlična podpora za AI/ML       |
-| **Bun**                  | Hiter JS runtime za orodja, skripte in paketni manager namesto npm                     |
-| **MongoDB**              | Fleksibilna NoSQL baza — idealna za shranjevanje pogovorov in dokumentov v JSON obliki |
-| **Gemma 4 via HF API**   | Brezplačen hosted AI model, brez lastnega strežnika                                    |
+| Tehnologija | Razlog |
+|---|---|
+| React + Tailwind | Hiter razvoj UI, komponente, responsive design brez napora |
+| Python FastAPI | Hiter async REST API, avtomatska OpenAPI dokumentacija, primerno za AI |
+| Ollama | Omogoča enostavno poganjanje močnih LLM-jev na lokalnem računalniku (brezplačno, varno) |
+| MongoDB | Fleksibilna NoSQL baza — idealna za shranjevanje pogovorov in dokumentov v JSON obliki |
+| Docker Compose | Celoten "stack" aplikacije (baza, oba backenda, frontend) se zažene z eno samo komando |
 
 ---
 
-## 🏗️ Arhitektura
+## Arhitektura
 
 ```
-┌─────────────┐     REST      ┌─────────────────┐     REST      ┌──────────────────┐
-│   Frontend  │ ◄───────────► │   App Backend   │ ◄───────────► │   AI Backend     │
-│  React SPA  │               │   FastAPI       │               │   FastAPI        │
-│  port 5173  │               │   MongoDB       │               │   HF wrapper     │
-│             │               │   port 8000     │               │   port 8001      │
-└─────────────┘               └─────────────────┘               └──────────┬───────┘
-                                                                            │
-                                                                 ┌──────────▼───────────┐
-                                                                 │  HuggingFace         │
-                                                                 │  Serverless API      │
-                                                                 │  Gemma 4             │
-                                                                 └──────────────────────┘
+┌────────────────────────┐      REST      ┌─────────────────┐      REST      ┌──────────────────┐
+│   Frontend (Docker)    │ ◄────────────► │   App Backend   │ ◄────────────► │   AI Backend     │
+│   React SPA (Vite)     │                │   (Docker)      │                │   (Docker)       │
+│   localhost:5173       │                │   localhost:8080│                │   localhost:8000 │
+└────────────────────────┘                └────────┬────────┘                └────────┬─────────┘
+                                                   │                                  │
+                                          ┌────────▼────────┐                ┌────────▼─────────┐
+                                          │     MongoDB     │                │  Ollama Server   │
+                                          │    (Docker)     │                │  (Host mašina)   │
+                                          │ localhost:27017 │                │ localhost:11434  │
+                                          └─────────────────┘                └──────────────────┘
 ```
 
-**AI Backend** — edina točka komunikacije z Google AI Studio. Zamenjava modela = samo `.env`, App Backend se ne dotakne.
-
-**App Backend** — vsa poslovna logika: pogovori, dokumenti, izvoz. Kliče AI Backend prek REST.
-
-**Frontend** — React SPA, UI podoben ChatGPT/Claude.
+- **AI Backend** — Upravlja neposredno komunikacijo z vašim lokalnim Ollama strežnikom. Skrbi za sistemski "prompt" in usmerja asistenta k strokovnosti.
+- **App Backend** — Poslovna logika aplikacije: baza uporabnikov, avtentikacija (JWT), shranjevanje pogovorov, procesiranje dokumentov.
+- **Frontend** — Uporabniški vmesnik, podoben ChatGPT, kjer poteka interakcija z uporabnikom.
 
 ---
 
-## 🗂️ Struktura projekta
+## Struktura projekta
 
 ```
 rizzbo/
-├── ai-backend/             # HuggingFace wrapper
+├── ai-backend/             # FastAPI Ollama vmesnik
 │   ├── main.py
+│   ├── Dockerfile
 │   ├── requirements.txt
-│   └── .env.example
+│   └── .env
 │
-├── app-backend/            # App logika
+├── app-backend/            # Glavna poslovna logika in API
+│   ├── auth.py
 │   ├── main.py
+│   ├── models.py
+│   ├── utils.py
+│   │   tests/
+│   │   ├── __init__.py
+│   │   ├── test_auth.py
+│   │   ├── test_chat.py
+│   │   ├── test_endpoints.py
+│   │   └── test_utils.py
+│   ├── Dockerfile
+│   ├── requirements-test.txt
 │   ├── requirements.txt
-│   └── .env.example
+│   └── .env
 │
-├── frontend/               # React SPA
+├── frontend/               # Uporabniški vmesnik (React/Vite)
 │   ├── src/
-│   │   ├── components/
-│   │   │   ├── Chat/       # Pogovorno okno
-│   │   │   ├── Sidebar/    # Zgodovina pogovorov
-│   │   │   └── FilePanel/  # Datoteke pogovora
-│   │   └── pages/
+│   ├── Dockerfile
 │   ├── package.json
-│   └── .env.example
+│   └── vite.config.ts
 │
-├── docker-compose.yml      # MongoDB
+├── docker-compose.yml      # Orkestracija vseh kontejnerjev
 ├── .gitignore
 └── README.md
 ```
 
 ---
 
-## 🖼️ Uporabniški vmesnik — zasnova
+## Lokalni zagon (Docker)
 
-```
-┌───────────────────────────────────────────────────────────────────┐
-│  RizzBo                                              [+ Nov chat] │
-├─────────────────┬─────────────────────────┬───────────────────────┤
-│                 │                         │                       │
-│  ZGODOVINA      │    CHAT OKNO            │   DATOTEKE            │
-│                 │                         │   (tega pogovora)     │
-│  🔍 Iskanje...  │  Asistent: Zdravo!      │                       │
-│                 │                         │  📄 dokument.pdf      │
-│  Danes          │  Jaz: Povzemi mi ...    │  📊 tabela.xlsx       │
-│  • Pogovor 1    │                         │  📝 povzetek.docx     │
-│  • Pogovor 2    │  Asistent: ...          │   ↑ ustvaril AI       │
-│                 │                         │                       │
-│  Včeraj         │                         │  [ Naloži datoteko ]  │
-│  • Pogovor 3    │  [___________________]  │                       │
-│                 │              [ Pošlji ] │                       │
-└─────────────────┴─────────────────────────┴───────────────────────┘
-```
+Zahvaljujoč Dockerju je zagon celotne aplikacije izjemno preprost. Nič več ročnega zaganjanja vsake skripte posebej!
 
----
-
-## 🚀 Lokalni zagon
-
-### Zahteve
+### 0. Zahteve
 
 Pred začetkom preveri, da imaš nameščeno:
-- [Docker](https://www.docker.com/) (za MongoDB)
-- [Python 3.11+](https://www.python.org/)
-- [Bun](https://bun.sh/)
-- [Git](https://git-scm.com/)
 
----
+- Docker Desktop (z vključenim Docker Compose)
+- Ollama (mora teči na vašem glavnem sistemu, ne v Dockerju)
 
-### Korak 1 — Kloniranje repozitorija
+### 1. Priprava lokalnega AI modela
+
+Prenesite model, ki ga aplikacija pričakuje (privzeto `gemma3:4b`). Odprite terminal na računalniku in vpišite:
+
+```bash
+ollama pull gemma3:4b
+```
+
+Poskrbite, da Ollama po prenosu teče v ozadju.
+
+### 2. Kloniranje repozitorija
 
 ```bash
 git clone https://github.com/vaš-repo/rizzbo.git
 cd rizzbo
 ```
 
----
+### 3. Konfiguracija .env datotek
 
-### Korak 2 — Konfiguracija `.env` datotek
+Ker aplikacija teče v Docker omrežju, morajo biti okoljske spremenljivke nastavljene tako, da kontejnerji vidijo drug drugega in vašo host mašino.
 
-Vsak servis ima svojo `.env` datoteko. Kopiraj vzorce in jih izpolni:
+Ustvarite `ai-backend/.env`:
+
+```
+# host.docker.internal omogoča kontejnerju dostop do Ollame na vašem PC-ju
+OLLAMA_HOST=http://host.docker.internal:11434
+AI_STUDIO_MODEL=gemma3:4b
+# Ta ključ je le formalnost za preverjanje znotraj kode, vrednost je poljubna
+AI_API=rizzbo_local_key
+```
+
+Ustvarite `app-backend/.env`:
+
+```
+# Komunikacija poteka preko internih imen Docker servisov
+AI_BACKEND_URL=http://ai-backend:8000
+MONGODB_URI=mongodb://mongodb:27017/rizzbo
+JWT_SECRET_KEY=JjqFPLGx6GUU1gboqJtMlGq4pqXCg5DEVpISfEBY1v4
+```
+
+Za frontend trenutno ne potrebujemo `.env` datoteke, saj Vite proxy ali API klici privzeto ciljajo ustrezna vrata na host mašini.
+
+### 4. Zagon aplikacije
+
+V korenski mapi projekta (tam, kjer se nahaja `docker-compose.yml`) zaženite:
 
 ```bash
-cp ai-backend/.env.example ai-backend/.env
-cp app-backend/.env.example app-backend/.env
-cp frontend/.env.example frontend/.env
+docker compose up --build
 ```
 
-**`ai-backend/.env`** — dodaj HuggingFace API ključ:
-```
-AI_STUDIO_API=your_googleaistudio_api_key_here
-AI_STUDIO_MODEL=gemma-4-26b-a4b-it
-```
-> API ključ dobiš na Google AI Studio
+To je to! Docker bo prenesel bazo, zgradil frontend in oba backenda ter jih med seboj povezal.
 
-**`app-backend/.env`** — pusti kot je za lokalni razvoj:
-```
-MONGODB_URI=mongodb://localhost:27017/rizzbo
-AI_BACKEND_URL=http://localhost:8001
-```
+- **Aplikacija (UI):** http://localhost:5173
+- **App Backend API:** http://localhost:8080/docs
+- **AI Backend API:** http://localhost:8000/docs
 
-**`frontend/.env`** — pusti kot je za lokalni razvoj:
-```
-VITE_API_URL=http://localhost:8000
-```
+Za varno ustavitev aplikacije uporabite ukaz `docker compose down`.
 
 ---
 
-### Korak 3 — Zagon MongoDB
+## Ekipa
 
-```bash
-docker compose up -d
-```
-
-> MongoDB bo dosegljiv na `localhost:27017`.
-
----
-
-### Korak 4 — AI Backend
-
-```bash
-cd ai-backend
-
-# Ustvari virtualno okolje
-python -m venv .venv
-
-# Aktiviraj (Linux / macOS)
-source .venv/bin/activate
-
-# Aktiviraj (Windows)
-.venv\Scripts\activate
-
-# Namesti odvisnosti
-pip install -r requirements.txt
-
-# Zaženi (port 8001)
-uvicorn main:app --reload --port 8001
-```
+| Vloga | Odgovornosti |
+|---|---|
+| Frontend developer | UI, React komponente, UX, integracija API-jev |
+| Backend developer | FastAPI arhitektura, Dockerizacija, Ollama, MongoDB |
+| Projektni vodja | Koordinacija, testiranje, specializacija promptov (Trening/Sport) |
 
 ---
 
-### Korak 5 — App Backend
+## Opombe
 
-V novem terminalu:
-
-```bash
-cd app-backend
-
-python -m venv .venv
-source .venv/bin/activate        # Windows: .venv\Scripts\activate
-
-pip install -r requirements.txt
-
-# Zaženi (port 8000)
-uvicorn main:app --reload --port 8000
-```
+- **Zasebnost:** Ker aplikacija uporablja Ollamo in lokalne modele, noben podatek (vključno z občutljivimi plani treningov in meritvami) ne zapusti vašega računalnika.
+- **Avtentikacija:** Aplikacija podpira registracijo in prijavo preko JWT žetonov. Zgodovina in dokumenti se varno vežejo na posameznega uporabnika.
+- **Zamenjava modela:** Če želite preskusiti drug model (npr. `llama3` ali `mistral`), ga preprosto prenesite z `ollama pull <model>` in spremenite spremenljivko `AI_STUDIO_MODEL` v datoteki `ai-backend/.env`.
 
 ---
 
-### Korak 6 — Frontend
-
-V novem terminalu:
-
-```bash
-cd frontend
-
-bun install
-bun run dev
-```
-
-> Frontend bo dosegljiv na `http://localhost:5173`.
-
----
-
-### Korak 7 — Preveri
-
-```bash
-curl http://localhost:8001/ping
-# → {"status":"ok","service":"ai-backend"}
-
-curl http://localhost:8000/ping
-# → {"status":"ok","service":"app-backend"}
-```
-
-Odpri `http://localhost:5173` v brskalniku.
-
----
-
-## 👥 Ekipa
-
-| Vloga              | Odgovoren za                           |
-| ------------------ | -------------------------------------- |
-| Frontend developer | UI, React komponente                   |
-| Backend developer  | API, integracija AI, baza              |
-| Projektni vodja    | Koordinacija, testiranje, dokumentacija|
-
----
-
-## 📝 Opombe
-
-- Aplikacija sedaj **podpira registracijo in prijavo (JWT)**. Neregistrirani uporabniki lahko uporabljajo aplikacijo *(Guest mode)*, vendar se njihova zgodovina ne shranjuje v bazo.
-
-- Podprti formati za RAG: `.pdf`, `.docx`, `.xlsx`.
-
-- Avtomatiziran izvoz pogovorov ustvari obogateno `.docx` datoteko.
-
----
-
-_Zadnja posodobitev: Maj 2026_
+*Zadnja posodobitev: Maj 2026*
