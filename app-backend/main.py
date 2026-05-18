@@ -273,7 +273,7 @@ async def chat(
         ai_backend_url = os.getenv("AI_BACKEND_URL", "http://127.0.0.1:8000")
 
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=120.0) as client:
                 req_data = {"prompt": full_prompt}
                 async with client.stream(
                     "POST", f"{ai_backend_url}/chat", json=req_data
@@ -343,6 +343,13 @@ async def chat(
 async def get_all_conversations(email: str = Depends(get_current_user_email)):
     # 1. Find the user
     user = await db.users.find_one({"email": email})
+
+    # SAFEGUARD: Check if the user actually exists before trying to access user["_id"]
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, 
+            detail="User not found. Please log in again."
+        )
 
     # 2. Fetch their conversations (excluding the heavy messages array to save bandwidth)
     cursor = db.conversations.find({"user_id": str(user["_id"])}, {"messages": 0}).sort(
