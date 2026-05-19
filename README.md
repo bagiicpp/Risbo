@@ -141,7 +141,7 @@ Ker aplikacija teče v Docker omrežju, morajo biti okoljske spremenljivke nasta
 Ustvarite `ai-backend/.env`:
 
 ```
-AI_STUDIO_API=AIzaSyBpIC080ExzU-TNTgU7vVahzAHCTCX9uZw
+AI_STUDIO_API=NAS kljuc sve spojeno kopiraj
 AI_STUDIO_MODEL=gemma-4-26b-a4b-it
 
 ```

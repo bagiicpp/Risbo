@@ -20,9 +20,8 @@ services:
     container_name: rizzbo-ai
     ports:
       - "8000:8000"
-    environment:
-      - AI_STUDIO_API=${AI_STUDIO_API:-AIzaSyBpIC080ExzU-TNTgU7vVahzAHCTCX9uZw}
-      - AI_STUDIO_MODEL=gemma-4-26b-a4b-it
+    env_file:
+      - ./ai-backend/.env
 
   app-backend:
     build:
