@@ -23,4 +23,14 @@ api.interceptors.response.use(
   },
 );
 
+export const getProfileSummary = async () => {
+  const response = await api.get("/profile/summary");
+  return response.data;
+};
+
+export const getProfileMetrics = async (metricName: string) => {
+  const response = await api.get(`/profile/metrics/${metricName}`);
+  return response.data;
+};
+
 export default api;

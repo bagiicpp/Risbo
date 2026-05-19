@@ -3,6 +3,7 @@ import { ProtectedRoute } from "./components/common/ProtectedRoute";
 import LoginPage from "./pages/LoginPage";
 import ChatPage from "./pages/ChatPage";
 import RegisterPage from "./pages/RegisterPage";
+import ProfilePage from "./pages/ProfilePage";
 
 function App() {
   return (
@@ -13,6 +14,7 @@ function App() {
         <Route element={<ProtectedRoute />}>
           <Route path="/chat" element={<ChatPage />} />
           <Route path="/chat/:conversationId" element={<ChatPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
         </Route>
         <Route path="/" element={<Navigate to="/chat" replace />} />
       </Routes>

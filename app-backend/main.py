@@ -193,6 +193,66 @@ async def generate_title_background(
 # Assuming your router and dependencies are imported appropriately
 # router = APIRouter()
 
+from datetime import datetime, timezone # Make sure timezone is imported at the top!
+
+async def extract_metrics_background(user_id: str, conversation_id: str, prompt: str, ai_backend_url: str):
+    # UPGRADED PROMPT
+    extraction_prompt = (
+        "You are an expert sports data extraction AI. Read the user message and extract important data into a strict JSON array.\n"
+        "Categories to look for:\n"
+        "1. 'body_stats': weight, height, body fat % (e.g., metric_name: 'weight').\n"
+        "2. 'pr': personal records. Use metric_name for the exercise (e.g., 'deadlift_1rm'). Add {'sport': 'powerlifting'} to meta_data if known.\n"
+        "3. 'goal': user's goals. value is the goal text. Add {'deadline': 'YYYY-MM-DD'} to meta_data if mentioned.\n"
+        "4. 'training_data': frequency, duration, intensity (e.g., metric_name: 'session_duration').\n"
+        "5. 'diet': calorie intake, macros (e.g., metric_name: 'daily_calories').\n\n"
+        "Output ONLY valid JSON. If no metrics are found, output an empty array []. Example:\n"
+        '[\n'
+        '  {"category": "body_stats", "metric_name": "weight", "value": 82, "unit": "kg"},\n'
+        '  {"category": "pr", "metric_name": "deadlift", "value": 150, "unit": "kg", "meta_data": {"sport": "gym"}},\n'
+        '  {"category": "goal", "metric_name": "current_goal", "value": "Lose 5kg", "unit": "", "meta_data": {"deadline": "2026-12-01"}}\n'
+        ']\n\n'
+        f"User message: {prompt}"
+    )
+    
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(
+                f"{ai_backend_url}/chat", json={"prompt": extraction_prompt}
+            )
+            response.raise_for_status()
+            
+            raw_json = ""
+            for line in response.text.splitlines():
+                if line.startswith("data: "):
+                    try:
+                        clean_chunk = json.loads(line.replace("data: ", ""))
+                        raw_json += clean_chunk
+                    except json.JSONDecodeError:
+                        pass
+            
+            # BULLETPROOF JSON EXTRACTION: Find the first '[' and last ']'
+            start_idx = raw_json.find('[')
+            end_idx = raw_json.rfind(']')
+            
+            if start_idx != -1 and end_idx != -1:
+                clean_json_string = raw_json[start_idx:end_idx+1]
+                
+                if clean_json_string != "[]":
+                    metrics = json.loads(clean_json_string)
+                    for metric in metrics:
+                        metric["user_id"] = user_id
+                        metric["source_chat_id"] = conversation_id
+                        metric["date"] = datetime.now(timezone.utc) # Updated to timezone-aware UTC
+                        if "meta_data" not in metric:
+                            metric["meta_data"] = {}
+                            
+                        await db.metrics.insert_one(metric)
+                        print(f"✅ Extracted: {metric['metric_name']} ({metric['value']})")
+            else:
+                print("No JSON array found in the AI response.")
+                    
+    except Exception as e:
+        print(f"⚠️ Background metric extraction failed: {repr(e)}")
 
 @app.post("/chat")
 async def chat(
@@ -324,9 +384,16 @@ async def chat(
                 }
                 await db.conversations.insert_one(new_conv)
 
-                # Pass the structurally sound clean string representation to your background task
                 background_tasks.add_task(
                     generate_title_background,
+                    current_conv_id,
+                    request.prompt,
+                    ai_backend_url,
+                )
+
+                background_tasks.add_task(
+                    extract_metrics_background,
+                    user_id,
                     current_conv_id,
                     request.prompt,
                     ai_backend_url,
@@ -438,3 +505,57 @@ async def export_conversation(
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         headers={"Content-Disposition": f"attachment; filename=RizzBo_Chat.docx"},
     )
+
+
+@app.get("/profile/summary")
+async def get_profile_summary(email: str = Depends(get_current_user_email)):
+    user = await db.users.find_one({"email": email})
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+    
+    pipeline = [
+        {"$match": {"user_id": str(user["_id"])}},
+        {"$sort": {"date": -1}},
+        {"$group": {
+            "_id": "$metric_name",
+            "latest_value": {"$first": "$value"},
+            "unit": {"$first": "$unit"},
+            "category": {"$first": "$category"},
+            "meta_data": {"$first": "$meta_data"},
+            "date": {"$first": "$date"}
+        }}
+    ]
+    
+    cursor = db.metrics.aggregate(pipeline)
+    results = await cursor.to_list(length=100)
+    
+    summary = {}
+    for r in results:
+        summary[r["_id"]] = {
+            "value": r["latest_value"],
+            "unit": r.get("unit", ""),
+            "category": r.get("category", "general"),
+            "meta_data": r.get("meta_data", {}),
+            "date": r["date"].isoformat()
+        }
+    return summary
+
+@app.get("/profile/metrics/{metric_name}")
+async def get_profile_metrics(metric_name: str, email: str = Depends(get_current_user_email)):
+    user = await db.users.find_one({"email": email})
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+    
+    # Sort ascending so the frontend charts render chronologically
+    cursor = db.metrics.find(
+        {"user_id": str(user["_id"]), "metric_name": metric_name},
+        {"_id": 0} 
+    ).sort("date", 1)
+    
+    metrics = await cursor.to_list(length=100)
+    # Convert dates to ISO strings for JSON serialization
+    for m in metrics:
+        if isinstance(m.get("date"), datetime):
+            m["date"] = m["date"].isoformat()
+            
+    return metrics

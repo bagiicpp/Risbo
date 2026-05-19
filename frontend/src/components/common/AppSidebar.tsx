@@ -10,6 +10,7 @@ import {
   Moon,
   MessageSquare,
   Loader2,
+  User
 } from "lucide-react";
 import {
   Sidebar,
@@ -201,6 +202,13 @@ export function AppSidebar() {
                 align="start"
                 sideOffset={8}
               >
+                <DropdownMenuItem 
+                  className="gap-3 cursor-pointer rounded-lg p-2.5 transition-colors focus:bg-accent"
+                  onClick={() => navigate('/profile')}
+                >
+                  <User size={16} className="text-muted-foreground" />
+                  <span className="font-medium">My Profile</span>
+                </DropdownMenuItem>
                 <DropdownMenuItem
                   className="gap-3 cursor-pointer rounded-lg p-2.5 transition-colors focus:bg-accent"
                   onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
