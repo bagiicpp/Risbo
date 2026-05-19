@@ -15,19 +15,14 @@ services:
       retries: 3
 
   ai-backend:
-    build: 
+    build:
       context: ./ai-backend
     container_name: rizzbo-ai
     ports:
       - "8000:8000"
     environment:
-      # host.docker.internal lets the container talk to Ollama on your host machine
-      - OLLAMA_HOST=http://host.docker.internal:11434
-      - AI_MODEL=gemma3:4b
-      - AI_API=MyKeyForTheAI
-    # Required for Windows/Mac to resolve host.docker.internal
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - AI_STUDIO_API=${AI_STUDIO_API:-AIzaSyBpIC080ExzU-TNTgU7vVahzAHCTCX9uZw}
+      - AI_STUDIO_MODEL=gemma-4-26b-a4b-it
 
   app-backend:
     build:
@@ -55,7 +50,7 @@ services:
       - "5173:5173"
     environment:
       # If your React app needs to know where the backend is via an env variable, add it here.
-      # e.g., VITE_API_URL=http://localhost:8080 
+      # e.g., VITE_API_URL=http://localhost:8080
       # (Note: Frontend envs keep localhost because the browser makes the request, not the container)
       - WATCHPACK_POLLING=true # Helps Vite hot-reload work properly inside Docker
     depends_on:

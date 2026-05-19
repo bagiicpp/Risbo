@@ -1,20 +1,20 @@
-# Risbo (Moj najboljši prijatelj) — Projektni README
+# RizzBo AI — Športni & Analitični Asistent
 
-Specializiran, podatkovno voden AI asistent za športnike, trenerje in kineziologe, ki ga poganjajo lokalni jezikovni modeli za maksimalno zasebnost.
+Specializiran AI asistent za športnike, trenerje in športne analitike, z globokim znanjem o nogometu in košarki, statistiki igralcev ter optimizaciji treninga.
 
 ---
 
 ## O projektu
 
-Risbo (Projekt Moj najboljši prijatelj) je spletna aplikacija in osebni AI asistent, ki je ekspertno usposobljen za področja biomehanike, tempiranja prehrane, hipertrofije in regeneracije. Uporabnik se z njim pogovarja v naravnem jeziku, mu nalaga dokumente (npr. plane treningov, raziskave) in dobiva strokovne, podatkovno podprte odgovore in analize.
+Risbo je spletna aplikacija in napredni AI asistent, specializiran za športno analitiko. Njegovo strokovno znanje zajema podrobno poznavanje nogometnih in košarkarskih igralcev, njihovih statistik in analizo uspešnosti. Prav tako je strokovnjak za ocenjevanje prihajajočih talentov in iskanje najboljših prospektov.
 
-Ker aplikacija za delovanje uporablja lokalne LLM modele (preko Ollame), vsi vaši pogovori in naloženi dokumenti ostanejo izključno na vaši napravi. Ni pošiljanja podatkov v oblak!
+Poleg analitike Risbo ponuja stroge, s podatki podprte nasvete za izboljšanje treninga, biomehanike, osnovne prehrane in regeneracije. Aplikacija omogoča nalaganje dokumentov s statistikami, ki jih sistem obdela in analizira ob ohranjanju strogega fokusa na športno domeno.
 
-| Domena | Primer uporabe |
-|---|---|
-| Trening in kineziologija | Analiza biomehanike vaj, nasveti za hipertrofijo in moč |
-| Prehrana in regeneracija | Tempiranje makrohranil, protokoli za spanec in okrevanje |
-| Analiza podatkov | Branje in povzemanje PDF raziskav, analiziranje Excel tabel z rezultati |
+| Domena                      | Primer uporabe                                                                                         |
+| --------------------------- | ------------------------------------------------------------------------------------------------------ |
+| **Športna analitika**       | Analiza podrobnih statistik (nogomet, košarka), ocena mladih talentov (prospektov).                    |
+| **Trening in regeneracija** | Nasveti za trening, biomehaniko, osnovno prehrano in strategije regeneracije.                          |
+| **Delo z datotekami**       | Nalaganje dokumentov (npr. .md) s statistikami igralcev kot kontekst za natančne odgovore in skavting. |
 
 ---
 
@@ -23,6 +23,7 @@ Ker aplikacija za delovanje uporablja lokalne LLM modele (preko Ollame), vsi va�
 Uspešno smo zaključili prvo fazo razvoja in dosegli popolnoma delujoč MVP (Minimum Viable Product).
 
 ### MVP funkcionalnosti
+
 - [x] Pogovor z asistentom v naravnem jeziku (chat vmesnik)
 - [x] Shranjevanje zgodovine pogovorov v podatkovno bazo
 - [x] Iskanje po preteklih pogovorih po ključnih besedah
@@ -45,13 +46,13 @@ Uspešno smo zaključili prvo fazo razvoja in dosegli popolnoma delujoč MVP (Mi
 
 ### Zakaj ta izbor?
 
-| Tehnologija | Razlog |
-|---|---|
-| React + Tailwind | Hiter razvoj UI, komponente, responsive design brez napora |
-| Python FastAPI | Hiter async REST API, avtomatska OpenAPI dokumentacija, primerno za AI |
-| Ollama | Omogoča enostavno poganjanje močnih LLM-jev na lokalnem računalniku (brezplačno, varno) |
-| MongoDB | Fleksibilna NoSQL baza — idealna za shranjevanje pogovorov in dokumentov v JSON obliki |
-| Docker Compose | Celoten "stack" aplikacije (baza, oba backenda, frontend) se zažene z eno samo komando |
+| Tehnologija      | Razlog                                                                                  |
+| ---------------- | --------------------------------------------------------------------------------------- |
+| React + Tailwind | Hiter razvoj UI, komponente, responsive design brez napora                              |
+| Python FastAPI   | Hiter async REST API, avtomatska OpenAPI dokumentacija, primerno za AI                  |
+| Ollama           | Omogoča enostavno poganjanje močnih LLM-jev na lokalnem računalniku (brezplačno, varno) |
+| MongoDB          | Fleksibilna NoSQL baza — idealna za shranjevanje pogovorov in dokumentov v JSON obliki  |
+| Docker Compose   | Celoten "stack" aplikacije (baza, oba backenda, frontend) se zažene z eno samo komando  |
 
 ---
 
@@ -67,7 +68,7 @@ Uspešno smo zaključili prvo fazo razvoja in dosegli popolnoma delujoč MVP (Mi
                                           ┌────────▼────────┐                ┌────────▼─────────┐
                                           │     MongoDB     │                │  Ollama Server   │
                                           │    (Docker)     │                │  (Host mašina)   │
-                                          │ localhost:27017 │                │ localhost:11434  │
+                                          │ localhost:27017 │                │                  │
                                           └─────────────────┘                └──────────────────┘
 ```
 
@@ -81,7 +82,7 @@ Uspešno smo zaključili prvo fazo razvoja in dosegli popolnoma delujoč MVP (Mi
 
 ```
 rizzbo/
-├── ai-backend/             # FastAPI Ollama vmesnik
+├── ai-backend/             # FastAPI Google GenAI vmesnik
 │   ├── main.py
 │   ├── Dockerfile
 │   ├── requirements.txt
@@ -124,20 +125,9 @@ Zahvaljujoč Dockerju je zagon celotne aplikacije izjemno preprost. Nič več ro
 
 Pred začetkom preveri, da imaš nameščeno:
 
-- Docker Desktop (z vključenim Docker Compose)
-- Ollama (mora teči na vašem glavnem sistemu, ne v Dockerju)
+- Veljaven Google Gemini API ključ (AI Studio)
 
-### 1. Priprava lokalnega AI modela
-
-Prenesite model, ki ga aplikacija pričakuje (privzeto `gemma3:4b`). Odprite terminal na računalniku in vpišite:
-
-```bash
-ollama pull gemma3:4b
-```
-
-Poskrbite, da Ollama po prenosu teče v ozadju.
-
-### 2. Kloniranje repozitorija
+### 1. Kloniranje repozitorija
 
 ```bash
 git clone https://github.com/vaš-repo/rizzbo.git
@@ -151,11 +141,9 @@ Ker aplikacija teče v Docker omrežju, morajo biti okoljske spremenljivke nasta
 Ustvarite `ai-backend/.env`:
 
 ```
-# host.docker.internal omogoča kontejnerju dostop do Ollame na vašem PC-ju
-OLLAMA_HOST=http://host.docker.internal:11434
-AI_STUDIO_MODEL=gemma3:4b
-# Ta ključ je le formalnost za preverjanje znotraj kode, vrednost je poljubna
-AI_API=rizzbo_local_key
+AI_STUDIO_API=AIzaSyBpIC080ExzU-TNTgU7vVahzAHCTCX9uZw
+AI_STUDIO_MODEL=gemma-4-26b-a4b-it
+
 ```
 
 Ustvarite `app-backend/.env`:
@@ -189,11 +177,11 @@ Za varno ustavitev aplikacije uporabite ukaz `docker compose down`.
 
 ## Ekipa
 
-| Vloga | Odgovornosti |
-|---|---|
-| Frontend developer | UI, React komponente, UX, integracija API-jev |
-| Backend developer | FastAPI arhitektura, Dockerizacija, Ollama, MongoDB |
-| Projektni vodja | Koordinacija, testiranje, specializacija promptov (Trening/Sport) |
+| Vloga              | Odgovornosti                                                      |
+| ------------------ | ----------------------------------------------------------------- |
+| Frontend developer | UI, React komponente, UX, integracija API-jev                     |
+| Backend developer  | FastAPI arhitektura, Dockerizacija, Ollama, MongoDB               |
+| Projektni vodja    | Koordinacija, testiranje, specializacija promptov (Trening/Sport) |
 
 ---
 
@@ -205,4 +193,4 @@ Za varno ustavitev aplikacije uporabite ukaz `docker compose down`.
 
 ---
 
-*Zadnja posodobitev: Maj 2026*
+_Zadnja posodobitev: Maj 2026_
