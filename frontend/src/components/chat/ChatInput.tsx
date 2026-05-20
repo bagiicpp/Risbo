@@ -1,14 +1,26 @@
-import { Send, Paperclip, Loader2 } from "lucide-react";
-import React, { useRef } from "react";
+import {
+  Send,
+  Paperclip,
+  Loader2,
+  Plus,
+  Sparkles,
+  ChevronDown,
+  FileText,
+  X,
+  Mic, // Added Mic icon
+} from "lucide-react";
+import React, { useRef, useState, useEffect } from "react";
 
 interface ChatInputProps {
   input: string;
-  setInput: (value: string) => void;
+  setInput: (value: React.SetStateAction<string>) => void; // Updated type to handle state callbacks
   onSend: () => void;
   loading: boolean;
   onUpload: (file: File) => void;
   isUploading: boolean;
   activeConversationId: string | null;
+  uploadedFile?: File | null;
+  onClearFile?: () => void;
 }
 
 export default function ChatInput({
@@ -19,13 +31,85 @@ export default function ChatInput({
   onUpload,
   isUploading,
   activeConversationId,
+  uploadedFile,
+  onClearFile,
 }: ChatInputProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+
+  // Web Speech API States
+  const [isRecording, setIsRecording] = useState(false);
+  const recognitionRef = useRef<any>(null);
+
+  // Auto-resize textarea logic
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`;
+    }
+  }, [input]);
+
+  // Initialize the Web Speech API
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const SpeechRecognition =
+        (window as any).SpeechRecognition ||
+        (window as any).webkitSpeechRecognition;
+
+      if (SpeechRecognition) {
+        recognitionRef.current = new SpeechRecognition();
+        recognitionRef.current.continuous = true;
+        recognitionRef.current.interimResults = true;
+
+        recognitionRef.current.onresult = (event: any) => {
+          let currentTranscript = "";
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            currentTranscript += event.results[i][0].transcript;
+          }
+          // Append the voice text safely to existing input
+          setInput((prev) => {
+            const base =
+              typeof prev === "string" && prev.endsWith(" ")
+                ? prev
+                : prev + " ";
+            return base + currentTranscript;
+          });
+        };
+
+        recognitionRef.current.onerror = (event: any) => {
+          console.error("Speech recognition error:", event.error);
+          setIsRecording(false);
+        };
+
+        recognitionRef.current.onend = () => {
+          setIsRecording(false);
+        };
+      }
+    }
+  }, [setInput]);
+
+  const toggleRecording = () => {
+    if (!recognitionRef.current) {
+      alert("Your browser does not support speech recognition.");
+      return;
+    }
+
+    if (isRecording) {
+      recognitionRef.current.stop();
+      setIsRecording(false);
+    } else {
+      recognitionRef.current.start();
+      setIsRecording(true);
+    }
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      onSend();
+      if (input.trim() || uploadedFile) {
+        onSend();
+      }
     }
   };
 
@@ -36,59 +120,144 @@ export default function ChatInput({
     }
   };
 
+  // Drag and Drop Handlers
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      onUpload(e.dataTransfer.files[0]);
+    }
+  };
+
   return (
-    <div className="relative flex items-end w-full bg-card border border-border/50 rounded-2xl shadow-sm focus-within:ring-1 focus-within:ring-primary/50 transition-all p-1">
-      <input
-        type="file"
-        className="hidden"
-        ref={fileInputRef}
-        onChange={handleFileChange}
-        accept=".txt,.pdf,.docx,.md"
-      />
+    <div className="w-full max-w-4xl mx-auto">
+      <div className="flex gap-2 mb-3 px-2 overflow-x-auto pb-1 no-scrollbar">
+        {/* We will populate this in Phase 2 */}
+      </div>
 
-      <button
-        type="button"
-        disabled={isUploading || !activeConversationId}
-        onClick={() => fileInputRef.current?.click()}
-        className={`p-3 text-muted-foreground hover:text-foreground transition-colors rounded-xl ${
-          !activeConversationId || isUploading
-            ? "opacity-50 cursor-not-allowed"
-            : "cursor-pointer"
-        }`}
-        title={
-          !activeConversationId
-            ? "Send a message to start a chat first"
-            : "Attach a document"
-        }
+      {/* Main Console Container */}
+      <div
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        className="relative w-full bg-zinc-900 rounded-2xl shadow-lg transition-all duration-300 flex flex-col"
       >
-        {isUploading ? (
-          <Loader2 size={20} className="animate-spin text-primary" />
-        ) : (
-          <Paperclip size={20} />
-        )}
-      </button>
+        <input
+          type="file"
+          className="hidden"
+          ref={fileInputRef}
+          onChange={handleFileChange}
+          accept=".txt,.pdf,.docx,.md,.csv"
+        />
 
-      <textarea
-        value={input}
-        onChange={(e) => setInput(e.target.value)}
-        onKeyDown={handleKeyDown}
-        placeholder="Ask about hypertrophy, or attach your macro sheet..."
-        className="flex-1 max-h-32 min-h-[44px] bg-transparent border-0 resize-none outline-none py-3 px-2 text-sm text-foreground placeholder:text-muted-foreground"
-        rows={1}
-      />
+        <div className="p-4 pb-2">
+          {isDragging ? (
+            <div className="h-24 flex flex-col items-center justify-center text-primary font-dmsans border-2 border-dashed border-primary/30 rounded-xl bg-primary/10">
+              <FileText size={24} className="mb-2 opacity-80" />
+              <span className="font-medium">Drop file to analyze</span>
+            </div>
+          ) : (
+            <textarea
+              ref={textareaRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Query the system or detail your workout parameters..."
+              className="w-full bg-transparent border-0 resize-none outline-none text-zinc-100 placeholder:text-zinc-400 font-dmsans text-base leading-relaxed min-h-[60px]"
+              rows={1}
+            />
+          )}
+        </div>
 
-      <button
-        type="button"
-        onClick={onSend}
-        disabled={!input.trim() || loading}
-        className="p-3 m-1 bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
-      >
-        {loading ? (
-          <Loader2 size={18} className="animate-spin" />
-        ) : (
-          <Send size={18} />
+        {/* Attached File Chip */}
+        {uploadedFile && !isDragging && (
+          <div className="px-4 pb-2">
+            <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 text-primary rounded-lg px-3 py-1.5 text-sm font-dmsans">
+              <FileText size={14} />
+              <span className="truncate max-w-[200px]">
+                {uploadedFile.name}
+              </span>
+              {onClearFile && (
+                <button
+                  onClick={onClearFile}
+                  className="hover:text-primary-foreground hover:bg-primary rounded-full p-0.5 transition-colors ml-1"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+          </div>
         )}
-      </button>
+
+        {/* Bottom Controls Row */}
+        <div className="flex items-center justify-between p-2 pl-3">
+          {/* Left Controls */}
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              disabled={isUploading}
+              onClick={() => fileInputRef.current?.click()}
+              className="p-2 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Upload File"
+            >
+              <Plus size={20} />
+            </button>
+
+            {/* Model Selector Dropdown Trigger */}
+            <button className="flex items-center gap-2 px-3 py-1.5 ml-1 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-lg transition-colors text-sm font-mono cursor-pointer">
+              <Sparkles size={16} className="text-primary/70" />
+              <span className="font-bricolage">Risbo: Kinetic-v1</span>
+              <ChevronDown size={14} className="opacity-50" />
+            </button>
+          </div>
+
+          {/* Right Controls (Mic & Send Button) */}
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={toggleRecording}
+              className={`p-2.5 rounded-xl transition-all duration-300 cursor-pointer flex items-center justify-center shrink-0 outline-none ${
+                isRecording
+                  ? "bg-primary/20 text-primary shadow-[0_0_15px_rgba(34,197,94,0.2)] animate-pulse"
+                  : "bg-transparent text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
+              }`}
+              title="Voice Typing"
+            >
+              <Mic size={18} />
+            </button>
+
+            <button
+              type="button"
+              onClick={onSend}
+              disabled={(!input.trim() && !uploadedFile) || loading}
+              className={`p-2.5 rounded-xl transition-all duration-300 flex items-center justify-center shrink-0 ${
+                input.trim() || uploadedFile
+                  ? "bg-primary text-zinc-950 shadow-[0_0_15px_rgba(34,197,94,0.3)] hover:scale-105"
+                  : "bg-transparent text-zinc-500 cursor-not-allowed"
+              }`}
+            >
+              {loading ? (
+                <Loader2 size={18} className="animate-spin" />
+              ) : (
+                <Send
+                  size={18}
+                  className={input.trim() || uploadedFile ? "ml-0.5" : ""}
+                />
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

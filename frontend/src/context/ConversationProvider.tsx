@@ -22,9 +22,18 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({
 
     setLoading(true);
     try {
-      const res = await fetch("http://localhost:8080/conversations", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetch(
+        `http://localhost:8080/conversations?t=${Date.now()}`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Cache-Control": "no-cache",
+            Pragma: "no-cache",
+          },
+          cache: "no-store",
+        },
+      );
 
       if (res.ok) {
         const data = await res.json();
@@ -41,6 +50,7 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({
     }
     return null;
   }, [token, logout]);
+
   useEffect(() => {
     let isMounted = true;
 
@@ -108,6 +118,18 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({
     setGeneratingTitleId((prev) => (prev === oldId ? newId : prev));
   }, []);
 
+  const updateConversationTitle = useCallback(
+    (id: string, newTitle: string) => {
+      setConversations((prev) => {
+        const next = prev.map((c) =>
+          c._id === id ? { ...c, title: newTitle } : c,
+        );
+        return [...next];
+      });
+    },
+    [],
+  );
+
   return (
     <ConversationContext.Provider
       value={{
@@ -120,6 +142,7 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({
         swapProvisionalId,
         generatingTitleId,
         setGeneratingTitleId,
+        updateConversationTitle,
       }}
     >
       {children}

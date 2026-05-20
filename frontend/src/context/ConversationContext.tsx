@@ -18,8 +18,8 @@ export interface ConversationContextType {
   swapProvisionalId: (oldId: string, newId: string) => void;
   generatingTitleId: string | null;
   setGeneratingTitleId: (id: string | null) => void;
+  updateConversationTitle: (id: string, title: string) => void;
 }
-
 export const ConversationContext = createContext<
   ConversationContextType | undefined
 >(undefined);

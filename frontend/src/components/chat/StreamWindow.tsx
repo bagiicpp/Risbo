@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -11,6 +11,32 @@ interface StreamWindowProps {
   messages: Message[];
   scrollRef: React.RefObject<HTMLDivElement | null>;
 }
+
+const LOADING_STATES = [
+  "Thinking...",
+  "Evaluating context...",
+  "Formulating response...",
+];
+
+const ThinkingPlaceholder = () => {
+  const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setIndex((prev) => (prev + 1) % LOADING_STATES.length);
+    }, 1500);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="flex items-center gap-2 h-6 mt-1">
+      <span className="text-sm font-medium italic text-muted-foreground animate-pulse">
+        {LOADING_STATES[index]}
+      </span>
+    </div>
+  );
+};
 
 const StreamWindow: React.FC<StreamWindowProps> = ({ messages, scrollRef }) => {
   if (messages.length === 0) return null;
@@ -32,18 +58,19 @@ const StreamWindow: React.FC<StreamWindowProps> = ({ messages, scrollRef }) => {
             </div>
           ) : (
             <div className="max-w-full flex gap-4 w-full">
+              {/* AI Avatar */}
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center shrink-0 border border-primary/20 mt-1">
                 <span className="text-primary font-bold italic text-sm leading-none">
                   R
                 </span>
               </div>
 
+              {/* Message Content Container */}
               <div className="flex-1 prose prose-sm md:prose-base dark:prose-invert max-w-none break-words leading-relaxed">
                 {msg.content ? (
                   <ReactMarkdown
-                    remarkPlugins={[remarkGfm]} // 2. Inject GFM
+                    remarkPlugins={[remarkGfm]}
                     components={{
-                      // 3. Intercept and style table elements for a premium look
                       table: ({ node, ...props }) => (
                         <div className="w-full overflow-x-auto my-6 rounded-xl border border-border/50 shadow-sm">
                           <table
@@ -81,7 +108,9 @@ const StreamWindow: React.FC<StreamWindowProps> = ({ messages, scrollRef }) => {
                     {msg.content}
                   </ReactMarkdown>
                 ) : (
-                  <span className="inline-block w-2 h-5 bg-primary/50 animate-pulse rounded-sm mt-1" />
+                  // 3. INJECTED HERE
+                  // This entirely replaces the old static blinking span
+                  <ThinkingPlaceholder />
                 )}
               </div>
             </div>
