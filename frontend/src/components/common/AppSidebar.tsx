@@ -10,7 +10,8 @@ import {
   Moon,
   MessageSquare,
   Loader2,
-  User
+  User,
+  Search,
 } from "lucide-react";
 import {
   Sidebar,
@@ -69,60 +70,92 @@ export function AppSidebar() {
 
   return (
     <Sidebar variant="inset" collapsible="icon">
-      <SidebarHeader className="p-4 group-data-[collapsible=icon]:p-2">
-        <div className="flex items-center justify-between group-data-[collapsible=icon]:justify-center mb-2 min-h-8">
-          <div className="flex items-center gap-3 overflow-hidden group-data-[collapsible=icon]:hidden">
-            {/* Branding container initial letter using font-bricolage */}
+      <SidebarHeader className="py-4 px-4 group-data-[collapsible=icon]:px-2">
+        <div className="relative flex items-center w-full h-8 mb-2">
+          {/* --- EXPANDED VIEW --- */}
+          <div className="flex w-full items-center gap-3 group-data-[collapsible=icon]:hidden">
             <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shrink-0 shadow-sm shadow-primary/20">
               <span className="text-primary-foreground font-bricolage font-extrabold italic text-lg leading-none">
                 R
               </span>
             </div>
-            {!isCollapsed && (
-              /* Title using font-bricolage explicitly */
-              <h1 className="text-xl font-bricolage font-bold tracking-tight text-foreground whitespace-nowrap flex items-baseline gap-1">
-                Risbo{" "}
-                <span className="font-dmsans text-primary/70 text-[10px] font-semibold uppercase tracking-widest">
-                  v1.0
-                </span>
-              </h1>
-            )}
+            <h1 className="text-xl font-bricolage font-bold tracking-tight text-foreground whitespace-nowrap flex items-baseline gap-1">
+              Risbo{" "}
+              <span className="font-dmsans text-primary/70 text-[10px] font-semibold uppercase tracking-widest">
+                v1.0
+              </span>
+            </h1>
+            {/* Standard Close Button pinned to the right */}
+            <button
+              onClick={toggleSidebar}
+              className="ml-auto p-1.5 hover:bg-accent rounded-lg text-muted-foreground hover:text-foreground transition-all duration-200 cursor-pointer shrink-0 flex items-center justify-center w-8 h-8"
+            >
+              <PanelLeftClose size={18} />
+            </button>
           </div>
 
-          <button
-            onClick={toggleSidebar}
-            className="p-1.5 hover:bg-accent rounded-lg text-muted-foreground hover:text-foreground transition-all duration-200 cursor-pointer shrink-0"
-          >
-            {isCollapsed ? (
-              <PanelLeftOpen size={18} />
-            ) : (
-              <PanelLeftClose size={18} />
-            )}
-          </button>
+          {/* --- COLLAPSED VIEW --- */}
+          <div className="hidden group-data-[collapsible=icon]:flex w-full justify-center">
+            <button
+              onClick={toggleSidebar}
+              className="relative w-8 h-8 flex items-center justify-center group/toggle cursor-pointer"
+            >
+              {/* The "R" Branding - Default state, fades out on hover */}
+              <div className="absolute inset-0 bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center rounded-xl shadow-sm shadow-primary/20 transition-opacity duration-200 group-hover/toggle:opacity-0">
+                <span className="text-primary-foreground font-bricolage font-extrabold italic text-lg leading-none">
+                  R
+                </span>
+              </div>
+
+              {/* The Toggle Icon - Hidden by default, fades in on hover */}
+              <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-accent text-foreground opacity-0 transition-opacity duration-200 group-hover/toggle:opacity-100">
+                <PanelLeftOpen size={18} />
+              </div>
+            </button>
+          </div>
         </div>
 
-        {/* New Chat Button */}
-        <SidebarMenu>
+        <SidebarMenu className="space-y-1 mt-2">
+          {/* Search Placeholder */}
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              className="w-full h-9 gap-3 rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-all duration-200 cursor-pointer font-dmsans group-data-[collapsible=icon]:justify-center"
+              tooltip="Search Chats"
+            >
+              <Search size={18} className="shrink-0" />
+              <span className="group-data-[collapsible=icon]:hidden">
+                Search chats
+              </span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+
+          {/* New Chat Button */}
           <SidebarMenuItem>
             <SidebarMenuButton
               onClick={handleNewChat}
-              className="w-full h-10 mt-4 gap-3 rounded-xl bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground transition-all duration-300 cursor-pointer font-dmsans font-medium shadow-sm"
+              className="w-full h-10 gap-3 rounded-xl bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground transition-all duration-300 cursor-pointer font-dmsans font-medium shadow-sm group-data-[collapsible=icon]:justify-center"
               tooltip="New Chat"
             >
               <Plus
                 size={18}
                 className="shrink-0 transition-transform group-hover:rotate-90 duration-300"
               />
-              <span>New chat</span>
+              <span className="group-data-[collapsible=icon]:hidden">
+                New chat
+              </span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
 
-      <SidebarContent className="px-2">
+      {/*
+        The entire Content section is now hidden when collapsed,
+        leaving only the top and bottom quick actions visible.
+      */}
+      <SidebarContent className="px-2 group-data-[collapsible=icon]:hidden">
         {/* Recents Section */}
         <SidebarGroup>
-          <SidebarGroupLabel className="font-dmsans text-[11px] font-semibold text-muted-foreground/60 uppercase tracking-widest mb-1 group-data-[collapsible=icon]:hidden">
+          <SidebarGroupLabel className="font-dmsans text-[11px] font-semibold text-muted-foreground/60 uppercase tracking-widest mb-1">
             Recent Conversations
           </SidebarGroupLabel>
           <SidebarGroupContent>
@@ -159,7 +192,7 @@ export function AppSidebar() {
                         tooltip={conv.title}
                       >
                         <MessageSquare size={16} className="shrink-0" />
-                        <span className="truncate max-w-[160px] text-sm group-data-[collapsible=icon]:hidden">
+                        <span className="truncate max-w-[160px] text-sm">
                           {conv.title}
                         </span>
                       </SidebarMenuButton>
@@ -172,14 +205,28 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="p-3 group-data-[collapsible=icon]:p-2">
+      <SidebarFooter className="mt-auto p-3 group-data-[collapsible=icon]:p-2 flex flex-col gap-1">
         <SidebarMenu>
+          {/* Quick Action: Settings */}
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              className="w-full gap-3 rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-all duration-200 cursor-pointer group-data-[collapsible=icon]:justify-center h-9"
+              tooltip="Settings"
+            >
+              <Settings size={18} className="shrink-0" />
+              <span className="font-medium font-dmsans group-data-[collapsible=icon]:hidden">
+                Settings
+              </span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+
+          {/* User Profile Dropdown */}
           <SidebarMenuItem>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <SidebarMenuButton
                   size="lg"
-                  className="w-full h-14 rounded-xl data-[state=open]:bg-accent data-[state=open]:text-accent-foreground hover:bg-accent transition-all duration-200 cursor-pointer border border-transparent hover:border-border/50 group-data-[collapsible=icon]:w-10 group-data-[collapsible=icon]:h-10 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:justify-center"
+                  className="w-full h-14 mt-1 rounded-xl data-[state=open]:bg-accent data-[state=open]:text-accent-foreground hover:bg-accent transition-all duration-200 cursor-pointer border border-transparent hover:border-border/50 group-data-[collapsible=icon]:w-10 group-data-[collapsible=icon]:h-10 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:justify-center"
                 >
                   <div className="flex aspect-square size-9 items-center justify-center rounded-lg bg-gradient-to-br from-primary/20 to-primary/10 text-primary font-bricolage font-bold border border-primary/20 shadow-sm shrink-0">
                     B
@@ -202,9 +249,9 @@ export function AppSidebar() {
                 align="start"
                 sideOffset={8}
               >
-                <DropdownMenuItem 
+                <DropdownMenuItem
                   className="gap-3 cursor-pointer rounded-lg p-2.5 transition-colors focus:bg-accent"
-                  onClick={() => navigate('/profile')}
+                  onClick={() => navigate("/profile")}
                 >
                   <User size={16} className="text-muted-foreground" />
                   <span className="font-medium">My Profile</span>
@@ -219,10 +266,6 @@ export function AppSidebar() {
                     <Moon size={16} className="text-muted-foreground" />
                   )}
                   <span className="font-medium">Toggle Theme</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem className="gap-3 cursor-pointer rounded-lg p-2.5 transition-colors focus:bg-accent">
-                  <Settings size={16} className="text-muted-foreground" />
-                  <span className="font-medium">Settings</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem className="gap-3 cursor-pointer rounded-lg p-2.5 transition-colors focus:bg-accent">
                   <Download size={16} className="text-muted-foreground" />
