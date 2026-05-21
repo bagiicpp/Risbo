@@ -22,9 +22,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 @app.get("/ping")
 async def ping():
     return {"status": "ok", "service": "ai-backend"}
+
 
 # Initialize the Google GenAI Client
 client = genai.Client(api_key=os.getenv("AI_STUDIO_API"))
@@ -76,9 +78,7 @@ async def generate_stream(user_prompt: str):
 async def chat_with_gemma(request: ChatRequest):
     # Verify the API key exists before starting the stream
     if not os.getenv("AI_STUDIO_API"):
-        raise HTTPException(
-            status_code=500, detail="API Key missing in .env"
-        )
+        raise HTTPException(status_code=500, detail="API Key missing in .env")
 
     return StreamingResponse(
         generate_stream(request.prompt), media_type="text/event-stream"

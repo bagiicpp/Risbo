@@ -11,7 +11,6 @@ from jwt.exceptions import InvalidTokenError
 
 load_dotenv()
 
-# Safely load the permanent secret key
 SECRET_KEY = os.getenv("JWT_SECRET_KEY")
 if not SECRET_KEY or not SECRET_KEY.strip():
     raise ValueError(
@@ -19,7 +18,6 @@ if not SECRET_KEY or not SECRET_KEY.strip():
     )
 
 ALGORITHM = "HS256"
-# Reduced to 12 hours for stateless token security
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 12
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
@@ -41,7 +39,6 @@ def create_access_token(data: dict):
     expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
 
-    # PyJWT syntax for encoding
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
@@ -53,17 +50,15 @@ async def get_current_user_email(token: str = Depends(oauth2_scheme)):
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
-        # PyJWT syntax requires algorithms as a list
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         sub = payload.get("sub")
         if sub is None:
             raise credentials_exception
-        return str(sub)  # Enforce string type
-    except InvalidTokenError:  # Replaced JWTError with PyJWT's InvalidTokenError
+        return str(sub)
+    except InvalidTokenError:
         raise credentials_exception
 
 
-# We set auto_error=False so guests don't get a 401 Unauthorized crash
 oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="login", auto_error=False)
 
 

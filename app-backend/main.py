@@ -3,7 +3,7 @@ import io
 import json
 import os
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 import httpx
@@ -67,6 +67,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Conversation-Id"],  # <--- ADD THIS LINE
 )
 
 
@@ -76,35 +77,45 @@ async def ping():
 
 
 @app.post("/register", status_code=status.HTTP_201_CREATED)
-async def register(user: UserCreate):
-    # Check if user already exists
+async def register_user(user: UserCreate):
     existing_user = await db.users.find_one({"email": user.email})
     if existing_user:
-        raise HTTPException(status_code=400, detail="Email already registered")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered"
+        )
 
-    # Hash password and save
-    hashed_password = get_password_hash(user.password)
-    new_user = UserInDB(email=user.email, hashed_password=hashed_password)
+    hashed_pwd = get_password_hash(user.password)
 
-    await db.users.insert_one(new_user.model_dump())
-    return {"message": "User registered successfully"}
+    user_doc = {
+        "email": user.email,
+        "name": user.name.strip(),
+        "hashed_password": hashed_pwd,
+        "plan": "Free plan",
+        "created_at": datetime.now(timezone.utc),
+    }
+
+    await db.users.insert_one(user_doc)
+
+    return {"message": "User successfully created"}
 
 
 @app.post("/login", response_model=Token)
 async def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    # Find user
-    user_doc = await db.users.find_one(
-        {"email": form_data.username}
-    )  # OAuth2 form uses 'username'
+
+    user_doc = await db.users.find_one({"email": form_data.username})
     if not user_doc:
         raise HTTPException(status_code=400, detail="Incorrect email or password")
 
-    # Verify password
     if not verify_password(form_data.password, user_doc["hashed_password"]):
         raise HTTPException(status_code=400, detail="Incorrect email or password")
 
-    # Create JWT
-    access_token = create_access_token(data={"sub": user_doc["email"]})
+    token_payload = {
+        "sub": user_doc["email"],
+        "name": user_doc.get("name", "User"),
+        "plan": user_doc.get("plan", "Free plan"),
+    }
+
+    access_token = create_access_token(data=token_payload)
     return {"access_token": access_token, "token_type": "bearer"}
 
 
@@ -119,30 +130,65 @@ async def upload_document(
             status_code=401, detail="Must be logged in to upload documents"
         )
 
-    # 1. Read the file into memory
+    # Find User
+    user = await db.users.find_one({"email": email})
+    user_id = str(user["_id"]) if user else None
+
+    # 1. Extract the text
     content = await file.read()
-
-    # 2. Extract the text
     extracted_text = await extract_text_from_file(content, file.filename)
-
-    # Optional: Cap the length to avoid exceeding the AI's token limit
     extracted_text = extracted_text[:15000]
 
-    # 3. Save as a hidden system message inside the conversation
-    sys_msg = Message(
-        role="system",
-        content=f"[USER UPLOADED DOCUMENT: {file.filename}]\n\n{extracted_text}",
-    )
+    # 2. Prepare the Hidden Context Message (for the AI)
+    sys_msg = {
+        "role": "system",
+        "content": f"[USER UPLOADED DOCUMENT: {file.filename}]\n\n{extracted_text}",
+        "timestamp": datetime.now(timezone.utc),
+    }
 
-    result = await db.conversations.update_one(
-        {"_id": ObjectId(conversation_id)},
-        {"$push": {"messages": sys_msg.model_dump()}},
-    )
+    # 3. Prepare the Visible Receipt Message (for the UI)
+    ui_msg = {
+        "role": "assistant",
+        "content": f"📄 **Document Processed:** `{file.filename}`\n\nI have added this to my context. You can now ask me questions about it.",
+        "timestamp": datetime.now(timezone.utc),
+    }
 
-    if result.modified_count == 0:
-        raise HTTPException(status_code=404, detail="Conversation not found")
+    is_valid_id = ObjectId.is_valid(conversation_id)
 
-    return {"message": "Document processed", "filename": file.filename}
+    if not is_valid_id:
+        new_db_id = ObjectId()
+        new_conv = {
+            "_id": new_db_id,
+            "user_id": user_id,
+            "title": f"{file.filename[:20]}",
+            "messages": [sys_msg, ui_msg],
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc),
+        }
+        await db.conversations.insert_one(new_conv)
+
+        return {
+            "message": "Document processed and chat created",
+            "filename": file.filename,
+            "conversation_id": str(new_db_id),
+        }
+    else:
+        result = await db.conversations.update_one(
+            {"_id": ObjectId(conversation_id)},
+            {
+                "$push": {"messages": {"$each": [sys_msg, ui_msg]}},
+                "$set": {"updated_at": datetime.now(timezone.utc)},
+            },
+        )
+
+        if result.modified_count == 0:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+
+        return {
+            "message": "Document processed",
+            "filename": file.filename,
+            "conversation_id": conversation_id,
+        }
 
 
 async def generate_title_background(
@@ -193,9 +239,12 @@ async def generate_title_background(
 # Assuming your router and dependencies are imported appropriately
 # router = APIRouter()
 
-from datetime import datetime, timezone # Make sure timezone is imported at the top!
+from datetime import datetime, timezone  # Make sure timezone is imported at the top!
 
-async def extract_metrics_background(user_id: str, conversation_id: str, prompt: str, ai_backend_url: str):
+
+async def extract_metrics_background(
+    user_id: str, conversation_id: str, prompt: str, ai_backend_url: str
+):
     # UPGRADED PROMPT
     extraction_prompt = (
         "You are an expert sports data extraction AI. Read the user message and extract important data into a strict JSON array.\n"
@@ -206,21 +255,21 @@ async def extract_metrics_background(user_id: str, conversation_id: str, prompt:
         "4. 'training_data': frequency, duration, intensity (e.g., metric_name: 'session_duration').\n"
         "5. 'diet': calorie intake, macros (e.g., metric_name: 'daily_calories').\n\n"
         "Output ONLY valid JSON. If no metrics are found, output an empty array []. Example:\n"
-        '[\n'
+        "[\n"
         '  {"category": "body_stats", "metric_name": "weight", "value": 82, "unit": "kg"},\n'
         '  {"category": "pr", "metric_name": "deadlift", "value": 150, "unit": "kg", "meta_data": {"sport": "gym"}},\n'
         '  {"category": "goal", "metric_name": "current_goal", "value": "Lose 5kg", "unit": "", "meta_data": {"deadline": "2026-12-01"}}\n'
-        ']\n\n'
+        "]\n\n"
         f"User message: {prompt}"
     )
-    
+
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(
                 f"{ai_backend_url}/chat", json={"prompt": extraction_prompt}
             )
             response.raise_for_status()
-            
+
             raw_json = ""
             for line in response.text.splitlines():
                 if line.startswith("data: "):
@@ -229,30 +278,35 @@ async def extract_metrics_background(user_id: str, conversation_id: str, prompt:
                         raw_json += clean_chunk
                     except json.JSONDecodeError:
                         pass
-            
+
             # BULLETPROOF JSON EXTRACTION: Find the first '[' and last ']'
-            start_idx = raw_json.find('[')
-            end_idx = raw_json.rfind(']')
-            
+            start_idx = raw_json.find("[")
+            end_idx = raw_json.rfind("]")
+
             if start_idx != -1 and end_idx != -1:
-                clean_json_string = raw_json[start_idx:end_idx+1]
-                
+                clean_json_string = raw_json[start_idx : end_idx + 1]
+
                 if clean_json_string != "[]":
                     metrics = json.loads(clean_json_string)
                     for metric in metrics:
                         metric["user_id"] = user_id
                         metric["source_chat_id"] = conversation_id
-                        metric["date"] = datetime.now(timezone.utc) # Updated to timezone-aware UTC
+                        metric["date"] = datetime.now(
+                            timezone.utc
+                        )  # Updated to timezone-aware UTC
                         if "meta_data" not in metric:
                             metric["meta_data"] = {}
-                            
+
                         await db.metrics.insert_one(metric)
-                        print(f"✅ Extracted: {metric['metric_name']} ({metric['value']})")
+                        print(
+                            f"✅ Extracted: {metric['metric_name']} ({metric['value']})"
+                        )
             else:
                 print("No JSON array found in the AI response.")
-                    
+
     except Exception as e:
         print(f"⚠️ Background metric extraction failed: {repr(e)}")
+
 
 @app.post("/chat")
 async def chat(
@@ -267,20 +321,28 @@ async def chat(
         if user:
             user_id = str(user["_id"])
 
-    # 2. Check if the incoming conversation ID is a valid MongoDB ObjectId hex string
-    # If the frontend sent an optimistic ID like 'optimistic_1234', this evaluates to False
     is_valid_id = (
         ObjectId.is_valid(request.conversation_id) if request.conversation_id else False
     )
-
-    # Force "is_new_conversation" tracking if no ID was provided OR if the provided ID is a fake optimistic one
     is_new_conversation = not request.conversation_id or not is_valid_id
 
     # Establish the ID context safely
     if is_new_conversation:
-        # Generate a real, structurally flawless MongoDB ObjectId immediately
         db_assigned_id = ObjectId()
         current_conv_id = str(db_assigned_id)
+
+        # FIX: CREATE THE SHELL DOCUMENT IMMEDIATELY
+        # This guarantees the React frontend will never hit a 404.
+        if user_id:
+            shell_conv = {
+                "_id": db_assigned_id,
+                "user_id": user_id,
+                "title": request.prompt[:30] + "...",
+                "messages": [],  # Leave empty; local React state handles the UI during streaming
+                "created_at": datetime.utcnow(),
+                "updated_at": datetime.utcnow(),
+            }
+            await db.conversations.insert_one(shell_conv)
     else:
         current_conv_id = request.conversation_id
         db_assigned_id = ObjectId(current_conv_id)
@@ -294,37 +356,27 @@ async def chat(
         ai_content = ""
         full_prompt = request.prompt
 
-        # Pull history only if it's an existing conversation and we have a valid ID sequence
         # Pull history if appending to an existing conversation
         if not is_new_conversation:
             try:
                 conv = await db.conversations.find_one({"_id": db_assigned_id})
                 if conv and "messages" in conv:
                     history_chunks = []
-
                     for m in conv["messages"][-8:]:
                         role = m.get("role", "user").upper()
                         content = m.get("content", "")
-
                         if len(content) > 3000:
                             content = (
                                 content[:3000]
                                 + "... [Content truncated for length] ..."
                             )
-
                         history_chunks.append(f"{role}: {content}")
 
                     history = "\n\n".join(history_chunks)
-
                     full_prompt = (
                         f"CONTEXT & CONVERSATION HISTORY:\n"
-                        f"=================================\n"
-                        f"{history}\n"
-                        f"=================================\n\n"
-                        f"[SYSTEM INSTRUCTION]: The history above contains previous turns and text automatically "
-                        f"extracted from user-uploaded documents (labeled as SYSTEM or USER). If the user asks about a "
-                        f"file, document, or past context, DO NOT state that you cannot access it. The content is fully "
-                        f"available in the history block provided above. Read it carefully to formulate your answer.\n\n"
+                        f"=================================\n{history}\n=================================\n\n"
+                        f"[SYSTEM INSTRUCTION]: Read the history carefully. \n\n"
                         f"USER PROMPT: {request.prompt}"
                     )
             except InvalidId:
@@ -355,7 +407,7 @@ async def chat(
                 yield f"data: {word}\n\n"
                 await asyncio.sleep(0.1)
 
-        # 4. Save to MongoDB if the user context is authenticated
+        # 4. Save the finalized messages to MongoDB
         if user_id:
             ai_msg = {
                 "role": "assistant",
@@ -363,34 +415,23 @@ async def chat(
                 "timestamp": datetime.utcnow(),
             }
 
-            if not is_new_conversation:
-                await db.conversations.update_one(
-                    {"_id": db_assigned_id},
-                    {
-                        "$push": {"messages": {"$each": [user_msg, ai_msg]}},
-                        "$set": {"updated_at": datetime.utcnow()},
-                    },
-                )
-            else:
-                # Store the provisional conversation document using our verified safe ObjectId
-                provisional_title = request.prompt[:30] + "..."
-                new_conv = {
-                    "_id": db_assigned_id,
-                    "user_id": user_id,
-                    "title": provisional_title,
-                    "messages": [user_msg, ai_msg],
-                    "created_at": datetime.utcnow(),
-                    "updated_at": datetime.utcnow(),
-                }
-                await db.conversations.insert_one(new_conv)
+            # FIX: Because the shell document already exists, we ALWAYS use update_one to push messages
+            await db.conversations.update_one(
+                {"_id": db_assigned_id},
+                {
+                    "$push": {"messages": {"$each": [user_msg, ai_msg]}},
+                    "$set": {"updated_at": datetime.utcnow()},
+                },
+            )
 
+            # Trigger background tasks ONLY if it was a new conversation
+            if is_new_conversation:
                 background_tasks.add_task(
                     generate_title_background,
                     current_conv_id,
                     request.prompt,
                     ai_backend_url,
                 )
-
                 background_tasks.add_task(
                     extract_metrics_background,
                     user_id,
@@ -414,8 +455,8 @@ async def get_all_conversations(email: str = Depends(get_current_user_email)):
     # SAFEGUARD: Check if the user actually exists before trying to access user["_id"]
     if not user:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, 
-            detail="User not found. Please log in again."
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found. Please log in again.",
         )
 
     # 2. Fetch their conversations (excluding the heavy messages array to save bandwidth)
@@ -512,23 +553,25 @@ async def get_profile_summary(email: str = Depends(get_current_user_email)):
     user = await db.users.find_one({"email": email})
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
-    
+
     pipeline = [
         {"$match": {"user_id": str(user["_id"])}},
         {"$sort": {"date": -1}},
-        {"$group": {
-            "_id": "$metric_name",
-            "latest_value": {"$first": "$value"},
-            "unit": {"$first": "$unit"},
-            "category": {"$first": "$category"},
-            "meta_data": {"$first": "$meta_data"},
-            "date": {"$first": "$date"}
-        }}
+        {
+            "$group": {
+                "_id": "$metric_name",
+                "latest_value": {"$first": "$value"},
+                "unit": {"$first": "$unit"},
+                "category": {"$first": "$category"},
+                "meta_data": {"$first": "$meta_data"},
+                "date": {"$first": "$date"},
+            }
+        },
     ]
-    
+
     cursor = db.metrics.aggregate(pipeline)
     results = await cursor.to_list(length=100)
-    
+
     summary = {}
     for r in results:
         summary[r["_id"]] = {
@@ -536,26 +579,28 @@ async def get_profile_summary(email: str = Depends(get_current_user_email)):
             "unit": r.get("unit", ""),
             "category": r.get("category", "general"),
             "meta_data": r.get("meta_data", {}),
-            "date": r["date"].isoformat()
+            "date": r["date"].isoformat(),
         }
     return summary
 
+
 @app.get("/profile/metrics/{metric_name}")
-async def get_profile_metrics(metric_name: str, email: str = Depends(get_current_user_email)):
+async def get_profile_metrics(
+    metric_name: str, email: str = Depends(get_current_user_email)
+):
     user = await db.users.find_one({"email": email})
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
-    
+
     # Sort ascending so the frontend charts render chronologically
     cursor = db.metrics.find(
-        {"user_id": str(user["_id"]), "metric_name": metric_name},
-        {"_id": 0} 
+        {"user_id": str(user["_id"]), "metric_name": metric_name}, {"_id": 0}
     ).sort("date", 1)
-    
+
     metrics = await cursor.to_list(length=100)
     # Convert dates to ISO strings for JSON serialization
     for m in metrics:
         if isinstance(m.get("date"), datetime):
             m["date"] = m["date"].isoformat()
-            
+
     return metrics
