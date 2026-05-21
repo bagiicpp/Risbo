@@ -37,7 +37,7 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/hooks/useAuth";
-import { useNavigate } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { useTheme } from "@/context/ThemeProvider";
 import { useConversations } from "@/hooks/useConversations";
 import { useEffect, useState } from "react";
@@ -190,10 +190,10 @@ export function AppSidebar() {
                   const isGenerating = generatingTitleId === chat._id;
 
                   return (
-                    <div
+                    <Link
                       key={chat._id}
+                      to={`/chat/${chat._id}`}
                       className="group relative flex items-center w-full rounded-lg hover:bg-accent/50 transition-colors duration-200 cursor-pointer overflow-hidden border border-transparent hover:border-border/50"
-                      onClick={() => navigate(`/chat/${chat._id}`)}
                     >
                       {/* 2. THE DYNAMIC TITLE UI */}
                       {isGenerating ? (
@@ -204,7 +204,7 @@ export function AppSidebar() {
                           </span>
                         </div>
                       ) : (
-                        <span className="flex-1 truncate pl-3 pr-9 py-2 text-sm font-medium text-foreground/80 group-hover:text-foreground transition-colors">
+                        <span className="flex-1 truncate pl-3 pr-9 py-2 text-xs font-medium text-foreground/80 group-hover:text-foreground transition-colors">
                           {chat.title}
                         </span>
                       )}
@@ -230,7 +230,7 @@ export function AppSidebar() {
                                 e.stopPropagation();
                                 handleRenameClick(chat._id, chat.title);
                               }}
-                              className="cursor-pointer focus:bg-accent"
+                              className="cursor-pointer"
                             >
                               <Pencil className="mr-2 size-4 text-muted-foreground" />
                               <span>Rename</span>
@@ -243,7 +243,7 @@ export function AppSidebar() {
                                 e.stopPropagation();
                                 handleDeleteClick(chat._id);
                               }}
-                              className="cursor-pointer text-destructive focus:bg-destructive/10 focus:text-destructive transition-colors"
+                              className="cursor-pointer text-destructive transition-colors"
                             >
                               <Trash2 className="mr-2 size-4" />
                               <span>Delete</span>
@@ -251,7 +251,7 @@ export function AppSidebar() {
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
-                    </div>
+                    </Link>
                   );
                 })}
               </SidebarMenu>
@@ -279,7 +279,7 @@ export function AppSidebar() {
               <DropdownMenuTrigger asChild>
                 <SidebarMenuButton
                   size="lg"
-                  className="w-full h-14 mt-1 rounded-xl data-[state=open]:bg-accent data-[state=open]:text-accent-foreground hover:bg-accent transition-all duration-300 cursor-pointer border border-transparent hover:border-border/50 group-data-[collapsible=icon]:h-10 group-data-[collapsible=icon]:p-0.5 overflow-hidden"
+                  className="w-full h-14 mt-1 rounded-xl data-[state=open]:bg-accent data-[state=open]:text-accent-foreground hover:bg-accent transition-all duration-300 cursor-pointer border border-transparent hover:border-border/50 group-data-[collapsible=icon]:h-10 group-data-[collapsible=icon]:p-0.5 overflow-hidden focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:outline-none"
                 >
                   <div className="flex aspect-square size-9 items-center justify-center rounded-lg bg-gradient-to-br from-primary/20 to-primary/10 text-primary font-bricolage font-bold border border-primary/20 shadow-sm shrink-0 transition-all duration-300 group-data-[collapsible=icon]:rounded-xl select-none">
                     <span className="leading-none transition-transform duration-300 group-data-[collapsible=icon]:-translate-x-[2px] group-data-[collapsible=icon]:-translate-y-[1px]">
@@ -315,14 +315,14 @@ export function AppSidebar() {
                 sideOffset={8}
               >
                 <DropdownMenuItem
-                  className="gap-3 cursor-pointer rounded-lg p-2.5 transition-colors focus:bg-accent"
+                  className="gap-3 cursor-pointer rounded-lg p-2.5 transition-colors"
                   onClick={() => navigate("/profile")}
                 >
                   <User size={16} className="text-muted-foreground" />
                   <span className="font-medium">My Profile</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  className="gap-3 cursor-pointer rounded-lg p-2.5 transition-colors focus:bg-accent"
+                  className="gap-3 cursor-pointer rounded-lg p-2.5 transition-colors"
                   onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
                 >
                   {theme === "dark" ? (
@@ -332,7 +332,7 @@ export function AppSidebar() {
                   )}
                   <span className="font-medium">Toggle Theme</span>
                 </DropdownMenuItem>
-                <DropdownMenuItem className="gap-3 cursor-pointer rounded-lg p-2.5 transition-colors focus:bg-accent">
+                <DropdownMenuItem className="gap-3 cursor-pointer rounded-lg p-2.5 transition-colors">
                   <Download size={16} className="text-muted-foreground" />
                   <span className="font-medium">Export Data</span>
                 </DropdownMenuItem>

@@ -10,6 +10,7 @@ import {
   Mic, // Added Mic icon
 } from "lucide-react";
 import React, { useRef, useState, useEffect } from "react";
+import { ModelSelector } from "./ModelSelector";
 
 interface ChatInputProps {
   input: string;
@@ -50,7 +51,6 @@ export default function ChatInput({
     }
   }, [input]);
 
-  // Initialize the Web Speech API
   useEffect(() => {
     if (typeof window !== "undefined") {
       const SpeechRecognition =
@@ -214,11 +214,7 @@ export default function ChatInput({
             </button>
 
             {/* Model Selector Dropdown Trigger */}
-            <button className="flex items-center gap-2 px-3 py-1.5 ml-1 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-lg transition-colors text-sm font-mono cursor-pointer">
-              <Sparkles size={16} className="text-primary/70" />
-              <span className="font-bricolage">Risbo: Kinetic-v1</span>
-              <ChevronDown size={14} className="opacity-50" />
-            </button>
+            <ModelSelector />
           </div>
 
           {/* Right Controls (Mic & Send Button) */}
