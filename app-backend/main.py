@@ -388,7 +388,12 @@ async def chat(
             async with httpx.AsyncClient(timeout=120.0) as client:
                 req_data = {"prompt": full_prompt}
                 async with client.stream(
-                    "POST", f"{ai_backend_url}/chat", json=req_data
+                    "POST", 
+                    f"{ai_backend_url}/chat", 
+                    json={
+                        "prompt": request.prompt,
+                        "model": request.model
+                    }
                 ) as response:
                     response.raise_for_status()
                     async for line in response.aiter_lines():
@@ -432,13 +437,14 @@ async def chat(
                     request.prompt,
                     ai_backend_url,
                 )
-                background_tasks.add_task(
-                    extract_metrics_background,
-                    user_id,
-                    current_conv_id,
-                    request.prompt,
-                    ai_backend_url,
-                )
+    
+            background_tasks.add_task(
+                extract_metrics_background,
+                user_id,
+                current_conv_id,
+                request.prompt,
+                ai_backend_url,
+            )
 
     return StreamingResponse(
         generate(),

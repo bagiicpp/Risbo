@@ -22,19 +22,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
 @app.get("/ping")
 async def ping():
     return {"status": "ok", "service": "ai-backend"}
 
-
 # Initialize the Google GenAI Client
 client = genai.Client(api_key=os.getenv("AI_STUDIO_API"))
 
-
 class ChatRequest(BaseModel):
     prompt: str
-
+    model: str | None = None  # <-- Accept the model parameter here
 
 ATHLETE_SYSTEM_PROMPT = (
     "You are Risbo, a specialized AI assistant for athletes, coaches, and sports analysts. "
@@ -45,16 +42,21 @@ ATHLETE_SYSTEM_PROMPT = (
     "If a user asks something unrelated to sports, player statistics, or training, politely steer the conversation back to the sports domain."
 )
 
-
-async def generate_stream(user_prompt: str):
+async def generate_stream(user_prompt: str, requested_model: str | None):
     try:
-        # Spajamo sistemski prompt direktno sa korisničkim promptom.
-        # Ovo sprečava 500 Internal Error jer Gemma modeli često ne podržavaju system_instruction parametar.
-        combined_prompt = f"{ATHLETE_SYSTEM_PROMPT}\n\n{user_prompt}"
+        # 1. SMART ROUTING: Determine the model and persona
+        if "You are an expert sports data extraction AI" in user_prompt:
+            combined_prompt = user_prompt
+            # Always force a fast/cheap model for invisible background tasks!
+            actual_model = "gemini-2.5-flash" 
+        else:
+            combined_prompt = f"{ATHLETE_SYSTEM_PROMPT}\n\n{user_prompt}"
+            # Use the requested model, or fallback to the .env default
+            actual_model = requested_model or os.getenv("AI_STUDIO_MODEL", "gemini-2.5-flash")
 
-        # Request a stream from the model
-        stream = client.models.generate_content_stream(
-            model=os.getenv("AI_STUDIO_MODEL", "gemma-4-26b-a4b-it"),
+        # 2. GENERATE CONTENT
+        response_stream = await client.aio.models.generate_content_stream(
+            model=actual_model,
             contents=combined_prompt,
             config=types.GenerateContentConfig(
                 temperature=0.7,
@@ -62,12 +64,9 @@ async def generate_stream(user_prompt: str):
             ),
         )
 
-        for chunk in stream:
+        async for chunk in response_stream:
             if chunk.text:
-                # SSE standard: data must be prefixed with 'data: ' and end with '\n\n'
                 yield f"data: {json.dumps(chunk.text)}\n\n"
-                # Small sleep to ensure smooth event loop handling
-                await asyncio.sleep(0.01)
 
     except Exception as e:
         print(f"Streaming Error: {e}")
@@ -76,10 +75,10 @@ async def generate_stream(user_prompt: str):
 
 @app.post("/chat")
 async def chat_with_gemma(request: ChatRequest):
-    # Verify the API key exists before starting the stream
     if not os.getenv("AI_STUDIO_API"):
         raise HTTPException(status_code=500, detail="API Key missing in .env")
 
+    # Pass the requested model to the generator
     return StreamingResponse(
-        generate_stream(request.prompt), media_type="text/event-stream"
+        generate_stream(request.prompt, request.model), media_type="text/event-stream"
     )

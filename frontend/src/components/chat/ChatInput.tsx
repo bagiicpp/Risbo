@@ -7,13 +7,27 @@ import {
   ChevronDown,
   FileText,
   X,
-  Mic, // Added Mic icon
+  Mic,
 } from "lucide-react";
 import React, { useRef, useState, useEffect } from "react";
+// NEW: Import the UI dropdown components
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+// NEW: Define the available models and their friendly names
+const AVAILABLE_MODELS = [
+  { id: "gemma-4-26b-a4b-it", name: "Risbo Standard (26B)" },
+  { id: "gemma-4-31b-a4b-it", name: "Risbo Thinker (31B)" },
+  { id: "gemini-2.5-flash", name: "Risbo Fast (Flash)" },
+];
 
 interface ChatInputProps {
   input: string;
-  setInput: (value: React.SetStateAction<string>) => void; // Updated type to handle state callbacks
+  setInput: (value: React.SetStateAction<string>) => void;
   onSend: () => void;
   loading: boolean;
   onUpload: (file: File) => void;
@@ -21,6 +35,8 @@ interface ChatInputProps {
   activeConversationId: string | null;
   uploadedFile?: File | null;
   onClearFile?: () => void;
+  selectedModel: string; // NEW: Accept state
+  setSelectedModel: (model: string) => void; // NEW: Accept setter
 }
 
 export default function ChatInput({
@@ -33,16 +49,16 @@ export default function ChatInput({
   activeConversationId,
   uploadedFile,
   onClearFile,
+  selectedModel,
+  setSelectedModel,
 }: ChatInputProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [isDragging, setIsDragging] = useState(false);
 
-  // Web Speech API States
   const [isRecording, setIsRecording] = useState(false);
   const recognitionRef = useRef<any>(null);
 
-  // Auto-resize textarea logic
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
@@ -50,7 +66,6 @@ export default function ChatInput({
     }
   }, [input]);
 
-  // Initialize the Web Speech API
   useEffect(() => {
     if (typeof window !== "undefined") {
       const SpeechRecognition =
@@ -67,7 +82,6 @@ export default function ChatInput({
           for (let i = event.resultIndex; i < event.results.length; i++) {
             currentTranscript += event.results[i][0].transcript;
           }
-          // Append the voice text safely to existing input
           setInput((prev) => {
             const base =
               typeof prev === "string" && prev.endsWith(" ")
@@ -120,7 +134,6 @@ export default function ChatInput({
     }
   };
 
-  // Drag and Drop Handlers
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(true);
@@ -139,13 +152,15 @@ export default function ChatInput({
     }
   };
 
+  // Find the friendly name of the currently selected model
+  const currentModelName = AVAILABLE_MODELS.find(m => m.id === selectedModel)?.name || "Select Model";
+
   return (
     <div className="w-full max-w-4xl mx-auto">
       <div className="flex gap-2 mb-3 px-2 overflow-x-auto pb-1 no-scrollbar">
         {/* We will populate this in Phase 2 */}
       </div>
 
-      {/* Main Console Container */}
       <div
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -179,7 +194,6 @@ export default function ChatInput({
           )}
         </div>
 
-        {/* Attached File Chip */}
         {uploadedFile && !isDragging && (
           <div className="px-4 pb-2">
             <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 text-primary rounded-lg px-3 py-1.5 text-sm font-dmsans">
@@ -199,9 +213,7 @@ export default function ChatInput({
           </div>
         )}
 
-        {/* Bottom Controls Row */}
         <div className="flex items-center justify-between p-2 pl-3">
-          {/* Left Controls */}
           <div className="flex items-center gap-1">
             <button
               type="button"
@@ -213,15 +225,38 @@ export default function ChatInput({
               <Plus size={20} />
             </button>
 
-            {/* Model Selector Dropdown Trigger */}
-            <button className="flex items-center gap-2 px-3 py-1.5 ml-1 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-lg transition-colors text-sm font-mono cursor-pointer">
-              <Sparkles size={16} className="text-primary/70" />
-              <span className="font-bricolage">Risbo: Kinetic-v1</span>
-              <ChevronDown size={14} className="opacity-50" />
-            </button>
+            {/* NEW: Dropdown Menu for Model Selection */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="flex items-center gap-2 px-3 py-1.5 ml-1 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-lg transition-colors text-sm font-mono cursor-pointer outline-none">
+                  <Sparkles size={16} className="text-primary/70" />
+                  <span className="font-bricolage">{currentModelName}</span>
+                  <ChevronDown size={14} className="opacity-50" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="start"
+                sideOffset={8}
+                className="bg-zinc-900 border-zinc-800 text-zinc-100 rounded-xl shadow-xl min-w-[220px]"
+              >
+                {AVAILABLE_MODELS.map((model) => (
+                  <DropdownMenuItem
+                    key={model.id}
+                    onClick={() => setSelectedModel(model.id)}
+                    className={`cursor-pointer hover:bg-zinc-800 focus:bg-zinc-800 rounded-lg py-2.5 px-3 transition-colors ${
+                      selectedModel === model.id ? "text-primary bg-primary/10" : ""
+                    }`}
+                  >
+                    <div className="flex flex-col">
+                      <span className="font-medium">{model.name}</span>
+                      <span className="text-xs text-zinc-500 mt-0.5">{model.id}</span>
+                    </div>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
 
-          {/* Right Controls (Mic & Send Button) */}
           <div className="flex items-center gap-1">
             <button
               type="button"

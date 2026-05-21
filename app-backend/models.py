@@ -38,6 +38,7 @@ class Conversation(BaseModel):
 class ChatRequest(BaseModel):
     prompt: str
     conversation_id: Optional[str] = None
+    model: Optional[str] = None
 
 
 class Metric(BaseModel):
