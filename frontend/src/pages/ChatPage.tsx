@@ -32,7 +32,9 @@ export default function ChatPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
-  const [isPolling, setIsPolling] = useState(false);
+  
+  // NEW: State to hold the currently selected model
+  const [selectedModel, setSelectedModel] = useState("gemma-4-26b-a4b-it");
 
   const isChatActive = !!conversationId || messages.length > 0 || loading;
 
@@ -219,6 +221,7 @@ export default function ChatPage() {
         body: JSON.stringify({
           prompt: userMessage,
           conversation_id: isNewChat ? null : activeConversationId,
+          model: selectedModel, // NEW: Forward the selected model to the backend
           client_context: {
             timestamp: new Date().toISOString(),
             timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -231,7 +234,6 @@ export default function ChatPage() {
       if (!response.body) throw new Error("No response body");
 
       const returnedConvId = response.headers.get("X-Conversation-Id");
-      console.log("DEBUG: X-Conversation-Id header:", returnedConvId);
 
       if (isNewChat && returnedConvId) {
         swapProvisionalId(tempId, returnedConvId);
@@ -261,7 +263,6 @@ export default function ChatPage() {
             );
 
             if (res.status === 404) {
-              console.log(`[POLLER ${attempts}] Database syncing, waiting...`);
               return;
             }
 
@@ -276,10 +277,7 @@ export default function ChatPage() {
               chatDoc.title.length > 5;
 
             if (isFinishedGenerating) {
-              console.log(`[POLLER] Success! Updating to: "${chatDoc.title}"`);
-
               clearInterval(pollForTitle);
-
               updateConversationTitle(returnedConvId, chatDoc.title);
               setGeneratingTitleId(null);
               return;
@@ -414,10 +412,9 @@ export default function ChatPage() {
                 </h2>
               </motion.div>
 
-              {/* EMPTY STATE CONSOLE */}
               <motion.div
                 layoutId="chat-console-wrapper"
-                layout="position" // Fix: Added layout position lock
+                layout="position"
                 className="relative w-full mt-4 shrink-0 z-10"
                 transition={{ type: "spring", bounce: 0.15, duration: 0.6 }}
               >
@@ -434,25 +431,24 @@ export default function ChatPage() {
                   onUpload={handleFileUpload}
                   isUploading={isUploading}
                   activeConversationId={activeConversationId}
+                  selectedModel={selectedModel} // NEW: Pass state to input
+                  setSelectedModel={setSelectedModel} // NEW: Pass setter to input
                 />
               </motion.div>
             </div>
           </main>
         ) : (
-          /* ACTIVE STATE WRAPPER: Fully rebuilt as a flex-column instead of absolute */
           <main className="flex-1 flex flex-col w-full h-full overflow-hidden relative">
-            {/* 1. Message List Container: Takes up all available space and scrolls */}
             <div className="flex-1 w-full overflow-y-auto px-4 pt-8">
               <div className="max-w-3xl mx-auto pb-4">
                 <StreamWindow messages={messages} scrollRef={scrollRef} />
               </div>
             </div>
 
-            {/* 2. Input Container: Statically sits at the bottom using flex layout */}
             <div className="w-full shrink-0 p-4 bg-gradient-to-t from-background via-background/95 to-transparent z-10 pointer-events-none">
               <motion.div
                 layoutId="chat-console-wrapper"
-                layout="position" // Fix: Ignores parent height changes, tracks X/Y only
+                layout="position"
                 className="relative max-w-3xl mx-auto w-full pointer-events-auto z-10"
                 transition={{ type: "spring", bounce: 0.15, duration: 0.6 }}
               >
@@ -469,6 +465,8 @@ export default function ChatPage() {
                   onUpload={handleFileUpload}
                   isUploading={isUploading}
                   activeConversationId={activeConversationId}
+                  selectedModel={selectedModel} 
+                  setSelectedModel={setSelectedModel} 
                 />
               </motion.div>
             </div>

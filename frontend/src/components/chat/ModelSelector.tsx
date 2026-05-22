@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Sparkles, ChevronDown, Check } from "lucide-react";
 import {
   DropdownMenu,
@@ -9,22 +8,31 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-export function ModelSelector() {
-  const [selectedModel, setSelectedModel] = useState("Risbo: Kinetic-v1");
+interface ModelSelectorProps {
+  selectedModelId: string;
+  onModelSelect: (modelId: string) => void;
+}
 
-  const availableModels = [
-    { id: "kinetic-v1", name: "Risbo: Kinetic-v1" },
-    { id: "lumina-pro", name: "Risbo: Lumina Pro" },
-    { id: "nexus-lite", name: "Risbo: Nexus Lite" },
-  ];
+export const AVAILABLE_MODELS = [
+  { id: "gemma-4-26b-a4b-it", name: "Risbo Standard (26B)" },
+  { id: "gemma-4-31b-a4b-it", name: "Risbo Thinker (31B)" },
+  { id: "gemini-2.5-flash", name: "Risbo Fast (Flash)" },
+];
+
+export function ModelSelector({
+  selectedModelId,
+  onModelSelect,
+}: ModelSelectorProps) {
+  const currentModel =
+    AVAILABLE_MODELS.find((m) => m.id === selectedModelId) ||
+    AVAILABLE_MODELS[2];
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        {/* Added focus:outline-none to prevent the focus ring issue from earlier */}
         <button className="flex items-center gap-2 px-3 py-1.5 ml-1 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-lg transition-colors text-sm font-mono cursor-pointer focus:outline-none focus:ring-0">
           <Sparkles size={16} className="text-primary/70 shrink-0" />
-          <span className="font-bricolage truncate">{selectedModel}</span>
+          <span className="font-bricolage truncate">{currentModel.name}</span>
           <ChevronDown size={14} className="opacity-50 shrink-0" />
         </button>
       </DropdownMenuTrigger>
@@ -38,14 +46,14 @@ export function ModelSelector() {
         </DropdownMenuLabel>
         <DropdownMenuSeparator className="bg-zinc-800" />
 
-        {availableModels.map((model) => (
+        {AVAILABLE_MODELS.map((model) => (
           <DropdownMenuItem
             key={model.id}
-            onClick={() => setSelectedModel(model.name)}
+            onClick={() => onModelSelect(model.id)}
             className="flex items-center justify-between cursor-pointer hover:bg-zinc-800 hover:text-zinc-100 focus:bg-zinc-800 focus:text-zinc-100"
           >
             <span className="font-bricolage">{model.name}</span>
-            {selectedModel === model.name && (
+            {selectedModelId === model.id && (
               <Check size={14} className="text-primary" />
             )}
           </DropdownMenuItem>

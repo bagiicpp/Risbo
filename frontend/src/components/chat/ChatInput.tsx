@@ -1,20 +1,10 @@
-import {
-  Send,
-  Paperclip,
-  Loader2,
-  Plus,
-  Sparkles,
-  ChevronDown,
-  FileText,
-  X,
-  Mic, // Added Mic icon
-} from "lucide-react";
+import { Send, Loader2, Plus, FileText, X, Mic } from "lucide-react";
 import React, { useRef, useState, useEffect } from "react";
 import { ModelSelector } from "./ModelSelector";
 
 interface ChatInputProps {
   input: string;
-  setInput: (value: React.SetStateAction<string>) => void; // Updated type to handle state callbacks
+  setInput: (value: React.SetStateAction<string>) => void;
   onSend: () => void;
   loading: boolean;
   onUpload: (file: File) => void;
@@ -22,6 +12,8 @@ interface ChatInputProps {
   activeConversationId: string | null;
   uploadedFile?: File | null;
   onClearFile?: () => void;
+  selectedModel: string;
+  setSelectedModel: (model: string) => void;
 }
 
 export default function ChatInput({
@@ -34,16 +26,17 @@ export default function ChatInput({
   activeConversationId,
   uploadedFile,
   onClearFile,
+  selectedModel,
+  setSelectedModel,
 }: ChatInputProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [isDragging, setIsDragging] = useState(false);
 
-  // Web Speech API States
   const [isRecording, setIsRecording] = useState(false);
   const recognitionRef = useRef<any>(null);
+  const originalInputRef = useRef<string>("");
 
-  // Auto-resize textarea logic
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
@@ -64,17 +57,14 @@ export default function ChatInput({
 
         recognitionRef.current.onresult = (event: any) => {
           let currentTranscript = "";
-          for (let i = event.resultIndex; i < event.results.length; i++) {
+          for (let i = 0; i < event.results.length; i++) {
             currentTranscript += event.results[i][0].transcript;
           }
-          // Append the voice text safely to existing input
-          setInput((prev) => {
-            const base =
-              typeof prev === "string" && prev.endsWith(" ")
-                ? prev
-                : prev + " ";
-            return base + currentTranscript;
-          });
+
+          const base = originalInputRef.current;
+          const separator = base && !base.endsWith(" ") ? " " : "";
+
+          setInput(base + separator + currentTranscript);
         };
 
         recognitionRef.current.onerror = (event: any) => {
@@ -99,6 +89,7 @@ export default function ChatInput({
       recognitionRef.current.stop();
       setIsRecording(false);
     } else {
+      originalInputRef.current = input;
       recognitionRef.current.start();
       setIsRecording(true);
     }
@@ -120,7 +111,6 @@ export default function ChatInput({
     }
   };
 
-  // Drag and Drop Handlers
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(true);
@@ -145,7 +135,6 @@ export default function ChatInput({
         {/* We will populate this in Phase 2 */}
       </div>
 
-      {/* Main Console Container */}
       <div
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -179,7 +168,6 @@ export default function ChatInput({
           )}
         </div>
 
-        {/* Attached File Chip */}
         {uploadedFile && !isDragging && (
           <div className="px-4 pb-2">
             <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 text-primary rounded-lg px-3 py-1.5 text-sm font-dmsans">
@@ -199,9 +187,7 @@ export default function ChatInput({
           </div>
         )}
 
-        {/* Bottom Controls Row */}
         <div className="flex items-center justify-between p-2 pl-3">
-          {/* Left Controls */}
           <div className="flex items-center gap-1">
             <button
               type="button"
@@ -213,11 +199,12 @@ export default function ChatInput({
               <Plus size={20} />
             </button>
 
-            {/* Model Selector Dropdown Trigger */}
-            <ModelSelector />
+            <ModelSelector
+              selectedModelId={selectedModel}
+              onModelSelect={setSelectedModel}
+            />
           </div>
 
-          {/* Right Controls (Mic & Send Button) */}
           <div className="flex items-center gap-1">
             <button
               type="button"
