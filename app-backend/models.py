@@ -13,12 +13,19 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=8)
     name: str = Field(..., min_length=2, max_length=50)
+    role: str = Field(default="athlete", description="Either 'athlete' or 'coach'")
 
 
 class UserInDB(BaseModel):
     email: EmailStr
     hashed_password: str
+    role: str = "athlete"
 
+class RosterLink(BaseModel):
+    coach_id: str
+    athlete_id: str
+    status: str = "pending"
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class Message(BaseModel):
     role: str

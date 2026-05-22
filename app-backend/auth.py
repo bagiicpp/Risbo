@@ -72,3 +72,28 @@ async def get_optional_user_email(
         return str(payload.get("sub")) if payload.get("sub") else None
     except InvalidTokenError:
         return None
+
+async def get_current_coach_email(token: str = Depends(oauth2_scheme)):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        sub = payload.get("sub")
+        role = payload.get("role")
+        
+        if sub is None:
+            raise credentials_exception
+            
+        # SECURITY: Block athletes from accessing coach endpoints
+        if role != "coach":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied. Coach privileges required."
+            )
+            
+        return str(sub)
+    except InvalidTokenError:
+        raise credentials_exception

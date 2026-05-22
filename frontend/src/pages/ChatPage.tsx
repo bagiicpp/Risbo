@@ -465,8 +465,8 @@ export default function ChatPage() {
                   onUpload={handleFileUpload}
                   isUploading={isUploading}
                   activeConversationId={activeConversationId}
-                  selectedModel={selectedModel} // NEW: Pass state to input
-                  setSelectedModel={setSelectedModel} // NEW: Pass setter to input
+                  selectedModel={selectedModel} 
+                  setSelectedModel={setSelectedModel} 
                 />
               </motion.div>
             </div>

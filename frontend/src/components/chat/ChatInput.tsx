@@ -58,6 +58,7 @@ export default function ChatInput({
 
   const [isRecording, setIsRecording] = useState(false);
   const recognitionRef = useRef<any>(null);
+  const originalInputRef = useRef<string>("");
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -79,16 +80,14 @@ export default function ChatInput({
 
         recognitionRef.current.onresult = (event: any) => {
           let currentTranscript = "";
-          for (let i = event.resultIndex; i < event.results.length; i++) {
+          for (let i = 0; i < event.results.length; i++) {
             currentTranscript += event.results[i][0].transcript;
           }
-          setInput((prev) => {
-            const base =
-              typeof prev === "string" && prev.endsWith(" ")
-                ? prev
-                : prev + " ";
-            return base + currentTranscript;
-          });
+          
+          const base = originalInputRef.current;
+          const separator = base && !base.endsWith(" ") ? " " : "";
+          
+          setInput(base + separator + currentTranscript);
         };
 
         recognitionRef.current.onerror = (event: any) => {
@@ -103,7 +102,7 @@ export default function ChatInput({
     }
   }, [setInput]);
 
-  const toggleRecording = () => {
+const toggleRecording = () => {
     if (!recognitionRef.current) {
       alert("Your browser does not support speech recognition.");
       return;
@@ -113,6 +112,7 @@ export default function ChatInput({
       recognitionRef.current.stop();
       setIsRecording(false);
     } else {
+      originalInputRef.current = input;
       recognitionRef.current.start();
       setIsRecording(true);
     }
