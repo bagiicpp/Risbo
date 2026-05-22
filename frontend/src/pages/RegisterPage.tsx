@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import api from "../lib/api";
 import { useNavigate, Link } from "react-router";
-import { Loader2, AlertCircle } from "lucide-react";
+import { Loader2, AlertCircle, Activity, User } from "lucide-react";
 import { motion, type Variants } from "framer-motion";
 
 // shadcn/ui components
@@ -27,17 +27,19 @@ const containerVariants: Variants = {
   },
 };
 
-// Add : Variants here
 const itemVariants: Variants = {
   hidden: { opacity: 0, y: 15 },
   visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: "easeOut" } },
 };
+
+type UserRole = "athlete" | "coach";
 
 const RegisterPage: React.FC = () => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [role, setRole] = useState<UserRole>("athlete"); // New role state
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -55,7 +57,8 @@ const RegisterPage: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      await api.post("/register", { name, email, password });
+      // Pass the role in the payload
+      await api.post("/register", { name, email, password, role });
       navigate("/login", { replace: true });
     } catch (err: any) {
       const message = err.response?.data?.detail || "Registration failed.";
@@ -106,6 +109,39 @@ const RegisterPage: React.FC = () => {
               )}
 
               <div className="space-y-5">
+                {/* NEW: Role Selection */}
+                <motion.div variants={itemVariants} className="space-y-3">
+                  <Label className="text-muted-foreground ml-1">
+                    I am a...
+                  </Label>
+                  <div className="grid grid-cols-2 gap-4">
+                    <button
+                      type="button"
+                      onClick={() => setRole("athlete")}
+                      className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all duration-200 ${
+                        role === "athlete"
+                          ? "border-primary bg-primary/10 text-primary shadow-sm"
+                          : "border-border bg-background/50 text-muted-foreground hover:border-primary/40 hover:bg-background"
+                      }`}
+                    >
+                      <Activity size={24} className="mb-2" />
+                      <span className="font-semibold text-sm">Athlete</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRole("coach")}
+                      className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all duration-200 ${
+                        role === "coach"
+                          ? "border-primary bg-primary/10 text-primary shadow-sm"
+                          : "border-border bg-background/50 text-muted-foreground hover:border-primary/40 hover:bg-background"
+                      }`}
+                    >
+                      <User size={24} className="mb-2" />
+                      <span className="font-semibold text-sm">Coach</span>
+                    </button>
+                  </div>
+                </motion.div>
+
                 <motion.div variants={itemVariants} className="space-y-2">
                   <Label htmlFor="name" className="text-muted-foreground ml-1">
                     Display Name
@@ -178,7 +214,7 @@ const RegisterPage: React.FC = () => {
               {/* Centered, shrunken button with padding */}
               <motion.div
                 variants={itemVariants}
-                className="flex justify-center py-8"
+                className="flex justify-center pt-8 pb-4"
               >
                 <Button
                   type="submit"

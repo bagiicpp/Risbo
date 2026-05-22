@@ -37,12 +37,8 @@ export default function ChatInput({
   const recognitionRef = useRef<any>(null);
   const originalInputRef = useRef<string>("");
 
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`;
-    }
-  }, [input]);
+  // FIX: Removed the layout-thrashing useEffect for auto-resize.
+  // It is now handled directly in the onChange event below.
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -100,6 +96,11 @@ export default function ChatInput({
       e.preventDefault();
       if (input.trim() || uploadedFile) {
         onSend();
+
+        // Reset height on send
+        if (textareaRef.current) {
+          textareaRef.current.style.height = "auto";
+        }
       }
     }
   };
@@ -139,7 +140,7 @@ export default function ChatInput({
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        className="relative w-full bg-zinc-900 rounded-2xl shadow-lg transition-all duration-300 flex flex-col"
+        className="relative w-full bg-card border border-border/50 rounded-2xl shadow-lg transition-all duration-300 flex flex-col"
       >
         <input
           type="file"
@@ -159,10 +160,15 @@ export default function ChatInput({
             <textarea
               ref={textareaRef}
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e) => {
+                setInput(e.target.value);
+                // FIX: Performant auto-resize directly in the DOM event handler
+                e.target.style.height = "auto";
+                e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`;
+              }}
               onKeyDown={handleKeyDown}
               placeholder="Query the system or detail your workout parameters..."
-              className="w-full bg-transparent border-0 resize-none outline-none text-zinc-100 placeholder:text-zinc-400 font-dmsans text-base leading-relaxed min-h-[60px]"
+              className="w-full bg-transparent border-0 resize-none outline-none text-foreground placeholder:text-muted-foreground font-dmsans text-base leading-relaxed min-h-[60px]"
               rows={1}
             />
           )}
@@ -193,7 +199,7 @@ export default function ChatInput({
               type="button"
               disabled={isUploading}
               onClick={() => fileInputRef.current?.click()}
-              className="p-2 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               title="Upload File"
             >
               <Plus size={20} />
@@ -212,7 +218,7 @@ export default function ChatInput({
               className={`p-2.5 rounded-xl transition-all duration-300 cursor-pointer flex items-center justify-center shrink-0 outline-none ${
                 isRecording
                   ? "bg-primary/20 text-primary shadow-[0_0_15px_rgba(34,197,94,0.2)] animate-pulse"
-                  : "bg-transparent text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
+                  : "bg-transparent text-muted-foreground hover:text-foreground hover:bg-muted"
               }`}
               title="Voice Typing"
             >
@@ -225,17 +231,14 @@ export default function ChatInput({
               disabled={(!input.trim() && !uploadedFile) || loading}
               className={`p-2.5 rounded-xl transition-all duration-300 flex items-center justify-center shrink-0 ${
                 input.trim() || uploadedFile
-                  ? "bg-primary text-zinc-950 shadow-[0_0_15px_rgba(34,197,94,0.3)] hover:scale-105"
-                  : "bg-transparent text-zinc-500 cursor-not-allowed"
+                  ? "bg-primary text-primary-foreground shadow-[0_0_15px_rgba(var(--primary),0.3)] hover:scale-105"
+                  : "bg-transparent text-muted-foreground/50 cursor-not-allowed"
               }`}
             >
               {loading ? (
                 <Loader2 size={18} className="animate-spin" />
               ) : (
-                <Send
-                  size={18}
-                  className={input.trim() || uploadedFile ? "ml-0.5" : ""}
-                />
+                <Send size={18} />
               )}
             </button>
           </div>

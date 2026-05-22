@@ -6,6 +6,7 @@ python-multipart
 # Database & Environment
 motor
 python-dotenv
+langdetect
 
 # External Connections
 httpx
@@ -19,3 +20,4 @@ pydantic[email]
 pypdf
 python-docx
 openpyxl
+yake
