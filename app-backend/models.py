@@ -13,7 +13,12 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=8)
     name: str = Field(..., min_length=2, max_length=50)
-    role: str = Field(default="athlete", description="Either 'athlete' or 'coach'")
+    # The pattern ensures only 'athlete' or 'coach' are accepted
+    role: str = Field(
+        default="athlete",
+        pattern="^(athlete|coach)$",
+        description="Either 'athlete' or 'coach'",
+    )
 
 
 class UserInDB(BaseModel):
@@ -21,11 +26,13 @@ class UserInDB(BaseModel):
     hashed_password: str
     role: str = "athlete"
 
+
 class RosterLink(BaseModel):
     coach_id: str
     athlete_id: str
     status: str = "pending"
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
 
 class Message(BaseModel):
     role: str

@@ -23,7 +23,6 @@ export default function ChatPage() {
     swapProvisionalId,
     setGeneratingTitleId,
     updateConversationTitle,
-    generatingTitleId,
   } = useConversations();
 
   const [messages, setMessages] = useState<Message[]>([]);
@@ -32,24 +31,24 @@ export default function ChatPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
-  
-  // NEW: State to hold the currently selected model
+
   const [selectedModel, setSelectedModel] = useState("gemma-4-26b-a4b-it");
 
   const isChatActive = !!conversationId || messages.length > 0 || loading;
 
+  // FIX 1: The Cache Guard
   useEffect(() => {
     const abortController = new AbortController();
 
     if (conversationId) {
-      setActiveConversationId(conversationId);
-
-      if (conversationId === generatingTitleId) {
-        console.log("Bypassing background fetch to prevent UI flicker.");
+      // THE GUARD: If the URL ID matches our active ID, and we already have messages on screen,
+      // it means we just streamed this chat. DO NOT wipe the screen.
+      if (conversationId === activeConversationId && messages.length > 0) {
         return;
       }
 
-      setMessages([]);
+      setActiveConversationId(conversationId);
+      setMessages([]); // Only clear if we are genuinely clicking an old chat in the sidebar
 
       const loadHistoryLog = async () => {
         try {
@@ -83,13 +82,7 @@ export default function ChatPage() {
     return () => {
       abortController.abort();
     };
-  }, [
-    conversationId,
-    setActiveConversationId,
-    token,
-    navigate,
-    generatingTitleId,
-  ]);
+  }, [conversationId]); // STRICT DEPENDENCY: Only run when the URL changes via Sidebar click
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -221,7 +214,7 @@ export default function ChatPage() {
         body: JSON.stringify({
           prompt: userMessage,
           conversation_id: isNewChat ? null : activeConversationId,
-          model: selectedModel, // NEW: Forward the selected model to the backend
+          model: selectedModel,
           client_context: {
             timestamp: new Date().toISOString(),
             timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -237,61 +230,11 @@ export default function ChatPage() {
 
       if (isNewChat && returnedConvId) {
         swapProvisionalId(tempId, returnedConvId);
-        setGeneratingTitleId(returnedConvId);
+        setActiveConversationId(returnedConvId);
 
-        if (activeConversationId !== returnedConvId) {
-          navigate(`/chat/${returnedConvId}`, { replace: true });
-        }
-
-        let attempts = 0;
-        const maxAttempts = 12; // 36 seconds max wait time
-        const pollIntervalMs = 3000;
-
-        const pollForTitle = setInterval(async () => {
-          attempts++;
-
-          try {
-            const res = await fetch(
-              `http://localhost:8080/conversations/${returnedConvId}?t=${Date.now()}`,
-              {
-                headers: {
-                  Authorization: `Bearer ${token}`,
-                  "Cache-Control": "no-cache",
-                },
-                cache: "no-store",
-              },
-            );
-
-            if (res.status === 404) {
-              return;
-            }
-
-            if (!res.ok) return;
-
-            const chatDoc = await res.json();
-
-            const isFinishedGenerating =
-              chatDoc?.title &&
-              chatDoc.title !== provisionalTitle &&
-              !chatDoc.title.endsWith("...") &&
-              chatDoc.title.length > 5;
-
-            if (isFinishedGenerating) {
-              clearInterval(pollForTitle);
-              updateConversationTitle(returnedConvId, chatDoc.title);
-              setGeneratingTitleId(null);
-              return;
-            }
-          } catch (pollErr) {
-            console.error("[POLLER ERROR]:", pollErr);
-          }
-
-          if (attempts >= maxAttempts) {
-            clearInterval(pollForTitle);
-            setGeneratingTitleId(null);
-            updateConversationTitle(returnedConvId, "Untitled Chat");
-          }
-        }, pollIntervalMs);
+        // FIX 2: Silent Routing
+        // This updates the URL without forcing React Router to wipe the component
+        window.history.replaceState(null, "", `/chat/${returnedConvId}`);
       }
 
       const reader = response.body.getReader();
@@ -309,13 +252,19 @@ export default function ChatPage() {
         for (const line of lines) {
           if (line.startsWith("data: ")) {
             try {
-              const rawText = JSON.parse(line.replace("data: ", ""));
+              const rawData = JSON.parse(line.replace("data: ", ""));
+
+              if (rawData && rawData._type === "title_update") {
+                updateConversationTitle(returnedConvId, rawData.title);
+                setGeneratingTitleId(null);
+                continue;
+              }
 
               setMessages((prev) => {
                 if (prev.length === 0) {
                   return [
                     { role: "user", content: userMessage },
-                    { role: "assistant", content: rawText },
+                    { role: "assistant", content: rawData },
                   ];
                 }
 
@@ -326,7 +275,7 @@ export default function ChatPage() {
 
                 updatedMessages[lastIndex] = {
                   ...updatedMessages[lastIndex],
-                  content: (updatedMessages[lastIndex].content || "") + rawText,
+                  content: (updatedMessages[lastIndex].content || "") + rawData,
                 };
                 return updatedMessages;
               });
@@ -431,8 +380,8 @@ export default function ChatPage() {
                   onUpload={handleFileUpload}
                   isUploading={isUploading}
                   activeConversationId={activeConversationId}
-                  selectedModel={selectedModel} // NEW: Pass state to input
-                  setSelectedModel={setSelectedModel} // NEW: Pass setter to input
+                  selectedModel={selectedModel}
+                  setSelectedModel={setSelectedModel}
                 />
               </motion.div>
             </div>
@@ -441,7 +390,11 @@ export default function ChatPage() {
           <main className="flex-1 flex flex-col w-full h-full overflow-hidden relative">
             <div className="flex-1 w-full overflow-y-auto px-4 pt-8">
               <div className="max-w-3xl mx-auto pb-4">
-                <StreamWindow messages={messages} scrollRef={scrollRef} />
+                <StreamWindow
+                  messages={messages}
+                  scrollRef={scrollRef}
+                  loading={loading}
+                />
               </div>
             </div>
 
@@ -465,8 +418,8 @@ export default function ChatPage() {
                   onUpload={handleFileUpload}
                   isUploading={isUploading}
                   activeConversationId={activeConversationId}
-                  selectedModel={selectedModel} 
-                  setSelectedModel={setSelectedModel} 
+                  selectedModel={selectedModel}
+                  setSelectedModel={setSelectedModel}
                 />
               </motion.div>
             </div>

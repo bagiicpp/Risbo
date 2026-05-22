@@ -1,29 +1,6 @@
-import {
-  Send,
-  Paperclip,
-  Loader2,
-  Plus,
-  Sparkles,
-  ChevronDown,
-  FileText,
-  X,
-  Mic,
-} from "lucide-react";
+import { Send, Loader2, Plus, FileText, X, Mic } from "lucide-react";
 import React, { useRef, useState, useEffect } from "react";
-// NEW: Import the UI dropdown components
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-
-// NEW: Define the available models and their friendly names
-const AVAILABLE_MODELS = [
-  { id: "gemma-4-26b-a4b-it", name: "Risbo Standard (26B)" },
-  { id: "gemma-4-31b-a4b-it", name: "Risbo Thinker (31B)" },
-  { id: "gemini-2.5-flash", name: "Risbo Fast (Flash)" },
-];
+import { ModelSelector } from "./ModelSelector";
 
 interface ChatInputProps {
   input: string;
@@ -35,8 +12,8 @@ interface ChatInputProps {
   activeConversationId: string | null;
   uploadedFile?: File | null;
   onClearFile?: () => void;
-  selectedModel: string; // NEW: Accept state
-  setSelectedModel: (model: string) => void; // NEW: Accept setter
+  selectedModel: string;
+  setSelectedModel: (model: string) => void;
 }
 
 export default function ChatInput({
@@ -60,12 +37,8 @@ export default function ChatInput({
   const recognitionRef = useRef<any>(null);
   const originalInputRef = useRef<string>("");
 
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`;
-    }
-  }, [input]);
+  // FIX: Removed the layout-thrashing useEffect for auto-resize.
+  // It is now handled directly in the onChange event below.
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -83,10 +56,10 @@ export default function ChatInput({
           for (let i = 0; i < event.results.length; i++) {
             currentTranscript += event.results[i][0].transcript;
           }
-          
+
           const base = originalInputRef.current;
           const separator = base && !base.endsWith(" ") ? " " : "";
-          
+
           setInput(base + separator + currentTranscript);
         };
 
@@ -102,7 +75,7 @@ export default function ChatInput({
     }
   }, [setInput]);
 
-const toggleRecording = () => {
+  const toggleRecording = () => {
     if (!recognitionRef.current) {
       alert("Your browser does not support speech recognition.");
       return;
@@ -123,6 +96,11 @@ const toggleRecording = () => {
       e.preventDefault();
       if (input.trim() || uploadedFile) {
         onSend();
+
+        // Reset height on send
+        if (textareaRef.current) {
+          textareaRef.current.style.height = "auto";
+        }
       }
     }
   };
@@ -152,9 +130,6 @@ const toggleRecording = () => {
     }
   };
 
-  // Find the friendly name of the currently selected model
-  const currentModelName = AVAILABLE_MODELS.find(m => m.id === selectedModel)?.name || "Select Model";
-
   return (
     <div className="w-full max-w-4xl mx-auto">
       <div className="flex gap-2 mb-3 px-2 overflow-x-auto pb-1 no-scrollbar">
@@ -165,7 +140,7 @@ const toggleRecording = () => {
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        className="relative w-full bg-zinc-900 rounded-2xl shadow-lg transition-all duration-300 flex flex-col"
+        className="relative w-full bg-card border border-border/50 rounded-2xl shadow-lg transition-all duration-300 flex flex-col"
       >
         <input
           type="file"
@@ -185,10 +160,15 @@ const toggleRecording = () => {
             <textarea
               ref={textareaRef}
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e) => {
+                setInput(e.target.value);
+                // FIX: Performant auto-resize directly in the DOM event handler
+                e.target.style.height = "auto";
+                e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`;
+              }}
               onKeyDown={handleKeyDown}
               placeholder="Query the system or detail your workout parameters..."
-              className="w-full bg-transparent border-0 resize-none outline-none text-zinc-100 placeholder:text-zinc-400 font-dmsans text-base leading-relaxed min-h-[60px]"
+              className="w-full bg-transparent border-0 resize-none outline-none text-foreground placeholder:text-muted-foreground font-dmsans text-base leading-relaxed min-h-[60px]"
               rows={1}
             />
           )}
@@ -219,42 +199,16 @@ const toggleRecording = () => {
               type="button"
               disabled={isUploading}
               onClick={() => fileInputRef.current?.click()}
-              className="p-2 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               title="Upload File"
             >
               <Plus size={20} />
             </button>
 
-            {/* NEW: Dropdown Menu for Model Selection */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-2 px-3 py-1.5 ml-1 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-lg transition-colors text-sm font-mono cursor-pointer outline-none">
-                  <Sparkles size={16} className="text-primary/70" />
-                  <span className="font-bricolage">{currentModelName}</span>
-                  <ChevronDown size={14} className="opacity-50" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="start"
-                sideOffset={8}
-                className="bg-zinc-900 border-zinc-800 text-zinc-100 rounded-xl shadow-xl min-w-[220px]"
-              >
-                {AVAILABLE_MODELS.map((model) => (
-                  <DropdownMenuItem
-                    key={model.id}
-                    onClick={() => setSelectedModel(model.id)}
-                    className={`cursor-pointer hover:bg-zinc-800 focus:bg-zinc-800 rounded-lg py-2.5 px-3 transition-colors ${
-                      selectedModel === model.id ? "text-primary bg-primary/10" : ""
-                    }`}
-                  >
-                    <div className="flex flex-col">
-                      <span className="font-medium">{model.name}</span>
-                      <span className="text-xs text-zinc-500 mt-0.5">{model.id}</span>
-                    </div>
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <ModelSelector
+              selectedModelId={selectedModel}
+              onModelSelect={setSelectedModel}
+            />
           </div>
 
           <div className="flex items-center gap-1">
@@ -264,7 +218,7 @@ const toggleRecording = () => {
               className={`p-2.5 rounded-xl transition-all duration-300 cursor-pointer flex items-center justify-center shrink-0 outline-none ${
                 isRecording
                   ? "bg-primary/20 text-primary shadow-[0_0_15px_rgba(34,197,94,0.2)] animate-pulse"
-                  : "bg-transparent text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
+                  : "bg-transparent text-muted-foreground hover:text-foreground hover:bg-muted"
               }`}
               title="Voice Typing"
             >
@@ -277,17 +231,14 @@ const toggleRecording = () => {
               disabled={(!input.trim() && !uploadedFile) || loading}
               className={`p-2.5 rounded-xl transition-all duration-300 flex items-center justify-center shrink-0 ${
                 input.trim() || uploadedFile
-                  ? "bg-primary text-zinc-950 shadow-[0_0_15px_rgba(34,197,94,0.3)] hover:scale-105"
-                  : "bg-transparent text-zinc-500 cursor-not-allowed"
+                  ? "bg-primary text-primary-foreground shadow-[0_0_15px_rgba(var(--primary),0.3)] hover:scale-105"
+                  : "bg-transparent text-muted-foreground/50 cursor-not-allowed"
               }`}
             >
               {loading ? (
                 <Loader2 size={18} className="animate-spin" />
               ) : (
-                <Send
-                  size={18}
-                  className={input.trim() || uploadedFile ? "ml-0.5" : ""}
-                />
+                <Send size={18} />
               )}
             </button>
           </div>

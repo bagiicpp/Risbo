@@ -10,6 +10,7 @@ export interface Message {
 interface StreamWindowProps {
   messages: Message[];
   scrollRef: React.RefObject<HTMLDivElement | null>;
+  loading?: boolean;
 }
 
 const LOADING_STATES = [
@@ -38,8 +39,13 @@ const ThinkingPlaceholder = () => {
   );
 };
 
-const StreamWindow: React.FC<StreamWindowProps> = ({ messages, scrollRef }) => {
-  if (messages.length === 0) return null;
+const StreamWindow: React.FC<StreamWindowProps> = ({
+  messages,
+  scrollRef,
+  loading,
+}) => {
+  // FIX: Only hide the window if there are no messages AND we aren't loading
+  if (messages.length === 0 && !loading) return null;
 
   return (
     <div className="flex flex-col space-y-6">
@@ -108,8 +114,6 @@ const StreamWindow: React.FC<StreamWindowProps> = ({ messages, scrollRef }) => {
                     {msg.content}
                   </ReactMarkdown>
                 ) : (
-                  // 3. INJECTED HERE
-                  // This entirely replaces the old static blinking span
                   <ThinkingPlaceholder />
                 )}
               </div>
@@ -117,6 +121,24 @@ const StreamWindow: React.FC<StreamWindowProps> = ({ messages, scrollRef }) => {
           )}
         </div>
       ))}
+
+      {/* FIX: Standalone loader for the very first message before the array updates */}
+      {loading &&
+        (messages.length === 0 ||
+          messages[messages.length - 1].role === "user") && (
+          <div className="flex w-full justify-start">
+            <div className="max-w-full flex gap-4 w-full">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center shrink-0 border border-primary/20 mt-1">
+                <span className="text-primary font-bold italic text-sm leading-none">
+                  R
+                </span>
+              </div>
+              <div className="flex-1 prose prose-sm md:prose-base dark:prose-invert max-w-none break-words leading-relaxed">
+                <ThinkingPlaceholder />
+              </div>
+            </div>
+          </div>
+        )}
 
       <div ref={scrollRef} className="h-32 w-full shrink-0" />
     </div>
