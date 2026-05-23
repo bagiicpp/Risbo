@@ -54,6 +54,8 @@ class ChatRequest(BaseModel):
     conversation_id: Optional[str] = None
     model: Optional[str] = None
 
+class ConversationRename(BaseModel):
+    title: str = Field(..., min_length=1, max_length=100)
 
 class Metric(BaseModel):
     user_id: str

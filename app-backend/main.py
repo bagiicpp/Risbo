@@ -42,6 +42,7 @@ from models import (
     Token,
     UserCreate,
     UserInDB,
+    ConversationRename,
 )
 from motor.motor_asyncio import AsyncIOMotorClient
 from utils import extract_text_from_file
@@ -231,7 +232,6 @@ async def generate_smart_title(first_prompt: str, ai_backend_url: str) -> str:
             return refined_title.capitalize()
 
     except Exception:
-        # Failsafe if the AI title generator times out
         fallback = " ".join(first_prompt.split()[:4])
         return fallback.capitalize()
 
@@ -239,7 +239,6 @@ async def generate_smart_title(first_prompt: str, ai_backend_url: str) -> str:
 async def extract_metrics_background(
     user_id: str, conversation_id: str, prompt: str, ai_backend_url: str
 ):
-    # UPGRADED PROMPT: Added Recovery, Sleep, RPE, and Injury tracking for Coaches
     extraction_prompt = (
         "You are an expert sports data extraction AI. Read the user message and extract important data into a strict JSON array.\n"
         "Categories to look for:\n"
@@ -275,7 +274,6 @@ async def extract_metrics_background(
                     except json.JSONDecodeError:
                         pass
 
-            # BULLETPROOF JSON EXTRACTION: Find the first '[' and last ']'
             start_idx = raw_json.find("[")
             end_idx = raw_json.rfind("]")
 
@@ -310,7 +308,7 @@ async def chat(
     background_tasks: BackgroundTasks,
     email: Optional[str] = Depends(get_optional_user_email),
 ):
-    # 1. Identify User and Role
+
     user_id = None
     role = "athlete"
     if email:
@@ -350,22 +348,20 @@ async def chat(
         ai_content = ""
         full_prompt = request.prompt
 
-        # MOVED UP: We need this URL immediately for the concurrent title task
         ai_backend_url = os.getenv("AI_BACKEND_URL", "http://127.0.0.1:8000")
 
-        # NEW: Start the smart title generation concurrently
         title_task = None
         if is_new_conversation:
             title_task = asyncio.create_task(
                 generate_smart_title(request.prompt, ai_backend_url)
             )
 
-        # --- PHASE 3: TEAM-AWARE AI CONTEXT INJECTION ---
         roster_context = ""
         if role == "coach" and user_id:
-            links = await db.roster_links.find({"coach_id": user_id}).to_list(
-                length=100
-            )
+            links = await db.roster_links.find({
+                "coach_id": user_id,
+                "status": "active"  
+            }).to_list(length=100)
             if links:
                 athlete_ids = [link["athlete_id"] for link in links]
 
@@ -570,6 +566,70 @@ async def get_single_conversation(
     conv["_id"] = str(conv["_id"])
     return conv
 
+@app.patch("/conversations/{conversation_id}")
+async def rename_conversation(
+    conversation_id: str,
+    payload: ConversationRename,
+    email: str = Depends(get_current_user_email)
+):
+    user = await db.users.find_one({"email": email})
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+        
+    user_id = str(user["_id"])
+    
+    if not ObjectId.is_valid(conversation_id):
+        raise HTTPException(status_code=400, detail="Invalid conversation ID format")
+        
+    # Update the title, but ONLY if the user_id matches the owner!
+    result = await db.conversations.update_one(
+        {"_id": ObjectId(conversation_id), "user_id": user_id},
+        {"$set": {
+            "title": payload.title.strip(), 
+            "updated_at": datetime.now(timezone.utc)
+        }}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(
+            status_code=404, 
+            detail="Conversation not found or you do not have permission to rename it."
+        )
+        
+    return {"message": "Conversation renamed successfully", "title": payload.title.strip()}
+
+
+@app.delete("/conversations/{conversation_id}")
+async def delete_conversation(
+    conversation_id: str,
+    email: str = Depends(get_current_user_email)
+):
+    user = await db.users.find_one({"email": email})
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+        
+    user_id = str(user["_id"])
+    
+    if not ObjectId.is_valid(conversation_id):
+        raise HTTPException(status_code=400, detail="Invalid conversation ID format")
+        
+    # 1. First, delete the conversation
+    result = await db.conversations.delete_one(
+        {"_id": ObjectId(conversation_id), "user_id": user_id}
+    )
+    
+    if result.deleted_count == 0:
+        raise HTTPException(
+            status_code=404, 
+            detail="Conversation not found or you do not have permission to delete it."
+        )
+        
+    # 2. Next, CASCADE DELETE: Remove all metrics that were extracted during this chat!
+    # (This prevents phantom data from showing up on the Profile page)
+    await db.metrics.delete_many({"source_chat_id": conversation_id})
+        
+    return {"message": "Conversation and associated metrics deleted successfully"}
+
 
 @app.get("/search")
 async def search_conversations(q: str, email: str = Depends(get_current_user_email)):
@@ -690,39 +750,35 @@ async def get_profile_metrics(
 
 
 @app.post("/roster/invite")
-async def invite_athlete(
-    payload: dict, coach_email: str = Depends(get_current_coach_email)
-):
+async def invite_athlete(payload: dict, coach_email: str = Depends(get_current_coach_email)):
     athlete_email = payload.get("email")
     if not athlete_email:
         raise HTTPException(status_code=400, detail="Athlete email is required")
-
+        
     coach = await db.users.find_one({"email": coach_email})
     athlete = await db.users.find_one({"email": athlete_email, "role": "athlete"})
-
+    
     if not athlete:
-        raise HTTPException(
-            status_code=404,
-            detail="Athlete not found, or user is not registered as an athlete.",
-        )
-
-    # Check if they are already linked
-    existing_link = await db.roster_links.find_one(
-        {"coach_id": str(coach["_id"]), "athlete_id": str(athlete["_id"])}
-    )
-
+        raise HTTPException(status_code=404, detail="Athlete not found, or user is not registered as an athlete.")
+        
+    # Check if they are already linked (pending or active)
+    existing_link = await db.roster_links.find_one({
+        "coach_id": str(coach["_id"]),
+        "athlete_id": str(athlete["_id"])
+    })
+    
     if existing_link:
-        raise HTTPException(
-            status_code=400, detail="Athlete is already in your roster."
-        )
-
-    # Create the link (For MVP, we will auto-accept it as 'active')
+        raise HTTPException(status_code=400, detail="Athlete has already been invited or is on your roster.")
+        
+    # UPDATE: Set to pending requiring athlete consent
     new_link = RosterLink(
-        coach_id=str(coach["_id"]), athlete_id=str(athlete["_id"]), status="active"
+        coach_id=str(coach["_id"]),
+        athlete_id=str(athlete["_id"]),
+        status="pending" 
     )
-
+    
     await db.roster_links.insert_one(new_link.model_dump())
-    return {"message": "Athlete successfully added to roster"}
+    return {"message": "Invite sent! Waiting for athlete approval."}
 
 
 @app.get("/roster/athletes")
@@ -764,6 +820,72 @@ async def get_roster(coach_email: str = Depends(get_current_coach_email)):
 
     return roster
 
+# --- ATHLETE CONSENT ENDPOINTS ---
+
+@app.get("/athlete/invites")
+async def get_pending_invites(email: str = Depends(get_current_user_email)):
+    athlete = await db.users.find_one({"email": email})
+    athlete_id = str(athlete["_id"])
+    
+    # Find all pending links for this athlete
+    cursor = db.roster_links.find({"athlete_id": athlete_id, "status": "pending"})
+    links = await cursor.to_list(length=100)
+    
+    if not links:
+        return []
+        
+    # Extract coach IDs to get their names
+    from bson.objectid import ObjectId
+    coach_ids = [ObjectId(link["coach_id"]) for link in links]
+    
+    coaches_cursor = db.users.find({"_id": {"$in": coach_ids}}, {"name": 1, "email": 1})
+    coaches = await coaches_cursor.to_list(length=100)
+    
+    results = []
+    for coach in coaches:
+        results.append({
+            "coach_id": str(coach["_id"]),
+            "name": coach.get("name", "Unknown Coach"),
+            "email": coach.get("email")
+        })
+        
+    return results
+
+
+@app.post("/athlete/invites/{coach_id}/respond")
+async def respond_to_invite(
+    coach_id: str,
+    payload: dict, 
+    email: str = Depends(get_current_user_email)
+):
+    athlete = await db.users.find_one({"email": email})
+    athlete_id = str(athlete["_id"])
+    action = payload.get("action") # Expects "accept" or "reject"
+    
+    if action not in ["accept", "reject"]:
+        raise HTTPException(status_code=400, detail="Invalid action. Use 'accept' or 'reject'.")
+        
+    # Find the pending link
+    link = await db.roster_links.find_one({
+        "coach_id": coach_id,
+        "athlete_id": athlete_id,
+        "status": "pending"
+    })
+    
+    if not link:
+        raise HTTPException(status_code=404, detail="Pending invite not found.")
+        
+    if action == "accept":
+        await db.roster_links.update_one(
+            {"_id": link["_id"]},
+            {"$set": {"status": "active"}}
+        )
+        return {"message": "Invite accepted. Coach now has access to your data."}
+    else:
+        # If rejected, delete the link so the coach can potentially try again in the future
+        await db.roster_links.delete_one({"_id": link["_id"]})
+        return {"message": "Invite rejected."}
+
 
 @app.get("/coach/metrics/summary")
 async def get_coach_metrics_summary(
@@ -775,7 +897,10 @@ async def get_coach_metrics_summary(
             status_code=401, detail="Coach account no longer exists in database."
         )
 
-    links_cursor = db.roster_links.find({"coach_id": str(coach["_id"])})
+    links_cursor = db.roster_links.find({
+        "coach_id": str(coach["_id"]), 
+        "status": "active"
+    })
     links = await links_cursor.to_list(length=100)
 
     if not links:
@@ -863,10 +988,11 @@ async def get_coach_athlete_metrics(
 ):
     coach = await db.users.find_one({"email": coach_email})
 
-    # SECURITY FIRST: Verify the coach actually has this athlete on their roster
-    link = await db.roster_links.find_one(
-        {"coach_id": str(coach["_id"]), "athlete_id": athlete_id}
-    )
+    link = await db.roster_links.find_one({
+        "coach_id": str(coach["_id"]),
+        "athlete_id": athlete_id,
+        "status": "active" 
+    })
 
     if not link:
         raise HTTPException(
