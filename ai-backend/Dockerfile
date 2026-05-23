@@ -6,6 +6,9 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Dodajemo requests za naš wiki builder unutar kontejnera
+RUN pip install requests
+
 # Copy the rest of the application
 COPY . .
 

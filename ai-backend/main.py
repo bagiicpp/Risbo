@@ -1,6 +1,8 @@
 import asyncio
 import json
 import os
+import glob
+from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
@@ -12,7 +14,18 @@ from pydantic import BaseModel
 
 load_dotenv()
 
-app = FastAPI(title="Risbo AI - Athlete Specialization")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    print("🔄 Pokrećem automatsko preuzimanje API podataka (Wiki Builder)...")
+    try:
+        from wiki_builder import run_all_apis
+        run_all_apis()
+        print("✅ Wiki API podaci su osveženi!")
+    except Exception as e:
+        print(f"❌ Greška pri preuzimanju API podataka: {e}")
+    yield
+
+app = FastAPI(title="Risbo AI - Athlete Specialization", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -43,12 +56,26 @@ ATHLETE_SYSTEM_PROMPT = (
     "If a user asks something unrelated to sports, player statistics, or training, politely steer the conversation back to the sports domain."
 )
 
+def load_wiki_context() -> str:
+    """Učitava sve .md fajlove iz 'wiki' foldera u jedan veliki string."""
+    wiki_dir = os.path.join(os.path.dirname(__file__), "wiki")
+    wiki_text = ""
+    if os.path.exists(wiki_dir):
+        for filepath in glob.glob(os.path.join(wiki_dir, "*.md")):
+            try:
+                with open(filepath, "r", encoding="utf-8") as f:
+                    wiki_text += f"\n\n--- Podaci iz: {os.path.basename(filepath)} ---\n"
+                    wiki_text += f.read()
+            except Exception as e:
+                print(f"Greška pri čitanju wiki fajla {filepath}: {e}")
+    return wiki_text
 
 async def generate_stream(user_prompt: str):
     try:
-        # Spajamo sistemski prompt direktno sa korisničkim promptom.
-        # Ovo sprečava 500 Internal Error jer Gemma modeli često ne podržavaju system_instruction parametar.
-        combined_prompt = f"{ATHLETE_SYSTEM_PROMPT}\n\n{user_prompt}"
+        wiki_context = load_wiki_context()
+        
+        # Spajamo sistemski prompt, celokupnu wiki bazu znanja i korisnički prompt
+        combined_prompt = f"{ATHLETE_SYSTEM_PROMPT}\n\n[LLM WIKI BAZA ZNANJA (UVEK KORISTI OVE PODATKE)]:\n{wiki_context}\n\n[KORISNIK]:\n{user_prompt}"
 
         # Request a stream from the model
         stream = client.models.generate_content_stream(
