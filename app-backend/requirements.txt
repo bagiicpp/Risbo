@@ -5,6 +5,7 @@ python-multipart
 
 # Database & Environment
 motor
+pymongo
 python-dotenv
 
 # External Connections
@@ -15,7 +16,11 @@ bcrypt
 PyJWT
 pydantic[email]
 
-# Document Processing (RAG / Export)
+# NLP / Language Processing
+yake
+langdetect
+
+# Document Processing
 pypdf
 python-docx
 openpyxl

@@ -18,7 +18,6 @@ from auth import (
 )
 from bson import ObjectId
 from bson.errors import InvalidId
-from bson.objectid import ObjectId
 from docx import Document
 from dotenv import load_dotenv
 from fastapi import (
