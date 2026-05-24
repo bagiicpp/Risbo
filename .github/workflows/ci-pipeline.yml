@@ -16,15 +16,18 @@ jobs:
     - name: Checkout Repository
       uses: actions/checkout@v4
 
-    # 3. Create a dummy .env file. 
-    # (Docker-compose usually fails to build if the .env file it expects is completely missing)
+# 3. Create the .env file in the location the backend expects
     - name: Setup Environment Variables
       run: |
-        touch .env
-        echo "JWT_SECRET_KEY=ci-cd-dummy-secret" >> .env
-        echo "MONGODB_URI=mongodb://rizzbo-mongo:27017/rizzbo_test" >> .env
-        echo "AI_BACKEND_URL=http://rizzbo-ai:8000" >> .env
-        echo "AI_STUDIO_API=dummy_key" >> .env
+        # Create the file in the app-backend directory where Docker expects it
+        mkdir -p app-backend
+        touch app-backend/.env
+        
+        # Populate it with dummy values for the test environment
+        echo "JWT_SECRET_KEY=ci-cd-dummy-secret" >> app-backend/.env
+        echo "MONGODB_URI=mongodb://rizzbo-mongo:27017/rizzbo_test" >> app-backend/.env
+        echo "AI_BACKEND_URL=http://rizzbo-ai:8000" >> app-backend/.env
+        echo "AI_STUDIO_API=dummy_key" >> app-backend/.env
 
     # 4. Build and start the containers in the background (-d)
     - name: Build and Start Docker Containers
