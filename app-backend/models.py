@@ -54,6 +54,8 @@ class ChatRequest(BaseModel):
     conversation_id: Optional[str] = None
     model: Optional[str] = None
 
+class ConversationRename(BaseModel):
+    title: str = Field(..., min_length=1, max_length=100)
 
 class Metric(BaseModel):
     user_id: str
@@ -64,3 +66,9 @@ class Metric(BaseModel):
     unit: Optional[str] = ""
     meta_data: Optional[Dict] = {}
     source_chat_id: Optional[str] = None
+
+class PantryItem(BaseModel):
+    user_id: str
+    item_name: str
+    quantity: Optional[str] = None
+    last_updated: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import base64
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
@@ -84,3 +85,38 @@ async def chat_with_gemma(request: ChatRequest):
     return StreamingResponse(
         generate_stream(request.prompt, request.model), media_type="text/event-stream"
     )
+
+class RecipeGenerationRequest(BaseModel):
+    prompt: str
+    images: list[str] | None = None  # Base64 encoded image strings
+
+@app.post("/generate-recipe")
+async def generate_recipe(request: RecipeGenerationRequest):
+    try:
+        contents = [request.prompt]
+        
+        # 1. Attach Images if provided
+        if request.images:
+            for b64_img in request.images:
+                # Gemini expects bytes for its vision model parts
+                img_bytes = base64.b64decode(b64_img)
+                contents.append(
+                    types.Part.from_bytes(data=img_bytes, mime_type="image/jpeg")
+                )
+                
+        # 2. Call Gemini and force JSON output
+        response = await client.aio.models.generate_content(
+            model=os.getenv("AI_STUDIO_MODEL", "gemini-2.5-flash"),
+            contents=contents,
+            config=types.GenerateContentConfig(
+                temperature=0.7,
+                response_mime_type="application/json", # <--- FORCES JSON OUTPUT
+            ),
+        )
+        
+        # 3. Return the parsed JSON
+        return json.loads(response.text)
+
+    except Exception as e:
+        print(f"Recipe Generation Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

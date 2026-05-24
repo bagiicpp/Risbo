@@ -1,0 +1,54 @@
+name: Risbo CI Pipeline
+
+# 1. When should this pipeline run?
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  test-backend:
+    runs-on: ubuntu-latest
+
+    steps:
+    # 2. Pull the latest code into the GitHub Runner
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+# 3. Create the .env file in the location the backend expects
+    - name: Setup Environment Variables
+      run: |
+        # Create the file in the app-backend directory where Docker expects it
+        mkdir -p app-backend
+        touch app-backend/.env
+
+        # ai-backend env 
+        mkdir -p ai-backend
+        touch ai-backend/.env
+        echo "AI_STUDIO_API=dummy_key" >> ai-backend/.env
+        echo "AI_STUDIO_MODEL=dummy_model" >> ai-backend/.env
+        
+        # Populate it with dummy values for the test environment
+        echo "JWT_SECRET_KEY=ci-cd-dummy-secret" >> app-backend/.env
+        echo "MONGODB_URI=mongodb://rizzbo-mongo:27017/rizzbo_test" >> app-backend/.env
+        echo "AI_BACKEND_URL=http://rizzbo-ai:8000" >> app-backend/.env
+        echo "AI_STUDIO_API=dummy_key" >> app-backend/.env
+
+    # 4. Build and start the containers in the background (-d)
+    - name: Build and Start Docker Containers
+      run: docker compose up -d --build
+
+    # 5. Give the databases and APIs a few seconds to boot up completely
+    - name: Wait for services to be ready
+      run: sleep 10 
+
+    # 6. Run the tests! 
+    # NOTE: The `-T` flag is mandatory in CI/CD. It tells Docker not to expect a real terminal.
+    - name: Run Pytest Suite
+      run: docker compose exec -T app-backend pytest
+
+    # 7. Clean up the runner server afterwards
+    - name: Stop and Remove Containers
+      if: always() # The 'always()' ensures this runs even if the tests fail!
+      run: docker compose down

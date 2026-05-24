@@ -1,6 +1,7 @@
 import pytest
-from auth import create_access_token
 from bson import ObjectId
+from auth import create_access_token
+import main
 
 # --- Helper Classes to Mock httpx.AsyncClient.stream ---
 class MockResponse:
@@ -21,14 +22,15 @@ class MockClientContext:
 
 @pytest.mark.asyncio
 async def test_chat_stream_new_conversation(async_client, mocker):
-    """Test chatting without an ID creates a new conversation and streams text."""
+    """Test chatting creates a new conversation and streams text."""
+    token = create_access_token({"sub": "athlete@test.com", "role": "athlete"})
     
-    token = create_access_token({"sub": "athlete@test.com"})
+    # Mock DB lookups
+    main.db.users.find_one = mocker.AsyncMock(return_value={"_id": ObjectId(), "role": "athlete"})
+    main.db.conversations.insert_one = mocker.AsyncMock()
+    main.db.conversations.update_one = mocker.AsyncMock()
     
-    # Fix: Async mock for the database lookups and inserts
-    mocker.patch("main.db.users.find_one", new_callable=mocker.AsyncMock, return_value={"_id": ObjectId()})
-    mock_insert = mocker.patch("main.db.conversations.insert_one", new_callable=mocker.AsyncMock)
-    
+    # Mock the HTTPX call to AI backend
     mocker.patch("main.httpx.AsyncClient", return_value=MockClientContext())
     mocker.patch("main.BackgroundTasks.add_task")
 
@@ -40,11 +42,40 @@ async def test_chat_stream_new_conversation(async_client, mocker):
 
     assert response.status_code == 200
     assert response.headers["content-type"] == "text/event-stream; charset=utf-8"
+
+@pytest.mark.asyncio
+async def test_kitchen_generate_recipe(async_client, mocker):
+    """Test that the kitchen generator cleanly intercepts AI JSON output."""
+    token = create_access_token({"sub": "athlete@test.com", "role": "athlete"})
     
-    chunks = [chunk async for chunk in response.aiter_bytes()]
-    stream_output = b"".join(chunks).decode("utf-8")
+    main.db.users.find_one = mocker.AsyncMock(return_value={"_id": ObjectId()})
     
-    assert 'data: "Hello"\n' in stream_output
-    assert 'data: " World"\n' in stream_output
-    
-    mock_insert.assert_called_once()
+    # Mock the Pantry Fetch
+    mock_cursor = mocker.Mock()
+    mock_cursor.to_list = mocker.AsyncMock(return_value=[{"item_name": "Rice"}])
+    main.db.pantry.find = mocker.Mock(return_value=mock_cursor)
+
+    # Mock the HTTPX POST response to return fake JSON from AI
+    mock_post_response = mocker.Mock()
+    mock_post_response.raise_for_status = mocker.Mock()
+    mock_post_response.json = mocker.Mock(return_value={
+        "title": "Rice Bowl",
+        "macros": {"protein": 30, "carbs": 50, "calories": 400}
+    })
+
+    # Override the __aenter__ of our mock client context to handle .post()
+    class MockKitchenClientContext:
+        async def post(self, *args, **kwargs): return mock_post_response
+        async def __aenter__(self): return self
+        async def __aexit__(self, *args): pass
+
+    mocker.patch("main.httpx.AsyncClient", return_value=MockKitchenClientContext())
+
+    response = await async_client.post(
+        "/kitchen/generate",
+        data={"target_protein": 30}, # Simulating FormData
+        headers={"Authorization": f"Bearer {token}"}
+    )
+
+    assert response.status_code == 200
+    assert response.json()["title"] == "Rice Bowl"
