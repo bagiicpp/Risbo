@@ -4,3 +4,8 @@ google-genai
 python-dotenv
 pydantic
 ollama
+pandas
+beautifulsoup4
+lxml
+tabulate
+requests
