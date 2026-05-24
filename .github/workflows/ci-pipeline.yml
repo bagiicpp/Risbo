@@ -22,6 +22,12 @@ jobs:
         # Create the file in the app-backend directory where Docker expects it
         mkdir -p app-backend
         touch app-backend/.env
+
+        # ai-backend env 
+        mkdir -p ai-backend
+        touch ai-backend/.env
+        echo "AI_STUDIO_API=dummy_key" >> ai-backend/.env
+        echo "AI_STUDIO_MODEL=dummy_model" >> ai-backend/.env
         
         # Populate it with dummy values for the test environment
         echo "JWT_SECRET_KEY=ci-cd-dummy-secret" >> app-backend/.env
