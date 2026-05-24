@@ -1,7 +1,9 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { jwtDecode } from "jwt-decode";
 import { AuthContext } from "../hooks/useAuth";
 import type { AuthContextType, User } from "../hooks/useAuth";
+import { useTheme } from "@/context/ThemeProvider";
+import api from "@/lib/api";
 
 interface AuthProviderProps {
   children: React.ReactNode;
@@ -28,6 +30,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [token, setToken] = useState<string | null>(getValidStoredToken);
   const [loading] = useState<boolean>(false);
 
+  const { theme, setTheme } = useTheme();
+
   const user = useMemo<User | null>(() => {
     if (!token) return null;
     try {
@@ -35,6 +39,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } catch {
       return null;
     }
+  }, [token]);
+
+  useEffect(() => {
+    const syncPreferences = async () => {
+      if (!token) return;
+      try {
+        const response = await api.get("/users/me");
+        const dbTheme = response.data.preferences?.theme;
+
+        if (dbTheme && dbTheme !== theme) {
+          setTheme(dbTheme as "light" | "dark" | "system");
+        }
+      } catch (error) {
+        console.error("Failed to sync remote preferences on boot:", error);
+      }
+    };
+
+    syncPreferences();
   }, [token]);
 
   const login = (newToken: string) => {
