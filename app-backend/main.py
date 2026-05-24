@@ -2,12 +2,12 @@ import asyncio
 import io
 import json
 import os
+import re
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Optional
 
 import httpx
-import yake
 from auth import (
     create_access_token,
     get_current_coach_email,
@@ -26,6 +26,7 @@ from fastapi import (
     Depends,
     FastAPI,
     File,
+    Form,
     HTTPException,
     UploadFile,
     status,
@@ -33,18 +34,18 @@ from fastapi import (
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.security import OAuth2PasswordRequestForm
-from fastapi import Form
-from langdetect import detect
 from models import (
     ChatRequest,
     Conversation,
+    ConversationRename,
     Message,
+    PantryItem,
+    PreferencesUpdate,
+    ProfileUpdate,
     RosterLink,
     Token,
     UserCreate,
     UserInDB,
-    ConversationRename,
-    PantryItem,
 )
 from motor.motor_asyncio import AsyncIOMotorClient
 from utils import extract_text_from_file
@@ -105,7 +106,16 @@ async def register_user(user: UserCreate):
         "hashed_password": hashed_pwd,
         "role": user.role,
         "plan": "Free plan",
+        "target_weight": None,
+        "activity_multiplier": 1.55,
+        "preferences": {
+            "theme": "system",
+            "measurement_system": "metric",
+            "dietary_preference": "none",
+            "workout_reminders": True,
+        },
         "created_at": datetime.now(timezone.utc),
+        "updated_at": datetime.now(timezone.utc),
     }
 
     await db.users.insert_one(user_doc)
@@ -360,10 +370,9 @@ async def chat(
 
         roster_context = ""
         if role == "coach" and user_id:
-            links = await db.roster_links.find({
-                "coach_id": user_id,
-                "status": "active"  
-            }).to_list(length=100)
+            links = await db.roster_links.find(
+                {"coach_id": user_id, "status": "active"}
+            ).to_list(length=100)
             if links:
                 athlete_ids = [link["athlete_id"] for link in links]
 
@@ -568,68 +577,73 @@ async def get_single_conversation(
     conv["_id"] = str(conv["_id"])
     return conv
 
+
 @app.patch("/conversations/{conversation_id}")
 async def rename_conversation(
     conversation_id: str,
     payload: ConversationRename,
-    email: str = Depends(get_current_user_email)
+    email: str = Depends(get_current_user_email),
 ):
     user = await db.users.find_one({"email": email})
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
-        
+
     user_id = str(user["_id"])
-    
+
     if not ObjectId.is_valid(conversation_id):
         raise HTTPException(status_code=400, detail="Invalid conversation ID format")
-        
+
     # Update the title, but ONLY if the user_id matches the owner!
     result = await db.conversations.update_one(
         {"_id": ObjectId(conversation_id), "user_id": user_id},
-        {"$set": {
-            "title": payload.title.strip(), 
-            "updated_at": datetime.now(timezone.utc)
-        }}
+        {
+            "$set": {
+                "title": payload.title.strip(),
+                "updated_at": datetime.now(timezone.utc),
+            }
+        },
     )
-    
+
     if result.matched_count == 0:
         raise HTTPException(
-            status_code=404, 
-            detail="Conversation not found or you do not have permission to rename it."
+            status_code=404,
+            detail="Conversation not found or you do not have permission to rename it.",
         )
-        
-    return {"message": "Conversation renamed successfully", "title": payload.title.strip()}
+
+    return {
+        "message": "Conversation renamed successfully",
+        "title": payload.title.strip(),
+    }
 
 
 @app.delete("/conversations/{conversation_id}")
 async def delete_conversation(
-    conversation_id: str,
-    email: str = Depends(get_current_user_email)
+    conversation_id: str, email: str = Depends(get_current_user_email)
 ):
     user = await db.users.find_one({"email": email})
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
-        
+
     user_id = str(user["_id"])
-    
+
     if not ObjectId.is_valid(conversation_id):
         raise HTTPException(status_code=400, detail="Invalid conversation ID format")
-        
+
     # 1. First, delete the conversation
     result = await db.conversations.delete_one(
         {"_id": ObjectId(conversation_id), "user_id": user_id}
     )
-    
+
     if result.deleted_count == 0:
         raise HTTPException(
-            status_code=404, 
-            detail="Conversation not found or you do not have permission to delete it."
+            status_code=404,
+            detail="Conversation not found or you do not have permission to delete it.",
         )
-        
+
     # 2. Next, CASCADE DELETE: Remove all metrics that were extracted during this chat!
     # (This prevents phantom data from showing up on the Profile page)
     await db.metrics.delete_many({"source_chat_id": conversation_id})
-        
+
     return {"message": "Conversation and associated metrics deleted successfully"}
 
 
@@ -752,33 +766,38 @@ async def get_profile_metrics(
 
 
 @app.post("/roster/invite")
-async def invite_athlete(payload: dict, coach_email: str = Depends(get_current_coach_email)):
+async def invite_athlete(
+    payload: dict, coach_email: str = Depends(get_current_coach_email)
+):
     athlete_email = payload.get("email")
     if not athlete_email:
         raise HTTPException(status_code=400, detail="Athlete email is required")
-        
+
     coach = await db.users.find_one({"email": coach_email})
     athlete = await db.users.find_one({"email": athlete_email, "role": "athlete"})
-    
+
     if not athlete:
-        raise HTTPException(status_code=404, detail="Athlete not found, or user is not registered as an athlete.")
-        
+        raise HTTPException(
+            status_code=404,
+            detail="Athlete not found, or user is not registered as an athlete.",
+        )
+
     # Check if they are already linked (pending or active)
-    existing_link = await db.roster_links.find_one({
-        "coach_id": str(coach["_id"]),
-        "athlete_id": str(athlete["_id"])
-    })
-    
+    existing_link = await db.roster_links.find_one(
+        {"coach_id": str(coach["_id"]), "athlete_id": str(athlete["_id"])}
+    )
+
     if existing_link:
-        raise HTTPException(status_code=400, detail="Athlete has already been invited or is on your roster.")
-        
+        raise HTTPException(
+            status_code=400,
+            detail="Athlete has already been invited or is on your roster.",
+        )
+
     # UPDATE: Set to pending requiring athlete consent
     new_link = RosterLink(
-        coach_id=str(coach["_id"]),
-        athlete_id=str(athlete["_id"]),
-        status="pending" 
+        coach_id=str(coach["_id"]), athlete_id=str(athlete["_id"]), status="pending"
     )
-    
+
     await db.roster_links.insert_one(new_link.model_dump())
     return {"message": "Invite sent! Waiting for athlete approval."}
 
@@ -822,65 +841,95 @@ async def get_roster(coach_email: str = Depends(get_current_coach_email)):
 
     return roster
 
+
 # --- ATHLETE CONSENT ENDPOINTS ---
+
 
 @app.get("/athlete/invites")
 async def get_pending_invites(email: str = Depends(get_current_user_email)):
     athlete = await db.users.find_one({"email": email})
     athlete_id = str(athlete["_id"])
-    
+
     # Find all pending links for this athlete
     cursor = db.roster_links.find({"athlete_id": athlete_id, "status": "pending"})
     links = await cursor.to_list(length=100)
-    
+
     if not links:
         return []
-        
+
     # Extract coach IDs to get their names
     from bson.objectid import ObjectId
+
     coach_ids = [ObjectId(link["coach_id"]) for link in links]
-    
+
     coaches_cursor = db.users.find({"_id": {"$in": coach_ids}}, {"name": 1, "email": 1})
     coaches = await coaches_cursor.to_list(length=100)
-    
+
     results = []
     for coach in coaches:
-        results.append({
-            "coach_id": str(coach["_id"]),
-            "name": coach.get("name", "Unknown Coach"),
-            "email": coach.get("email")
-        })
-        
+        results.append(
+            {
+                "coach_id": str(coach["_id"]),
+                "name": coach.get("name", "Unknown Coach"),
+                "email": coach.get("email"),
+            }
+        )
+
+    return results
+
+
+@app.get("/athlete/coaches")
+async def get_active_coaches(email: str = Depends(get_current_user_email)):
+    athlete = await db.users.find_one({"email": email})
+
+    cursor = db.roster_links.find(
+        {"athlete_id": str(athlete["_id"]), "status": "active"}
+    )
+    links = await cursor.to_list(length=100)
+
+    if not links:
+        return []
+
+    from bson.objectid import ObjectId
+
+    coach_ids = [ObjectId(link["coach_id"]) for link in links]
+
+    coaches_cursor = db.users.find({"_id": {"$in": coach_ids}}, {"name": 1})
+    coaches = await coaches_cursor.to_list(length=100)
+
+    results = []
+    for coach in coaches:
+        results.append(
+            {"id": str(coach["_id"]), "name": coach.get("name", "Unknown Coach")}
+        )
+
     return results
 
 
 @app.post("/athlete/invites/{coach_id}/respond")
 async def respond_to_invite(
-    coach_id: str,
-    payload: dict, 
-    email: str = Depends(get_current_user_email)
+    coach_id: str, payload: dict, email: str = Depends(get_current_user_email)
 ):
     athlete = await db.users.find_one({"email": email})
     athlete_id = str(athlete["_id"])
-    action = payload.get("action") # Expects "accept" or "reject"
-    
+    action = payload.get("action")  # Expects "accept" or "reject"
+
     if action not in ["accept", "reject"]:
-        raise HTTPException(status_code=400, detail="Invalid action. Use 'accept' or 'reject'.")
-        
+        raise HTTPException(
+            status_code=400, detail="Invalid action. Use 'accept' or 'reject'."
+        )
+
     # Find the pending link
-    link = await db.roster_links.find_one({
-        "coach_id": coach_id,
-        "athlete_id": athlete_id,
-        "status": "pending"
-    })
-    
+    link = await db.roster_links.find_one(
+        {"coach_id": coach_id, "athlete_id": athlete_id, "status": "pending"}
+    )
+
     if not link:
         raise HTTPException(status_code=404, detail="Pending invite not found.")
-        
+
     if action == "accept":
         await db.roster_links.update_one(
-            {"_id": link["_id"]},
-            {"$set": {"status": "active"}}
+            {"_id": link["_id"]}, {"$set": {"status": "active"}}
         )
         return {"message": "Invite accepted. Coach now has access to your data."}
     else:
@@ -899,10 +948,9 @@ async def get_coach_metrics_summary(
             status_code=401, detail="Coach account no longer exists in database."
         )
 
-    links_cursor = db.roster_links.find({
-        "coach_id": str(coach["_id"]), 
-        "status": "active"
-    })
+    links_cursor = db.roster_links.find(
+        {"coach_id": str(coach["_id"]), "status": "active"}
+    )
     links = await links_cursor.to_list(length=100)
 
     if not links:
@@ -990,11 +1038,9 @@ async def get_coach_athlete_metrics(
 ):
     coach = await db.users.find_one({"email": coach_email})
 
-    link = await db.roster_links.find_one({
-        "coach_id": str(coach["_id"]),
-        "athlete_id": athlete_id,
-        "status": "active" 
-    })
+    link = await db.roster_links.find_one(
+        {"coach_id": str(coach["_id"]), "athlete_id": athlete_id, "status": "active"}
+    )
 
     if not link:
         raise HTTPException(
@@ -1014,47 +1060,56 @@ async def get_coach_athlete_metrics(
 
     return metrics
 
+
 # --- SMART KITCHEN & PANTRY ENDPOINTS ---
+
 
 @app.get("/kitchen/pantry")
 async def get_pantry(email: str = Depends(get_current_user_email)):
     user = await db.users.find_one({"email": email})
     cursor = db.pantry.find({"user_id": str(user["_id"])})
     items = await cursor.to_list(length=200)
-    
+
     for item in items:
         item["_id"] = str(item["_id"])
     return items
 
+
 @app.post("/kitchen/pantry")
 async def add_pantry_item(payload: dict, email: str = Depends(get_current_user_email)):
     user = await db.users.find_one({"email": email})
-    
+
     item_name = payload.get("item_name")
     if not item_name:
         raise HTTPException(status_code=400, detail="item_name is required")
-        
+
     item = PantryItem(
         user_id=str(user["_id"]),
         item_name=item_name,
-        quantity=payload.get("quantity", "")
+        quantity=payload.get("quantity", ""),
     )
-    
+
     # Upsert logic: if it exists, update it. If not, insert it.
     await db.pantry.update_one(
         {"user_id": str(user["_id"]), "item_name": item_name},
         {"$set": item.model_dump()},
-        upsert=True
+        upsert=True,
     )
     return {"message": "Pantry updated"}
 
+
 @app.delete("/kitchen/pantry/{item_id}")
-async def delete_pantry_item(item_id: str, email: str = Depends(get_current_user_email)):
+async def delete_pantry_item(
+    item_id: str, email: str = Depends(get_current_user_email)
+):
     user = await db.users.find_one({"email": email})
-    result = await db.pantry.delete_one({"_id": ObjectId(item_id), "user_id": str(user["_id"])})
+    result = await db.pantry.delete_one(
+        {"_id": ObjectId(item_id), "user_id": str(user["_id"])}
+    )
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Item not found")
     return {"message": "Item removed"}
+
 
 @app.post("/kitchen/generate")
 async def generate_recipe(
@@ -1062,59 +1117,156 @@ async def generate_recipe(
     text_ingredients: Optional[str] = Form(None),
     target_protein: Optional[float] = Form(None),
     target_carbs: Optional[float] = Form(None),
-    email: str = Depends(get_current_user_email)
+    email: str = Depends(get_current_user_email),
+):
+    try:
+        # 1. Safe User Lookup
+        user = await db.users.find_one({"email": email})
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        user_id = str(user["_id"])
+
+        # 2. Fetch Pantry Items
+        pantry_cursor = db.pantry.find({"user_id": user_id})
+        pantry_items = await pantry_cursor.to_list(length=200)
+        pantry_list = ", ".join(
+            [
+                f"{item['item_name']} ({item.get('quantity', '')})"
+                for item in pantry_items
+            ]
+        )
+
+        # 3. Read Image safely
+        images_b64 = []
+        if image:
+            image_bytes = await image.read()
+            b64_string = base64.b64encode(image_bytes).decode("utf-8")
+            images_b64.append(b64_string)
+
+        # 4. Construct Prompt
+        prompt = "You are an expert sports nutritionist AI. Generate a precise recipe based on the following.\n"
+        if pantry_list:
+            prompt += f"Always Available Pantry Ingredients: {pantry_list}\n"
+        if text_ingredients:
+            prompt += f"Specific Ingredients requested: {text_ingredients}\n"
+        if image:
+            prompt += "Also use the ingredients visible in the provided image.\n"
+
+        prompt += "\nTARGET MACROS FOR THIS MEAL:\n"
+        if target_protein:
+            prompt += f"- Protein: ~{target_protein}g\n"
+        if target_carbs:
+            prompt += f"- Carbs: ~{target_carbs}g\n"
+
+        prompt += (
+            "\nIMPORTANT: Return ONLY a valid JSON object matching this exact structure. Do not include markdown formatting.\n"
+            "{\n"
+            '  "title": "Recipe Name",\n'
+            '  "prep_time_minutes": 15,\n'
+            '  "macros": {"protein": 50, "carbs": 60, "fats": 10, "calories": 550},\n'
+            '  "ingredients": ["100g Chicken", "50g Rice"],\n'
+            '  "instructions": ["Step 1...", "Step 2..."]\n'
+            "}"
+        )
+
+        # 5. Call AI Backend
+        ai_backend_url = os.getenv("AI_BACKEND_URL", "http://127.0.0.1:8000")
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            response = await client.post(
+                f"{ai_backend_url}/generate-recipe",
+                json={"prompt": prompt, "images": images_b64},
+            )
+            response.raise_for_status()
+
+            # 6. Parse and Clean the LLM Output
+            ai_data = response.json()
+
+            # Assuming your AI microservice returns something like {"response": "{...}"}
+            raw_text = (
+                ai_data.get("response", "")
+                if isinstance(ai_data, dict)
+                else str(ai_data)
+            )
+
+            # Strip markdown code blocks (```json ... ```) just in case
+            clean_json_str = re.sub(r"```json\s*|\s*```", "", raw_text).strip()
+
+            # Validate it's actually JSON before sending to frontend
+            parsed_recipe = json.loads(clean_json_str)
+            return parsed_recipe
+
+    except httpx.HTTPStatusError as e:
+        print(f"AI Backend HTTP Error: {e.response.text}")
+        raise HTTPException(
+            status_code=502, detail="AI microservice failed to respond correctly."
+        )
+    except json.JSONDecodeError as e:
+        print(f"LLM Output Parsing Error: {clean_json_str}")
+        raise HTTPException(
+            status_code=500, detail="AI returned malformed data. Try generating again."
+        )
+    except Exception as e:
+        print(f"Internal Generation Error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- USER SETTINGS ENDPOINTS ---
+@app.get("/users/me")
+async def get_current_user_profile(email: str = Depends(get_current_user_email)):
+    user = await db.users.find_one({"email": email}, {"hashed_password": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Convert ObjectId for JSON serialization
+    user["_id"] = str(user["_id"])
+    return user
+
+
+@app.patch("/profile")
+async def update_profile(
+    payload: ProfileUpdate, email: str = Depends(get_current_user_email)
 ):
     user = await db.users.find_one({"email": email})
-    user_id = str(user["_id"])
-    
-    # 1. Fetch Pantry Items
-    pantry_cursor = db.pantry.find({"user_id": user_id})
-    pantry_items = await pantry_cursor.to_list(length=200)
-    pantry_list = ", ".join([f"{item['item_name']} ({item.get('quantity', '')})" for item in pantry_items])
-    
-    # 2. Read Image if provided
-    images_b64 = []
-    if image:
-        image_bytes = await image.read()
-        import base64
-        b64_string = base64.b64encode(image_bytes).decode("utf-8")
-        images_b64.append(b64_string)
-        
-    # 3. Construct Prompt
-    prompt = (
-        "You are an expert sports nutritionist AI. Generate a precise recipe based on the following.\n"
-    )
-    if pantry_list:
-        prompt += f"Always Available Pantry Ingredients: {pantry_list}\n"
-    if text_ingredients:
-        prompt += f"Specific Ingredients requested: {text_ingredients}\n"
-    if image:
-        prompt += "Also use the ingredients visible in the provided image.\n"
-        
-    prompt += "\nTARGET MACROS FOR THIS MEAL:\n"
-    if target_protein: prompt += f"- Protein: ~{target_protein}g\n"
-    if target_carbs: prompt += f"- Carbs: ~{target_carbs}g\n"
-    
-    prompt += (
-        "\nIMPORTANT: Return ONLY a valid JSON object matching this exact structure:\n"
-        "{\n"
-        '  "title": "Recipe Name",\n'
-        '  "prep_time_minutes": 15,\n'
-        '  "macros": {"protein": 50, "carbs": 60, "fats": 10, "calories": 550},\n'
-        '  "ingredients": ["100g Chicken", "50g Rice"],\n'
-        '  "instructions": ["Step 1...", "Step 2..."]\n'
-        "}"
-    )
-    
-    # 4. Call AI Backend
-    ai_backend_url = os.getenv("AI_BACKEND_URL", "http://127.0.0.1:8000")
-    async with httpx.AsyncClient(timeout=120.0) as client:
-        response = await client.post(
-            f"{ai_backend_url}/generate-recipe",
-            json={
-                "prompt": prompt,
-                "images": images_b64
-            }
-        )
-        response.raise_for_status()
-        return response.json()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    update_data = {}
+    if payload.name is not None:
+        update_data["name"] = payload.name.strip()
+    if payload.target_weight is not None:
+        update_data["target_weight"] = payload.target_weight
+    if payload.activity_multiplier is not None:
+        update_data["activity_multiplier"] = payload.activity_multiplier
+
+    if update_data:
+        update_data["updated_at"] = datetime.now(timezone.utc)
+        await db.users.update_one({"_id": user["_id"]}, {"$set": update_data})
+
+    return {"message": "Profile updated", "updated_fields": update_data}
+
+
+@app.patch("/preferences")
+async def update_preferences(
+    payload: PreferencesUpdate, email: str = Depends(get_current_user_email)
+):
+    user = await db.users.find_one({"email": email})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    update_data = {}
+    # Use MongoDB dot notation to update specific nested fields safely
+    if payload.theme is not None:
+        update_data["preferences.theme"] = payload.theme
+    if payload.measurement_system is not None:
+        update_data["preferences.measurement_system"] = payload.measurement_system
+    if payload.dietary_preference is not None:
+        update_data["preferences.dietary_preference"] = payload.dietary_preference
+    if payload.workout_reminders is not None:
+        update_data["preferences.workout_reminders"] = payload.workout_reminders
+
+    if update_data:
+        update_data["updated_at"] = datetime.now(timezone.utc)
+        await db.users.update_one({"_id": user["_id"]}, {"$set": update_data})
+
+    return {"message": "Preferences updated", "updated_fields": update_data}

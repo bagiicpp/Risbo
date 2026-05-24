@@ -3,6 +3,7 @@ fastapi
 uvicorn[standard]
 python-multipart
 
+
 # Database & Environment
 motor
 pymongo
@@ -15,10 +16,6 @@ httpx
 bcrypt
 PyJWT
 pydantic[email]
-
-# NLP / Language Processing
-yake
-langdetect
 
 # Document Processing
 pypdf

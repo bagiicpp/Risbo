@@ -54,8 +54,10 @@ class ChatRequest(BaseModel):
     conversation_id: Optional[str] = None
     model: Optional[str] = None
 
+
 class ConversationRename(BaseModel):
     title: str = Field(..., min_length=1, max_length=100)
+
 
 class Metric(BaseModel):
     user_id: str
@@ -67,8 +69,22 @@ class Metric(BaseModel):
     meta_data: Optional[Dict] = {}
     source_chat_id: Optional[str] = None
 
+
 class PantryItem(BaseModel):
     user_id: str
     item_name: str
     quantity: Optional[str] = None
     last_updated: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class ProfileUpdate(BaseModel):
+    name: Optional[str] = None
+    target_weight: Optional[float] = None
+    activity_multiplier: Optional[float] = None
+
+
+class PreferencesUpdate(BaseModel):
+    theme: Optional[str] = None
+    measurement_system: Optional[str] = None
+    dietary_preference: Optional[str] = None
+    workout_reminders: Optional[bool] = None
