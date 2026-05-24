@@ -33,6 +33,7 @@ from fastapi import (
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.security import OAuth2PasswordRequestForm
+from fastapi import Form
 from langdetect import detect
 from models import (
     ChatRequest,
@@ -43,6 +44,7 @@ from models import (
     UserCreate,
     UserInDB,
     ConversationRename,
+    PantryItem,
 )
 from motor.motor_asyncio import AsyncIOMotorClient
 from utils import extract_text_from_file
@@ -1011,3 +1013,108 @@ async def get_coach_athlete_metrics(
             m["date"] = m["date"].isoformat()
 
     return metrics
+
+# --- SMART KITCHEN & PANTRY ENDPOINTS ---
+
+@app.get("/kitchen/pantry")
+async def get_pantry(email: str = Depends(get_current_user_email)):
+    user = await db.users.find_one({"email": email})
+    cursor = db.pantry.find({"user_id": str(user["_id"])})
+    items = await cursor.to_list(length=200)
+    
+    for item in items:
+        item["_id"] = str(item["_id"])
+    return items
+
+@app.post("/kitchen/pantry")
+async def add_pantry_item(payload: dict, email: str = Depends(get_current_user_email)):
+    user = await db.users.find_one({"email": email})
+    
+    item_name = payload.get("item_name")
+    if not item_name:
+        raise HTTPException(status_code=400, detail="item_name is required")
+        
+    item = PantryItem(
+        user_id=str(user["_id"]),
+        item_name=item_name,
+        quantity=payload.get("quantity", "")
+    )
+    
+    # Upsert logic: if it exists, update it. If not, insert it.
+    await db.pantry.update_one(
+        {"user_id": str(user["_id"]), "item_name": item_name},
+        {"$set": item.model_dump()},
+        upsert=True
+    )
+    return {"message": "Pantry updated"}
+
+@app.delete("/kitchen/pantry/{item_id}")
+async def delete_pantry_item(item_id: str, email: str = Depends(get_current_user_email)):
+    user = await db.users.find_one({"email": email})
+    result = await db.pantry.delete_one({"_id": ObjectId(item_id), "user_id": str(user["_id"])})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Item not found")
+    return {"message": "Item removed"}
+
+@app.post("/kitchen/generate")
+async def generate_recipe(
+    image: Optional[UploadFile] = File(None),
+    text_ingredients: Optional[str] = Form(None),
+    target_protein: Optional[float] = Form(None),
+    target_carbs: Optional[float] = Form(None),
+    email: str = Depends(get_current_user_email)
+):
+    user = await db.users.find_one({"email": email})
+    user_id = str(user["_id"])
+    
+    # 1. Fetch Pantry Items
+    pantry_cursor = db.pantry.find({"user_id": user_id})
+    pantry_items = await pantry_cursor.to_list(length=200)
+    pantry_list = ", ".join([f"{item['item_name']} ({item.get('quantity', '')})" for item in pantry_items])
+    
+    # 2. Read Image if provided
+    images_b64 = []
+    if image:
+        image_bytes = await image.read()
+        import base64
+        b64_string = base64.b64encode(image_bytes).decode("utf-8")
+        images_b64.append(b64_string)
+        
+    # 3. Construct Prompt
+    prompt = (
+        "You are an expert sports nutritionist AI. Generate a precise recipe based on the following.\n"
+    )
+    if pantry_list:
+        prompt += f"Always Available Pantry Ingredients: {pantry_list}\n"
+    if text_ingredients:
+        prompt += f"Specific Ingredients requested: {text_ingredients}\n"
+    if image:
+        prompt += "Also use the ingredients visible in the provided image.\n"
+        
+    prompt += "\nTARGET MACROS FOR THIS MEAL:\n"
+    if target_protein: prompt += f"- Protein: ~{target_protein}g\n"
+    if target_carbs: prompt += f"- Carbs: ~{target_carbs}g\n"
+    
+    prompt += (
+        "\nIMPORTANT: Return ONLY a valid JSON object matching this exact structure:\n"
+        "{\n"
+        '  "title": "Recipe Name",\n'
+        '  "prep_time_minutes": 15,\n'
+        '  "macros": {"protein": 50, "carbs": 60, "fats": 10, "calories": 550},\n'
+        '  "ingredients": ["100g Chicken", "50g Rice"],\n'
+        '  "instructions": ["Step 1...", "Step 2..."]\n'
+        "}"
+    )
+    
+    # 4. Call AI Backend
+    ai_backend_url = os.getenv("AI_BACKEND_URL", "http://127.0.0.1:8000")
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        response = await client.post(
+            f"{ai_backend_url}/generate-recipe",
+            json={
+                "prompt": prompt,
+                "images": images_b64
+            }
+        )
+        response.raise_for_status()
+        return response.json()

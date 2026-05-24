@@ -24,3 +24,9 @@ langdetect
 pypdf
 python-docx
 openpyxl
+
+# Testing
+pytest
+pytest-asyncio
+pytest-mock
+httpx

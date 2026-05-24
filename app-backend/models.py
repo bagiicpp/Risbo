@@ -66,3 +66,9 @@ class Metric(BaseModel):
     unit: Optional[str] = ""
     meta_data: Optional[Dict] = {}
     source_chat_id: Optional[str] = None
+
+class PantryItem(BaseModel):
+    user_id: str
+    item_name: str
+    quantity: Optional[str] = None
+    last_updated: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
