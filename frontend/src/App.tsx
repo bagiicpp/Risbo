@@ -7,33 +7,56 @@ import AthleteDashboard from "./pages/AthleteDashboard";
 import CoachOverview from "./pages/CoachOverview";
 import RosterManagement from "./pages/RosterManagement";
 import AthleteDetailView from "./pages/AthleteDetailView";
+import { SettingsLayout } from "./pages/settings/SettingsLayout";
+import { ProfileSettings } from "./pages/settings/ProfileSettings";
+import { PreferencesSettings } from "./pages/settings/PreferencesSettings";
+
+import { Toaster } from "sonner";
+import { useTheme } from "@/context/ThemeProvider";
+import SmartKitchen from "./pages/SmartKitchen";
 
 function App() {
+  const { theme } = useTheme();
+
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
+    <>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
 
-        <Route element={<ProtectedRoute />}>
-          <Route path="/chat" element={<ChatPage />} />
-          <Route path="/chat/:conversationId" element={<ChatPage />} />
-        </Route>
+          <Route path="/settings" element={<SettingsLayout />}>
+            <Route index element={<Navigate to="profile" replace />} />
+            <Route path="profile" element={<ProfileSettings />} />
+            <Route path="preferences" element={<PreferencesSettings />} />
+          </Route>
 
-        <Route element={<ProtectedRoute allowedRoles={["athlete"]} />}>
-          <Route path="/profile" element={<AthleteDashboard />} />
-        </Route>
+          <Route element={<ProtectedRoute />}>
+            <Route path="/chat" element={<ChatPage />} />
+            <Route path="/chat/:conversationId" element={<ChatPage />} />
+            <Route path="/kitchen" element={<SmartKitchen />} />
+          </Route>
 
-        <Route element={<ProtectedRoute allowedRoles={["coach"]} />}>
-          <Route path="/coach/dashboard" element={<CoachOverview />} />
-          <Route path="/coach/roster" element={<RosterManagement />} />
-          <Route path="/coach/athlete/:id" element={<AthleteDetailView />} />
-        </Route>
+          <Route element={<ProtectedRoute allowedRoles={["athlete"]} />}>
+            <Route path="/profile" element={<AthleteDashboard />} />
+          </Route>
 
-        <Route path="/" element={<ProtectedRoute />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </BrowserRouter>
+          <Route element={<ProtectedRoute allowedRoles={["coach"]} />}>
+            <Route path="/coach/dashboard" element={<CoachOverview />} />
+            <Route path="/coach/roster" element={<RosterManagement />} />
+            <Route path="/coach/athlete/:id" element={<AthleteDetailView />} />
+          </Route>
+
+          <Route path="/" element={<ProtectedRoute />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </BrowserRouter>
+
+      <Toaster
+        position="bottom-right"
+        theme={theme as "light" | "dark" | "system"}
+      />
+    </>
   );
 }
 

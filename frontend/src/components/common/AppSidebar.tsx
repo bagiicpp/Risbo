@@ -6,9 +6,6 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
-  Sun,
-  Moon,
-  MessageSquare,
   Loader2,
   User,
   Search,
@@ -19,6 +16,7 @@ import {
   ChevronDown,
   ChevronRight,
   Activity,
+  Beef,
 } from "lucide-react";
 import {
   Sidebar,
@@ -93,6 +91,22 @@ export function AppSidebar() {
     }
   }, [user]);
   // ----------------------------
+
+  // --- ATHLETE SPECIFIC STATE ---
+  const [isCoachesOpen, setIsCoachesOpen] = useState(false);
+  const [myCoaches, setMyCoaches] = useState<{ id: string; name: string }[]>(
+    [],
+  );
+
+  useEffect(() => {
+    if (user?.role === "athlete") {
+      api
+        .get("/athlete/coaches")
+        .then((res) => setMyCoaches(res.data))
+        .catch(console.error);
+    }
+  }, [user]);
+  // ------------------------------
 
   const filteredConversations =
     conversations?.filter((chat) =>
@@ -186,6 +200,25 @@ export function AppSidebar() {
             </SidebarMenuButton>
           </SidebarMenuItem>
 
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              asChild
+              isActive={location.pathname.startsWith("/kitchen")}
+              tooltip="Smart Kitchen"
+              className="w-full h-10 gap-3 rounded-xl transition-all duration-300 cursor-pointer font-dmsans font-medium shadow-sm overflow-hidden"
+            >
+              <Link to="/kitchen">
+                <Beef
+                  size={18}
+                  className="shrink-0 transition-transform group-hover:scale-110 duration-300"
+                />
+                <span className="truncate transition-all duration-300 group-data-[collapsible=icon]:opacity-0 group-data-[collapsible=icon]:w-0 group-data-[collapsible=icon]:-ml-3">
+                  Smart Kitchen
+                </span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+
           {/* ==========================================
               COACH ZONE INJECTION
               ========================================== */}
@@ -238,7 +271,7 @@ export function AppSidebar() {
                       initial={{ height: 0, opacity: 0 }}
                       animate={{ height: "auto", opacity: 1 }}
                       exit={{ height: 0, opacity: 0 }}
-                      className="overflow-hidden pl-7 pr-2 mt-1 space-y-1 font-dmsans"
+                      className="overflow-hidden pl-2 pr-2 mt-1 space-y-1 font-dmsans"
                     >
                       {athleteCount > 0 ? (
                         <Link to="/coach/roster">
@@ -246,7 +279,7 @@ export function AppSidebar() {
                             isActive={location.pathname.startsWith(
                               "/coach/roster",
                             )}
-                            className="w-full h-8 rounded-md text-xs"
+                            className="w-full h-8 rounded-md text-xs cursor-pointer"
                           >
                             Main Roster{" "}
                             <span className="ml-auto text-[10px] bg-border px-1.5 rounded text-muted-foreground">
@@ -261,7 +294,7 @@ export function AppSidebar() {
                       )}
 
                       <Link to="/coach/roster">
-                        <SidebarMenuButton className="w-full h-8 rounded-md text-xs text-muted-foreground border border-dashed border-border/50 mt-1 hover:text-foreground">
+                        <SidebarMenuButton className="w-full h-8 cursor-pointer rounded-md text-xs text-muted-foreground border border-dashed border-border/50 mt-1 hover:text-foreground">
                           <Settings size={12} className="mr-2" />
                           Manage Teams
                         </SidebarMenuButton>
@@ -271,6 +304,55 @@ export function AppSidebar() {
                 </AnimatePresence>
               </SidebarMenuItem>
             </>
+          )}
+          {/* ==========================================
+              ATHLETE ZONE INJECTION
+              ========================================== */}
+          {user?.role === "athlete" && (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                tooltip="My Coaches"
+                onClick={() => setIsCoachesOpen(!isCoachesOpen)}
+                className="w-full h-10 gap-3 rounded-xl transition-all duration-300 cursor-pointer font-dmsans font-medium shadow-sm overflow-hidden"
+              >
+                <Users size={18} className="shrink-0" />
+                <div className="flex flex-1 items-center justify-between transition-all duration-300 group-data-[collapsible=icon]:opacity-0 group-data-[collapsible=icon]:w-0 group-data-[collapsible=icon]:-ml-3">
+                  <span className="truncate text-left">My Coaches</span>
+                  {isCoachesOpen ? (
+                    <ChevronDown size={14} className="opacity-50 shrink-0" />
+                  ) : (
+                    <ChevronRight size={14} className="opacity-50 shrink-0" />
+                  )}
+                </div>
+              </SidebarMenuButton>
+
+              <AnimatePresence>
+                {isCoachesOpen && !isCollapsed && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className="overflow-hidden pl-2 pr-2 mt-1 space-y-1 font-dmsans"
+                  >
+                    {myCoaches.length > 0 ? (
+                      myCoaches.map((coach) => (
+                        <div
+                          key={coach.id}
+                          className="w-full flex items-center h-8 px-2 rounded-md text-xs text-muted-foreground border border-transparent hover:bg-accent/50 transition-colors"
+                        >
+                          <User size={12} className="mr-2 opacity-70" />
+                          <span className="truncate">{coach.name}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="px-2 py-1.5 text-xs text-muted-foreground/60 italic">
+                        No active coaches
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </SidebarMenuItem>
           )}
         </SidebarMenu>
       </SidebarHeader>
@@ -367,18 +449,6 @@ export function AppSidebar() {
       <SidebarFooter className="mt-auto p-3 group-data-[collapsible=icon]:p-2 flex flex-col gap-1">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton
-              className="w-full gap-3 rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-all duration-200 cursor-pointer group-data-[collapsible=icon]:justify-center h-9"
-              tooltip="Settings"
-            >
-              <Settings size={18} className="shrink-0" />
-              <span className="font-medium font-dmsans group-data-[collapsible=icon]:hidden">
-                Settings
-              </span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-
-          <SidebarMenuItem>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <SidebarMenuButton
@@ -436,23 +506,21 @@ export function AppSidebar() {
                     <span className="font-medium">My Profile</span>
                   </DropdownMenuItem>
                 )}
-                {/* ------------------- */}
-                <DropdownMenuItem
-                  className="gap-3 cursor-pointer rounded-lg p-2.5 transition-colors"
-                  onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-                >
-                  {theme === "dark" ? (
-                    <Sun size={16} className="text-muted-foreground" />
-                  ) : (
-                    <Moon size={16} className="text-muted-foreground" />
-                  )}
-                  <span className="font-medium">Toggle Theme</span>
-                </DropdownMenuItem>
                 <DropdownMenuItem className="gap-3 cursor-pointer rounded-lg p-2.5 transition-colors">
                   <Download size={16} className="text-muted-foreground" />
                   <span className="font-medium">Export Data</span>
                 </DropdownMenuItem>
+
+                <DropdownMenuItem
+                  className="gap-3 cursor-pointer rounded-lg p-2.5 transition-colors"
+                  onClick={() => navigate("/settings")}
+                >
+                  <Settings size={16} className="text-muted-foreground" />
+                  <span className="font-medium">Settings</span>
+                </DropdownMenuItem>
+
                 <DropdownMenuSeparator className="my-1.5 bg-border/50" />
+
                 <DropdownMenuItem
                   className="gap-3 cursor-pointer rounded-lg p-2.5 text-destructive focus:text-destructive focus:bg-destructive/10 transition-colors"
                   onClick={handleLogout}
