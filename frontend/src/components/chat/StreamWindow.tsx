@@ -12,6 +12,7 @@ interface StreamWindowProps {
   messages: Message[];
   scrollRef: React.RefObject<HTMLDivElement | null>;
   loading?: boolean;
+  user?: { username?: string; name?: string; role?: string } | null;
 }
 
 const LOADING_STATES = [
@@ -40,24 +41,178 @@ const ThinkingPlaceholder = () => {
   );
 };
 
+const MessageBubble = React.memo(
+  ({
+    msg,
+    isLast,
+    loading,
+    user,
+    handleDownloadPDF,
+  }: {
+    msg: Message;
+    isLast: boolean;
+    loading?: boolean;
+    user?: any;
+    handleDownloadPDF: (text: string) => void;
+  }) => {
+    // AI PDF Trigger Logic
+    const hasPdfTrigger = msg.content.includes("[PDF_READY]");
+    let displayContent = msg.content.replace("[PDF_READY]", "").trim();
+
+    // User File Upload Parsing Logic
+    let attachedFileName = null;
+    if (msg.role === "user") {
+      const fileMatch = displayContent.match(/^\[FILE:\s*(.*?)\]/);
+      if (fileMatch) {
+        attachedFileName = fileMatch[1];
+        displayContent = displayContent.replace(fileMatch[0], "").trim();
+      }
+    }
+
+    const userInitial = user?.username
+      ? user.username.charAt(0).toUpperCase()
+      : user?.name
+        ? user.name.charAt(0).toUpperCase()
+        : "U";
+
+    return (
+      <div
+        className={`flex w-full ${
+          msg.role === "user" ? "justify-end" : "justify-start"
+        }`}
+      >
+        {msg.role === "user" ? (
+          <div className="max-w-full flex gap-4 w-full justify-end flex-row">
+            <div className="flex flex-col items-end gap-2 max-w-[80%]">
+              {attachedFileName && (
+                <div className="flex items-center gap-2 bg-muted/50 border border-border text-muted-foreground px-3 py-1.5 rounded-lg text-sm font-medium shadow-sm">
+                  <FileText size={16} className="text-primary/80" />
+                  <span className="truncate max-w-[220px] tracking-tight">
+                    {attachedFileName}
+                  </span>
+                </div>
+              )}
+
+              {displayContent && (
+                <div className="bg-card text-card-foreground px-5 py-3 rounded-2xl rounded-tr-sm shadow-sm">
+                  <p className="text-sm font-medium whitespace-pre-wrap leading-relaxed">
+                    {displayContent}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="w-8 h-8 rounded-lg bg-muted/50 flex items-center justify-center shrink-0 border border-border/50 mt-1">
+              <span className="text-foreground/70 font-bricolage font-bold text-sm">
+                {userInitial}
+              </span>
+            </div>
+          </div>
+        ) : (
+          <div className="max-w-full flex gap-4 w-full flex-col md:flex-row">
+            <div className="flex gap-4 w-full">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center shrink-0 border border-primary/20 mt-1">
+                <span className="text-primary font-bold italic text-sm leading-none">
+                  R
+                </span>
+              </div>
+
+              <div className="flex-1 min-w-0">
+                {displayContent ? (
+                  <div className="prose prose-sm md:prose-base dark:prose-invert max-w-none break-words leading-relaxed">
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      components={{
+                        table: ({ node, ...props }) => (
+                          <div className="w-full overflow-x-auto my-6 rounded-xl border border-border/50 shadow-sm">
+                            <table
+                              className="w-full text-sm text-left border-collapse"
+                              {...props}
+                            />
+                          </div>
+                        ),
+                        thead: ({ node, ...props }) => (
+                          <thead
+                            className="bg-muted/50 border-b border-border/50 font-semibold text-muted-foreground"
+                            {...props}
+                          />
+                        ),
+                        tr: ({ node, ...props }) => (
+                          <tr
+                            className="border-b border-border/50 last:border-0 hover:bg-muted/20 transition-colors"
+                            {...props}
+                          />
+                        ),
+                        th: ({ node, ...props }) => (
+                          <th
+                            className="p-4 align-middle font-medium"
+                            {...props}
+                          />
+                        ),
+                        td: ({ node, ...props }) => (
+                          <td
+                            className="p-4 align-middle text-foreground/80"
+                            {...props}
+                          />
+                        ),
+                      }}
+                    >
+                      {displayContent}
+                    </ReactMarkdown>
+                  </div>
+                ) : // Conditional rendering for the "Thinking" state directly inside the bubble
+                isLast && loading ? (
+                  <ThinkingPlaceholder />
+                ) : null}
+
+                {/* Render PDF button if tag detected and streaming finished */}
+                {hasPdfTrigger && displayContent && !loading && (
+                  <div className="mt-4 flex">
+                    <button
+                      onClick={() => handleDownloadPDF(displayContent)}
+                      className="flex items-center gap-2 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 px-4 py-2 rounded-lg font-medium text-sm transition-colors"
+                    >
+                      <FileText size={16} />
+                      Download as PDF
+                      <Download size={16} className="ml-1 opacity-70" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  },
+  // Custom Comparison Guard:
+  // Skips re-rendering if the content is identical and it's not the active streaming message.
+  (prevProps, nextProps) => {
+    return prevProps.msg.content === nextProps.msg.content && !nextProps.isLast;
+  },
+);
+
+// ==========================================
+// MAIN STREAM WINDOW COMPONENT
+// ==========================================
 const StreamWindow: React.FC<StreamWindowProps> = ({
   messages,
   scrollRef,
+  user,
   loading,
 }) => {
   if (messages.length === 0 && !loading) return null;
 
   const handleDownloadPDF = async (text: string) => {
     try {
-      // We will build this endpoint in app-backend
       const response = await fetch("http://localhost:8080/generate-pdf", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: text }),
       });
-      
+
       if (!response.ok) throw new Error("Failed to generate PDF");
-      
+
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -74,92 +229,16 @@ const StreamWindow: React.FC<StreamWindowProps> = ({
 
   return (
     <div className="flex flex-col space-y-6">
-      {messages.map((msg, index) => {
-        // Check for PDF trigger
-        const hasPdfTrigger = msg.content.includes("[PDF_READY]");
-        const displayContent = msg.content.replace("[PDF_READY]", "").trim();
-
-        return (
-          <div
-            key={index}
-            className={`flex w-full ${
-              msg.role === "user" ? "justify-end" : "justify-start"
-            }`}
-          >
-            {msg.role === "user" ? (
-              <div className="max-w-[80%] bg-primary text-primary-foreground px-5 py-3 rounded-2xl rounded-tr-sm shadow-sm">
-                <p className="text-sm font-medium whitespace-pre-wrap leading-relaxed">
-                  {displayContent}
-                </p>
-              </div>
-            ) : (
-              <div className="max-w-full flex gap-4 w-full flex-col md:flex-row">
-                <div className="flex gap-4 w-full">
-                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center shrink-0 border border-primary/20 mt-1">
-                    <span className="text-primary font-bold italic text-sm leading-none">
-                      R
-                    </span>
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="prose prose-sm md:prose-base dark:prose-invert max-w-none break-words leading-relaxed">
-                      {displayContent ? (
-                        <ReactMarkdown
-                          remarkPlugins={[remarkGfm]}
-                          components={{
-                            table: ({ node, ...props }) => (
-                              <div className="w-full overflow-x-auto my-6 rounded-xl border border-border/50 shadow-sm">
-                                <table className="w-full text-sm text-left border-collapse" {...props} />
-                              </div>
-                            ),
-                            thead: ({ node, ...props }) => <thead className="bg-muted/50 border-b border-border/50 font-semibold text-muted-foreground" {...props} />,
-                            tr: ({ node, ...props }) => <tr className="border-b border-border/50 last:border-0 hover:bg-muted/20 transition-colors" {...props} />,
-                            th: ({ node, ...props }) => <th className="p-4 align-middle font-medium" {...props} />,
-                            td: ({ node, ...props }) => <td className="p-4 align-middle text-foreground/80" {...props} />,
-                          }}
-                        >
-                          {displayContent}
-                        </ReactMarkdown>
-                      ) : (
-                        <ThinkingPlaceholder />
-                      )}
-                    </div>
-                    
-                    {/* Render button if tag detected and streaming finished (no placeholder) */}
-                    {hasPdfTrigger && displayContent && !loading && (
-                      <div className="mt-4 flex">
-                        <button
-                          onClick={() => handleDownloadPDF(displayContent)}
-                          className="flex items-center gap-2 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 px-4 py-2 rounded-lg font-medium text-sm transition-colors"
-                        >
-                          <FileText size={16} />
-                          Download as PDF
-                          <Download size={16} className="ml-1 opacity-70" />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        );
-      })}
-
-      {loading &&
-        (messages.length === 0 ||
-          messages[messages.length - 1].role === "user") && (
-          <div className="flex w-full justify-start">
-            <div className="max-w-full flex gap-4 w-full">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center shrink-0 border border-primary/20 mt-1">
-                <span className="text-primary font-bold italic text-sm leading-none">R</span>
-              </div>
-              <div className="flex-1 prose prose-sm md:prose-base dark:prose-invert max-w-none break-words leading-relaxed">
-                <ThinkingPlaceholder />
-              </div>
-            </div>
-          </div>
-        )}
+      {messages.map((msg, index) => (
+        <MessageBubble
+          key={index}
+          msg={msg}
+          isLast={index === messages.length - 1}
+          loading={loading}
+          user={user}
+          handleDownloadPDF={handleDownloadPDF}
+        />
+      ))}
 
       <div ref={scrollRef} className="h-32 w-full shrink-0" />
     </div>

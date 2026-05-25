@@ -1,15 +1,15 @@
 import asyncio
+import base64
 import io
 import json
 import os
 import re
-import base64
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Optional
-from pydantic import BaseModel
 
 import httpx
+import pypdf
 from auth import (
     create_access_token,
     get_current_coach_email,
@@ -30,15 +30,10 @@ from fastapi import (
     File,
     Form,
     HTTPException,
+    Query,
     UploadFile,
     status,
-    Query,
 )
-from reportlab.lib.pagesizes import letter
-from reportlab.pdfgen import canvas
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet
-
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.security import OAuth2PasswordRequestForm
@@ -47,16 +42,22 @@ from models import (
     Conversation,
     ConversationRename,
     Message,
+    MessagePayload,
     PantryItem,
     PreferencesUpdate,
     ProfileUpdate,
+    RecipeCreate,
     RosterLink,
     Token,
     UserCreate,
     UserInDB,
-    Recipe,
 )
 from motor.motor_asyncio import AsyncIOMotorClient
+from pydantic import BaseModel
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.pdfgen import canvas
+from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
 from utils import extract_text_from_file, trim_conversation_history
 
 load_dotenv()
@@ -86,7 +87,7 @@ app = FastAPI(title="RizzBo App Backend", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -233,23 +234,31 @@ async def generate_smart_title(first_prompt: str, ai_backend_url: str) -> str:
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
-                f"{ai_backend_url}/chat", 
+                f"{ai_backend_url}/chat",
                 json={
-                    "prompt": title_prompt, 
-                    "stream": False,
-                    "model": "gemini-3.1-flash-lite"
-                }
+                    "messages": [{"role": "user", "content": title_prompt}],
+                    "model": "gemini-3.1-flash-lite",
+                },
             )
             response.raise_for_status()
 
             # Safely extract text without assuming dict
             try:
                 data = response.json()
-                raw_title = data.get("response", response.text) if isinstance(data, dict) else str(data)
+                raw_title = (
+                    data.get("response", response.text)
+                    if isinstance(data, dict)
+                    else str(data)
+                )
             except Exception:
                 raw_title = response.text
 
-            refined_title = raw_title.replace("data: ", "").strip().replace('"', "").replace("'", "")[:40]
+            refined_title = (
+                raw_title.replace("data: ", "")
+                .strip()
+                .replace('"', "")
+                .replace("'", "")[:40]
+            )
             return refined_title.capitalize() or "New chat"
 
     except Exception:
@@ -282,7 +291,11 @@ async def extract_metrics_background(
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(
-                f"{ai_backend_url}/chat", json={"prompt": extraction_prompt}
+                f"{ai_backend_url}/chat",
+                json={
+                    "messages": [{"role": "user", "content": extraction_prompt}],
+                    "model": "gemini-3.1-flash-lite",
+                },
             )
             response.raise_for_status()
 
@@ -322,6 +335,7 @@ async def extract_metrics_background(
     except Exception as e:
         print(f"⚠️ Background metric extraction failed: {repr(e)}")
 
+
 async def update_long_term_memory(conversation_id: str, ai_backend_url: str):
     """Background task to update the conversation's rolling memory summary."""
     try:
@@ -331,15 +345,17 @@ async def update_long_term_memory(conversation_id: str, ai_backend_url: str):
 
         messages = conv.get("messages", [])
         current_summary = conv.get("context_summary", "")
-        
+
         # Strip datetime objects before JSON serialization
         recent_chunk = messages[-6:]
-        clean_chunk = [{"role": m.get("role"), "content": m.get("content")} for m in recent_chunk]
+        clean_chunk = [
+            {"role": m.get("role"), "content": m.get("content")} for m in recent_chunk
+        ]
 
         async with httpx.AsyncClient(timeout=60.0) as client:
             resp = await client.post(
                 f"{ai_backend_url}/summarize-memory",
-                json={"messages": clean_chunk, "current_summary": current_summary}
+                json={"messages": clean_chunk, "current_summary": current_summary},
             )
             resp.raise_for_status()
             new_summary = resp.json().get("summary", "")
@@ -347,20 +363,73 @@ async def update_long_term_memory(conversation_id: str, ai_backend_url: str):
         if new_summary:
             await db.conversations.update_one(
                 {"_id": ObjectId(conversation_id)},
-                {"$set": {"context_summary": new_summary}}
+                {"$set": {"context_summary": new_summary}},
             )
             print(f"✅ Memory updated for conversation {conversation_id}")
-            
+
     except Exception as e:
         print(f"⚠️ Memory Summarization Failed: {e}")
+
+
+@app.post("/extract-text")
+async def extract_text_only(
+    file: UploadFile = File(...),
+    email: Optional[str] = Depends(get_optional_user_email),
+):
+    """
+    Isolated endpoint for extracting text from staging files.
+    Does NOT interact with the database or LLM.
+    """
+    if not email:
+        raise HTTPException(
+            status_code=401, detail="Must be logged in to process files."
+        )
+
+    try:
+        content = await file.read()
+        filename = file.filename.lower()
+        extracted_text = ""
+
+        if filename.endswith(".pdf"):
+            # Load the binary stream into the pypdf reader
+            pdf_reader = pypdf.PdfReader(io.BytesIO(content))
+            for page in pdf_reader.pages:
+                text = page.extract_text()
+                if text:
+                    extracted_text += text + "\n"
+
+        elif filename.endswith((".txt", ".md", ".csv")):
+            # Standard UTF-8 decoding for plaintext files
+            extracted_text = content.decode("utf-8")
+
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="Unsupported file type. Please upload PDF, TXT, MD, or CSV.",
+            )
+
+        # SECURITY & PERFORMANCE GUARDRAIL:
+        # Hard cap the extracted text at ~15,000 characters to prevent
+        # massive documents from exceeding the LLM context window or
+        # slowing down the inference stream.
+        extracted_text = extracted_text[:15000]
+
+        return {"filename": file.filename, "text": extracted_text}
+
+    except UnicodeDecodeError:
+        raise HTTPException(
+            status_code=400, detail="File encoding not supported. Please use UTF-8."
+        )
+    except Exception as e:
+        print(f"Extraction error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to parse document.")
+
 
 @app.post("/chat")
 async def chat(
     request: ChatRequest,
-    background_tasks: BackgroundTasks,
     email: Optional[str] = Depends(get_optional_user_email),
 ):
-
     user_id = None
     role = "athlete"
     if email:
@@ -398,8 +467,6 @@ async def chat(
             "timestamp": datetime.now(timezone.utc),
         }
         ai_content = ""
-        full_prompt = request.prompt
-
         ai_backend_url = os.getenv("AI_BACKEND_URL", "http://127.0.0.1:8000")
 
         title_task = None
@@ -408,22 +475,20 @@ async def chat(
                 generate_smart_title(request.prompt, ai_backend_url)
             )
 
+        # --- 1. GATHER DYNAMIC CONTEXT (Roster & Memory) ---
         roster_context = ""
         if role == "coach" and user_id:
+            # (Your existing roster fetching logic remains exactly the same here)
             links = await db.roster_links.find(
                 {"coach_id": user_id, "status": "active"}
             ).to_list(length=100)
             if links:
                 athlete_ids = [link["athlete_id"] for link in links]
-
                 pipeline = [
                     {
                         "$match": {
                             "user_id": {"$in": athlete_ids},
-                            "metric_name": {
-                                "$exists": True,
-                                "$ne": None,
-                            },
+                            "metric_name": {"$exists": True, "$ne": None},
                         }
                     },
                     {"$sort": {"date": -1}},
@@ -440,15 +505,12 @@ async def chat(
                 ]
                 metrics_cursor = db.metrics.aggregate(pipeline)
                 team_metrics = await metrics_cursor.to_list(length=500)
-
                 valid_athlete_obj_ids = [
                     ObjectId(aid) for aid in athlete_ids if ObjectId.is_valid(aid)
                 ]
-
                 athletes = await db.users.find(
                     {"_id": {"$in": valid_athlete_obj_ids}}, {"name": 1}
                 ).to_list(length=100)
-
                 athlete_map = {
                     str(a["_id"]): a.get("name", "Unknown") for a in athletes
                 }
@@ -458,81 +520,99 @@ async def chat(
                     group_id = m.get("_id", {})
                     uid = group_id.get("user_id")
                     metric = group_id.get("metric_name")
-
                     if not uid or not metric:
                         continue
-
                     a_name = athlete_map.get(uid, "Unknown")
                     if a_name not in formatted_stats:
                         formatted_stats[a_name] = []
-
-                    metric_str = (
+                    formatted_stats[a_name].append(
                         f"{metric}: {m.get('latest_value', '')}{m.get('unit', '')}"
                     )
-                    formatted_stats[a_name].append(metric_str)
 
                 if formatted_stats:
-                    roster_context = "\n[ROSTER CONTEXT - LATEST TEAM DATA]:\n"
+                    roster_context = "[ROSTER CONTEXT - LATEST TEAM DATA]:\n"
                     for a_name, stats in formatted_stats.items():
                         roster_context += f"- {a_name}: {', '.join(stats)}\n"
                     roster_context += "[END ROSTER CONTEXT]\n\n"
+
+        # --- 2. BUILD STRUCTURED MESSAGE ARRAY ---
+        payload_messages = []
+        memory_block = ""
 
         if not is_new_conversation:
             try:
                 conv = await db.conversations.find_one({"_id": db_assigned_id})
                 if conv and "messages" in conv:
-                    
-                    # --- PHASE 2: MEMORY INJECTION ---
                     context_summary = conv.get("context_summary", "")
-                    memory_block = f"[LONG-TERM MEMORY SUMMARY]:\n{context_summary}\n\n" if context_summary else ""
+                    if context_summary:
+                        memory_block = (
+                            f"[LONG-TERM MEMORY SUMMARY]:\n{context_summary}\n\n"
+                        )
 
-                    # --- PHASE 1: PIN DOCUMENTS & DYNAMIC TRIMMING ---
-                    # 1. Separate documents (system messages) from the chat
-                    doc_messages = [m for m in conv["messages"] if m.get("role") == "system"]
-                    chat_messages = [m for m in conv["messages"] if m.get("role") != "system"]
-                    
-                    # 2. Only trim the human/AI back-and-forth
-                    trimmed_history = trim_conversation_history(chat_messages, max_words=2500)
-                    
-                    history_chunks = []
-                    
-                    # 3. Re-inject the pinned documents at the very top (never trimmed)
-                    for m in doc_messages:
-                        content = m.get("content", "")
-                        history_chunks.append(f"SYSTEM_CONTEXT: {content}")
+                    # Separate system/doc messages from chat
+                    doc_messages = [
+                        m for m in conv["messages"] if m.get("role") == "system"
+                    ]
+                    chat_messages = [
+                        m for m in conv["messages"] if m.get("role") != "system"
+                    ]
 
-                    # 4. Add the trimmed chat history
-                    for m in trimmed_history:
-                        m_role = m.get("role", "user").upper()
-                        content = m.get("content", "")
-                        history_chunks.append(f"{m_role}: {content}")
-
-                    history = "\n\n".join(history_chunks)
-                    full_prompt = (
-                        f"CONTEXT & CONVERSATION HISTORY:\n"
-                        f"=================================\n"
-                        f"{memory_block}"
-                        f"{history}\n"
-                        f"=================================\n\n"
-                        f"{roster_context}"
-                        f"USER PROMPT: {request.prompt}"
+                    # Trim chat history (you should update your trim_conversation_history util
+                    # to return a list of dicts instead of formatting strings)
+                    trimmed_history = trim_conversation_history(
+                        chat_messages, max_words=2500
                     )
+
+                    # Inject pinned documents as a system-like preamble to the first message
+                    doc_preamble = ""
+                    for m in doc_messages:
+                        doc_preamble += (
+                            f"PINNED DOCUMENT CONTEXT: {m.get('content', '')}\n\n"
+                        )
+
+                    # SANITIZER: Ensure strictly alternating roles (user -> model)
+                    last_role = None
+                    for m in trimmed_history:
+                        m_role = "user" if m.get("role") == "user" else "model"
+
+                        # Skip consecutive messages from the same role to prevent Google 400 errors
+                        if m_role == last_role:
+                            continue
+
+                        # If this is the very first message in the payload, inject the doc_preamble
+                        content = m.get("content", "")
+                        if last_role is None and doc_preamble:
+                            content = f"{doc_preamble}{content}"
+
+                        payload_messages.append({"role": m_role, "content": content})
+                        last_role = m_role
+
             except Exception as e:
                 print(f"Error loading history: {e}")
 
-        else:
-            full_prompt = (
-                f"{roster_context}"
-                f"USER PROMPT: {request.prompt}"
-            )
+        # --- 3. CONSTRUCT THE LATEST PROMPT WITH INJECTED CONTEXT ---
+        # We wrap the Roster & Memory specifically around the final user prompt.
+        # This acts as dynamic context (RAG) without polluting the history array.
+        final_prompt_content = (
+            f"{memory_block}{roster_context}USER PROMPT: {request.prompt}"
+        )
 
+        # Ensure the final appended message doesn't break the user->model->user alternation
+        if payload_messages and payload_messages[-1]["role"] == "user":
+            # Edge case: Last saved message was a user (e.g. generation failed previously)
+            # Replace it with the new prompt
+            payload_messages[-1] = {"role": "user", "content": final_prompt_content}
+        else:
+            payload_messages.append({"role": "user", "content": final_prompt_content})
+
+        # --- 4. STREAM TO AI-BACKEND ---
         try:
             async with httpx.AsyncClient(timeout=120.0) as client:
-                req_data = {"prompt": full_prompt}
                 async with client.stream(
                     "POST",
                     f"{ai_backend_url}/chat",
-                    json={"prompt": request.prompt, "model": request.model},
+                    # Send the structured array instead of a single string
+                    json={"messages": payload_messages, "model": request.model},
                 ) as response:
                     response.raise_for_status()
                     async for line in response.aiter_lines():
@@ -551,14 +631,13 @@ async def chat(
                 yield f"data: {json.dumps(word)}\n\n"
                 await asyncio.sleep(0.1)
 
-        # 4. Save the finalized messages to MongoDB
+        # --- 5. SAVE FINALIZED MESSAGES TO DB ---
         if user_id:
             ai_msg = {
                 "role": "assistant",
                 "content": ai_content,
                 "timestamp": datetime.utcnow(),
             }
-
             await db.conversations.update_one(
                 {"_id": db_assigned_id},
                 {
@@ -567,35 +646,40 @@ async def chat(
                 },
             )
 
-            current_msg_count = len(conv.get("messages", [])) + 2 if not is_new_conversation else 2
-            if current_msg_count > 0 and current_msg_count % 6 == 0:
-                background_tasks.add_task(update_long_term_memory, str(db_assigned_id), ai_backend_url)
+            # --- CALCULATE MESSAGE COUNT FOR LONG-TERM MEMORY TRIGGER ---
+            # If it's a new conversation, we just added 2 messages.
+            # Otherwise, we fetch the length of the existing messages from the 'conv' object and add 2.
+            try:
+                current_msg_count = (
+                    len(conv.get("messages", [])) + 2 if not is_new_conversation else 2
+                )
+            except NameError:
+                # Fallback just in case 'conv' wasn't loaded
+                current_msg_count = 2
 
-            # NEW: Await the title task and inject it into the stream
             if title_task:
                 try:
                     generated_title = await title_task
-
-                    # Save the new title to the database
                     await db.conversations.update_one(
                         {"_id": db_assigned_id}, {"$set": {"title": generated_title}}
                     )
-
-                    # Send the hidden title payload to the React frontend
-                    special_chunk = json.dumps(
-                        {"_type": "title_update", "title": generated_title}
-                    )
-                    yield f"data: {special_chunk}\n\n"
+                    yield f"data: {json.dumps({'_type': 'title_update', 'title': generated_title})}\n\n"
                 except Exception as e:
-                    print(f"⚠️ Title injection failed: {repr(e)}")
+                    pass
 
-            # Keep the background extraction task
-            background_tasks.add_task(
-                extract_metrics_background,
-                user_id,
-                current_conv_id,
-                request.prompt,
-                ai_backend_url,
+            # --- FIRE-AND-FORGET BACKGROUND TASKS (Bypassing FastAPI Streaming limitations) ---
+
+            # 1. Trigger the RAG Summarization every 6 messages
+            if current_msg_count > 0 and current_msg_count % 6 == 0:
+                asyncio.create_task(
+                    update_long_term_memory(str(db_assigned_id), ai_backend_url)
+                )
+
+            # 2. Trigger the Metric Extraction on every single message
+            asyncio.create_task(
+                extract_metrics_background(
+                    user_id, current_conv_id, request.prompt, ai_backend_url
+                )
             )
 
     return StreamingResponse(
@@ -710,7 +794,7 @@ async def delete_conversation(
 
     # 2. Next, CASCADE DELETE: Remove all metrics that were extracted during this chat!
     # (This prevents phantom data from showing up on the Profile page)
-    await db.metrics.delete_many({"source_chat_id": conversation_id})
+    await db.metrics.delete_many({"source_chat_id": ObjectId(conversation_id)})
 
     return {"message": "Conversation and associated metrics deleted successfully"}
 
@@ -736,9 +820,9 @@ async def search_conversations(q: str, email: str = Depends(get_current_user_ema
 
 @app.get("/export/{conversation_id}")
 async def export_conversation(
-    conversation_id: str, 
-    format: str = Query("docx", regex="^(docx|pdf)$"), # Restricts input to docx or pdf
-    email: str = Depends(get_current_user_email)
+    conversation_id: str,
+    format: str = Query("docx", regex="^(docx|pdf)$"),  # Restricts input to docx or pdf
+    email: str = Depends(get_current_user_email),
 ):
     user = await db.users.find_one({"email": email})
     conv = await db.conversations.find_one(
@@ -756,8 +840,9 @@ async def export_conversation(
         p.drawString(100, 750, f"Title: {conv.get('title', 'Chat Export')}")
         y = 700
         for msg in conv.get("messages", []):
-            if msg["role"] == "system": continue
-            text = f"{msg['role'].capitalize()}: {msg['content'][:100]}" # Truncate for simplicity
+            if msg["role"] == "system":
+                continue
+            text = f"{msg['role'].capitalize()}: {msg['content'][:100]}"  # Truncate for simplicity
             p.drawString(100, y, text)
             y -= 20
         p.save()
@@ -768,13 +853,16 @@ async def export_conversation(
         document = Document()
         document.add_heading(conv.get("title", "RizzBo Chat Export"), 0)
         for msg in conv.get("messages", []):
-            if msg["role"] == "system": continue
+            if msg["role"] == "system":
+                continue
             p = document.add_paragraph()
             p.add_run(f"{msg['role'].capitalize()}: ").bold = True
             p.add_run(msg["content"])
         document.save(file_stream)
         filename = "RizzBo_Chat.docx"
-        media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        media_type = (
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        )
 
     file_stream.seek(0)
     return StreamingResponse(
@@ -859,18 +947,24 @@ async def invite_athlete(
             detail="Athlete not found, or user is not registered as an athlete.",
         )
 
-    # Check if they are already linked (pending or active)
+    # Check if they are already linked
     existing_link = await db.roster_links.find_one(
         {"coach_id": str(coach["_id"]), "athlete_id": str(athlete["_id"])}
     )
 
     if existing_link:
-        raise HTTPException(
-            status_code=400,
-            detail="Athlete has already been invited or is on your roster.",
-        )
+        if existing_link.get("status") == "rejected":
+            # Allow the coach to re-send the invite by resetting it to pending
+            await db.roster_links.update_one(
+                {"_id": existing_link["_id"]}, {"$set": {"status": "pending"}}
+            )
+            return {"message": "Invite re-sent! Waiting for athlete approval."}
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="Athlete has already been invited or is on your roster.",
+            )
 
-    # UPDATE: Set to pending requiring athlete consent
     new_link = RosterLink(
         coach_id=str(coach["_id"]), athlete_id=str(athlete["_id"]), status="pending"
     )
@@ -989,14 +1083,13 @@ async def respond_to_invite(
 ):
     athlete = await db.users.find_one({"email": email})
     athlete_id = str(athlete["_id"])
-    action = payload.get("action")  # Expects "accept" or "reject"
+    action = payload.get("action")
 
     if action not in ["accept", "reject"]:
         raise HTTPException(
             status_code=400, detail="Invalid action. Use 'accept' or 'reject'."
         )
 
-    # Find the pending link
     link = await db.roster_links.find_one(
         {"coach_id": coach_id, "athlete_id": athlete_id, "status": "pending"}
     )
@@ -1010,8 +1103,10 @@ async def respond_to_invite(
         )
         return {"message": "Invite accepted. Coach now has access to your data."}
     else:
-        # If rejected, delete the link so the coach can potentially try again in the future
-        await db.roster_links.delete_one({"_id": link["_id"]})
+        # FIX: Keep the record, but mark it as rejected
+        await db.roster_links.update_one(
+            {"_id": link["_id"]}, {"$set": {"status": "rejected"}}
+        )
         return {"message": "Invite rejected."}
 
 
@@ -1348,87 +1443,98 @@ async def update_preferences(
 
     return {"message": "Preferences updated", "updated_fields": update_data}
 
+
 @app.post("/recipes", status_code=status.HTTP_201_CREATED)
-async def save_recipe(recipe: Recipe, email: str = Depends(get_current_user_email)):
+async def save_recipe(
+    recipe: RecipeCreate, email: str = Depends(get_current_user_email)
+):
     user = await db.users.find_one({"email": email})
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    
-    recipe_doc = recipe.model_dump(exclude={"id"})
+
+    recipe_doc = recipe.model_dump()
+
     recipe_doc["user_id"] = str(user["_id"])
-    
+    recipe_doc["created_at"] = datetime.now(timezone.utc)
+
     result = await db.recipes.insert_one(recipe_doc)
     return {"message": "Recipe saved", "id": str(result.inserted_id)}
+
 
 @app.get("/recipes")
 async def get_saved_recipes(email: str = Depends(get_current_user_email)):
     user = await db.users.find_one({"email": email})
     cursor = db.recipes.find({"user_id": str(user["_id"])}).sort("created_at", -1)
     recipes = await cursor.to_list(length=100)
-    
+
     for r in recipes:
         r["_id"] = str(r["_id"])
     return recipes
+
 
 @app.delete("/recipes/{recipe_id}")
 async def delete_recipe(recipe_id: str, email: str = Depends(get_current_user_email)):
     user = await db.users.find_one({"email": email})
     if not ObjectId.is_valid(recipe_id):
         raise HTTPException(status_code=400, detail="Invalid recipe ID")
-        
+
     result = await db.recipes.delete_one(
         {"_id": ObjectId(recipe_id), "user_id": str(user["_id"])}
     )
-    
+
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Recipe not found")
     return {"message": "Recipe removed"}
 
+
 class PDFGenerateRequest(BaseModel):
     content: str
+
 
 # Add endpoint
 @app.post("/generate-pdf")
 async def generate_pdf(request: PDFGenerateRequest):
     file_stream = io.BytesIO()
-    
+
     doc = SimpleDocTemplate(file_stream, pagesize=letter)
     styles = getSampleStyleSheet()
     story = []
-    
-    paragraphs = request.content.split('\n')
+
+    paragraphs = request.content.split("\n")
     for text in paragraphs:
         clean_text = text.strip()
         if not clean_text:
             continue
-            
+
         # 1. Remove Horizontal Rules (--- or ***)
-        if re.match(r'^[-*_]{3,}$', clean_text):
+        if re.match(r"^[-*_]{3,}$", clean_text):
             continue
-        
+
         # 2. Convert Headers (# Header) to bold text
-        clean_text = re.sub(r'^#+\s+(.*)', r'<b>\1</b>', clean_text)
-        
+        clean_text = re.sub(r"^#+\s+(.*)", r"<b>\1</b>", clean_text)
+
         # 3. Convert Bold (**text** or __text__)
-        clean_text = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', clean_text)
-        clean_text = re.sub(r'__(.*?)__', r'<b>\1</b>', clean_text)
-        
+        clean_text = re.sub(r"\*\*(.*?)\*\*", r"<b>\1</b>", clean_text)
+        clean_text = re.sub(r"__(.*?)__", r"<b>\1</b>", clean_text)
+
         # 4. Convert Italics (*text* or _text_)
         # Negative lookbehinds/lookaheads prevent matching ** as *
-        clean_text = re.sub(r'(?<!\*)\*(?!\*)(.*?)(?<!\*)\*(?!\*)', r'<i>\1</i>', clean_text)
-        clean_text = re.sub(r'(?<!_)_(?!_)(.*?)(?<!_)_(?!_)', r'<i>\1</i>', clean_text)
-        
+        clean_text = re.sub(
+            r"(?<!\*)\*(?!\*)(.*?)(?<!\*)\*(?!\*)", r"<i>\1</i>", clean_text
+        )
+        clean_text = re.sub(r"(?<!_)_(?!_)(.*?)(?<!_)_(?!_)", r"<i>\1</i>", clean_text)
+
         # 5. Handle Bullet Points (- item or * item)
-        clean_text = re.sub(r'^[-*]\s+', r'&bull; ', clean_text)
-        
+        clean_text = re.sub(r"^[-*]\s+", r"&bull; ", clean_text)
+
         story.append(Paragraph(clean_text, styles["Normal"]))
         story.append(Spacer(1, 12))
-            
+
     doc.build(story)
     file_stream.seek(0)
-    
+
     return StreamingResponse(
         file_stream,
         media_type="application/pdf",
-        headers={"Content-Disposition": "attachment; filename=Improved_Document.pdf"}
+        headers={"Content-Disposition": "attachment; filename=Improved_Document.pdf"},
     )

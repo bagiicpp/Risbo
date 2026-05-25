@@ -37,9 +37,6 @@ export default function ChatInput({
   const recognitionRef = useRef<any>(null);
   const originalInputRef = useRef<string>("");
 
-  // FIX: Removed the layout-thrashing useEffect for auto-resize.
-  // It is now handled directly in the onChange event below.
-
   useEffect(() => {
     if (typeof window !== "undefined") {
       const SpeechRecognition =

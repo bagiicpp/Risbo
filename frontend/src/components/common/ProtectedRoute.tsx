@@ -3,12 +3,13 @@ import { Navigate, Outlet, useLocation } from "react-router";
 import { useAuth } from "../../hooks/useAuth";
 
 interface ProtectedRouteProps {
-  // Making this optional means the route can just check for basic auth if no roles are passed
   allowedRoles?: ("athlete" | "coach")[];
+  children?: React.ReactNode;
 }
 
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   allowedRoles,
+  children,
 }) => {
   const { user, isAuthenticated, loading } = useAuth();
   const location = useLocation();
@@ -30,5 +31,5 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return <Navigate to={fallbackRoute} replace />;
   }
 
-  return <Outlet />;
+  return children ? <>{children}</> : <Outlet />;
 };

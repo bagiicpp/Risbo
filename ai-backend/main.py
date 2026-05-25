@@ -1,7 +1,9 @@
 import asyncio
-import json
-import os
 import base64
+import json
+import logging
+import os
+from datetime import datetime
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
@@ -11,7 +13,20 @@ from google import genai
 from google.genai import types
 from pydantic import BaseModel
 
+# --- Tenacity for robust API retries ---
+from tenacity import (
+    before_sleep_log,
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
+
 load_dotenv()
+
+# Set up logging so you can monitor Google's flakiness in your Docker console
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Risbo AI - Athlete Specialization")
 
@@ -23,16 +38,25 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 @app.get("/ping")
 async def ping():
     return {"status": "ok", "service": "ai-backend"}
 
+
 # Initialize the Google GenAI Client
 client = genai.Client(api_key=os.getenv("AI_STUDIO_API"))
 
+
+class MessagePayload(BaseModel):
+    role: str
+    content: str
+
+
 class ChatRequest(BaseModel):
-    prompt: str
-    model: str | None = None  # <-- Accept the model parameter here
+    messages: list[MessagePayload]
+    model: str | None = None
+
 
 ATHLETE_SYSTEM_PROMPT = (
     "You are Risbo, a specialized AI assistant for athletes, coaches, and sports analysts. "
@@ -45,55 +69,101 @@ ATHLETE_SYSTEM_PROMPT = (
     "If a user asks something unrelated to sports, player statistics, or training, politely steer the conversation back to the sports domain."
 )
 
-async def generate_stream(user_prompt: str, requested_model: str | None):
-    try:
-        # 1. SMART ROUTING: Determine the model and persona
-        if "You are an expert sports data extraction AI" in user_prompt:
-            # Background extraction task
-            contents = user_prompt
-            actual_model = "gemini-3.1-flash-lite" 
-            config = types.GenerateContentConfig(
-                temperature=0.7,
-                max_output_tokens=2048,
-            )
-        else:
-            # Standard user chat
-            actual_model = requested_model or os.getenv("AI_STUDIO_MODEL", "gemini-3.1-flash-lite")
-            
-            # Combine the Athlete Persona and PDF instructions into a standard text payload
-            core_system_instruction = (
-                f"{ATHLETE_SYSTEM_PROMPT}\n\n"
-                "CRITICAL SYSTEM DIRECTIVE: You have an internal tool to generate PDFs. "
-                "If a user asks you to generate, create, export, or improve a PDF/document, you MUST comply. "
-                "NEVER say 'I cannot generate a PDF' or 'I cannot directly export'. "
-                "Provide the requested text and append the exact string '[PDF_READY]' at the very end of your response. "
-                "The frontend system will intercept this tag and compile the PDF.\n\n"
-                "=================================\n"
-            )
-            
-            # INJECT INSTRUCTIONS AT THE START OF CONTENTS (Supports Gemma)
-            contents = f"{core_system_instruction}{user_prompt}"
-            
-            # REMOVED system_instruction parameter to prevent 500 crashes
-            config = types.GenerateContentConfig(
-                temperature=0.7,
-                max_output_tokens=2048,
-            )
 
-        # 2. GENERATE CONTENT
-        response_stream = await client.aio.models.generate_content_stream(
-            model=actual_model,
-            contents=contents,
-            config=config,
+@retry(
+    wait=wait_exponential(multiplier=1, min=2, max=10),
+    stop=stop_after_attempt(3),
+    retry=retry_if_exception_type(Exception),
+    before_sleep=before_sleep_log(logger, logging.WARNING),
+    reraise=True,
+)
+async def safe_generate_content(model: str, contents: list | str, config=None):
+    """A fault-tolerant wrapper for Google's non-streaming content generation."""
+    return await client.aio.models.generate_content(
+        model=model, contents=contents, config=config
+    )
+
+
+# ==============================================================================
+# RESILIENCE LAYER: STREAMING ENDPOINT
+# ==============================================================================
+async def generate_stream(messages: list[MessagePayload], requested_model: str | None):
+    """
+    State-aware retry loop supporting native structured multi-turn conversation arrays.
+    """
+    # Grab the actual user prompt (the last message in the array) to check for background tasks
+    latest_user_prompt = messages[-1].content if messages else ""
+
+    if "You are an expert sports data extraction AI" in latest_user_prompt:
+        # Background extraction task runs independently without history
+        actual_model = "gemini-3.1-flash-lite"
+        config = types.GenerateContentConfig(temperature=0.7, max_output_tokens=2048)
+        formatted_contents = latest_user_prompt
+    else:
+        actual_model = requested_model or os.getenv(
+            "AI_STUDIO_MODEL", "gemini-3.1-flash-lite"
         )
+        current_date = datetime.now().strftime("%B %d, %Y")
+        core_system_instruction = (
+            f"CRITICAL CONTEXT: Today's date is {current_date}.\n\n"
+            f"{ATHLETE_SYSTEM_PROMPT}\n\n"
+            "CRITICAL SYSTEM DIRECTIVE: You have an internal tool to generate PDFs. "
+            "If a user asks you to generate, create, export, or improve a PDF/document, you MUST comply. "
+            "NEVER say 'I cannot generate a PDF' or 'I cannot directly export'. "
+            "Provide the requested text and append the exact string '[PDF_READY]' at the very end of your response. "
+            "The frontend system will intercept this tag and compile the PDF.\n\n"
+            "=================================\n"
+        )
+        config = types.GenerateContentConfig(temperature=0.7, max_output_tokens=8192)
 
-        async for chunk in response_stream:
-            if chunk.text:
-                yield f"data: {json.dumps(chunk.text)}\n\n"
+        # Build the structured types.Content array required by Google SDK
+        formatted_contents = []
+        for i, msg in enumerate(messages):
+            # Ensure roles map exactly to what Google expects ("user" or "model")
+            role = "model" if msg.role in ["assistant", "model"] else "user"
+            content = msg.content
 
-    except Exception as e:
-        print(f"Streaming Error: {e}")
-        yield f"data: {json.dumps(f'**[ERROR]:** {str(e)}')}\n\n"
+            # To avoid the 500 crashes associated with the system_instruction config,
+            # we securely prepend the persona directives to the VERY FIRST message in the history.
+            if i == 0 and role == "user":
+                content = f"{core_system_instruction}\n\n{content}"
+
+            formatted_contents.append(
+                types.Content(role=role, parts=[types.Part.from_text(text=content)])
+            )
+
+    max_retries = 3
+    base_wait = 2
+
+    for attempt in range(max_retries):
+        chunks_yielded = 0
+        try:
+            response_stream = await client.aio.models.generate_content_stream(
+                model=actual_model,
+                contents=formatted_contents,  # Send the structured array!
+                config=config,
+            )
+
+            async for chunk in response_stream:
+                if chunk.text:
+                    chunks_yielded += 1
+                    yield f"data: {json.dumps(chunk.text)}\n\n"
+
+            break
+
+        except Exception as e:
+            logger.error(f"Stream failed on attempt {attempt + 1}/{max_retries}: {e}")
+
+            if chunks_yielded > 0:
+                error_msg = "\n\n**[Connection Interrupted]** Google's server dropped the connection. Please try again."
+                yield f"data: {json.dumps(error_msg)}\n\n"
+                break
+            elif attempt < max_retries - 1:
+                await asyncio.sleep(base_wait * (2**attempt))
+                continue
+            else:
+                yield f"data: {json.dumps(f'**[ERROR]:** Failed to reach AI backend after {max_retries} attempts.')}\n\n"
+                break
 
 
 @app.post("/chat")
@@ -101,27 +171,25 @@ async def chat_with_gemma(request: ChatRequest):
     if not os.getenv("AI_STUDIO_API"):
         raise HTTPException(status_code=500, detail="API Key missing in .env")
 
-    # Pass the requested model to the generator
     return StreamingResponse(
-        generate_stream(request.prompt, request.model), media_type="text/event-stream"
+        generate_stream(request.messages, request.model), media_type="text/event-stream"
     )
+
 
 class RecipeGenerationRequest(BaseModel):
     prompt: str
-    images: list[str] | None = None  # Base64 encoded image strings
+    images: list[str] | None = None
+
 
 @app.post("/generate-recipe")
 async def generate_recipe(request: RecipeGenerationRequest):
     try:
-        # Gemini usually performs better when images precede text in the contents array
         contents = []
 
-        # 1. Attach Images with Dynamic MIME Types
         if request.images:
             for b64_img in request.images:
                 img_bytes = base64.b64decode(b64_img)
 
-                # Detect file type using magic bytes headers
                 if img_bytes.startswith(b"\xff\xd8"):
                     mime_type = "image/jpeg"
                 elif img_bytes.startswith(b"\x89PNG\r\n\x1a\n"):
@@ -129,73 +197,71 @@ async def generate_recipe(request: RecipeGenerationRequest):
                 elif img_bytes.startswith(b"RIFF") and img_bytes[8:12] == b"WEBP":
                     mime_type = "image/webp"
                 else:
-                    # Fallback to jpeg if unknown
+                    # TECH DEBT WARNING: If a user uploads an HEIC file from an iPhone,
+                    # it will fall into this block, be labeled as JPEG, and crash the
+                    # Google decoder with a 500 error that Tenacity cannot fix.
                     mime_type = "image/jpeg"
 
                 contents.append(
                     types.Part.from_bytes(data=img_bytes, mime_type=mime_type)
                 )
 
-        # 2. Append the text prompt last
         contents.append(types.Part.from_text(text=request.prompt))
 
-        # 3. Call Gemini
-        response = await client.aio.models.generate_content(
+        # Use the fault-tolerant wrapper instead of calling the client directly
+        response = await safe_generate_content(
             model="gemini-3.1-flash-lite",
-            contents=contents, # This now contains ONLY Part objects
-            config=types.GenerateContentConfig(
-                temperature=0.7,
-            ),
+            contents=contents,
+            config=types.GenerateContentConfig(temperature=0.7),
         )
 
-        # 4. Return the raw text wrapped in a dict.
-        # Your rizzbo-app already has the regex logic to parse this safely!
         return {"response": response.text}
 
     except Exception as e:
-        # Catch and print the full error details
-        print(f"--- FULL RECIPE ERROR ---")
-        print(f"Type: {type(e)}")
-        print(f"Message: {str(e)}")
-        # If it's a Google API error, print the response
-        if hasattr(e, 'response'):
-            print(f"Response Body: {e.response.text}")
-        print(f"-------------------------")
-        raise HTTPException(status_code=500, detail=str(e))
-    
+        logger.error(f"Recipe Generation Failed after retries: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="AI microservice failed to respond. Please try again.",
+        )
+
+
 class SummarizeRequest(BaseModel):
     messages: list[dict]
     current_summary: str = ""
 
+
 @app.post("/summarize-memory")
 async def summarize_memory(request: SummarizeRequest):
     try:
-        # 1. Format the recent messages
-        chat_text = "\n".join([f"{m.get('role', 'user').upper()}: {m.get('content', '')}" for m in request.messages])
-        
-        # 2. Instruct the AI to act as a memory manager
+        chat_text = "\n".join(
+            [
+                f"{m.get('role', 'user').upper()}: {m.get('content', '')}"
+                for m in request.messages
+            ]
+        )
+
         prompt = (
             "You are an expert AI memory manager. Your task is to update a user's long-term profile based on their recent chat history.\n"
             "Extract ONLY permanent facts: physical conditions, injuries, specific goals, diet preferences, and PRs.\n"
             "Do NOT include conversational filler, greetings, or temporary states.\n\n"
         )
-        
+
         if request.current_summary:
             prompt += f"EXISTING MEMORY SUMMARY:\n{request.current_summary}\n\n"
             prompt += "INSTRUCTION: Merge the following new chat details into the existing summary. Keep it strictly under 150 words.\n\n"
         else:
             prompt += "INSTRUCTION: Create a new bulleted summary from this chat. Keep it under 150 words.\n\n"
-            
+
         prompt += f"RECENT CHAT:\n{chat_text}"
 
-        # 3. Call the model
-        response = await client.aio.models.generate_content(
+        # Use the fault-tolerant wrapper
+        response = await safe_generate_content(
             model=os.getenv("AI_STUDIO_MODEL", "gemini-3.1-flash-lite"),
             contents=prompt,
         )
-        
+
         return {"summary": response.text.strip()}
 
     except Exception as e:
-        print(f"Memory Summarization Error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Memory Summarization Failed after retries: {str(e)}")
+        raise HTTPException(status_code=500, detail="Summarization failed.")

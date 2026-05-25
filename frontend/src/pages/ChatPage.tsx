@@ -11,7 +11,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Upload } from "lucide-react";
 
 export default function ChatPage() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const navigate = useNavigate();
   const { conversationId } = useParams<{ conversationId?: string }>();
 
@@ -28,27 +28,25 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+
   const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const isAutoScrollEnabled = useRef(true);
+  const isProgrammaticScroll = useRef(false);
+
   const [isUploading, setIsUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
-
+  const [stagedFile, setStagedFile] = useState<File | null>(null);
   const [selectedModel, setSelectedModel] = useState("gemma-4-26b-a4b-it");
 
   const isChatActive = !!conversationId || messages.length > 0 || loading;
 
-  // FIX 1: The Cache Guard
   useEffect(() => {
     const abortController = new AbortController();
 
     if (conversationId) {
-      // THE GUARD: If the URL ID matches our active ID, and we already have messages on screen,
-      // it means we just streamed this chat. DO NOT wipe the screen.
-      if (conversationId === activeConversationId && messages.length > 0) {
-        return;
-      }
-
+      setMessages([]);
       setActiveConversationId(conversationId);
-      setMessages([]); // Only clear if we are genuinely clicking an old chat in the sidebar
 
       const loadHistoryLog = async () => {
         try {
@@ -82,72 +80,43 @@ export default function ChatPage() {
     return () => {
       abortController.abort();
     };
-  }, [conversationId]); // STRICT DEPENDENCY: Only run when the URL changes via Sidebar click
+  }, [conversationId]);
+
+  const handleScroll = () => {
+    // If the system is currently forcing a scroll, ignore the event
+    // so we don't accidentally trip the unlock logic.
+    if (!scrollContainerRef.current || isProgrammaticScroll.current) return;
+
+    const { scrollTop, scrollHeight, clientHeight } =
+      scrollContainerRef.current;
+
+    const distanceFromBottom = Math.abs(
+      scrollHeight - scrollTop - clientHeight,
+    );
+
+    isAutoScrollEnabled.current = distanceFromBottom <= 150;
+  };
 
   useEffect(() => {
-    if (scrollRef.current) {
+    if (isAutoScrollEnabled.current && scrollRef.current) {
+      isProgrammaticScroll.current = true;
+
       scrollRef.current.scrollIntoView({ behavior: "smooth" });
+
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          isProgrammaticScroll.current = false;
+        }, 50);
+      });
     }
   }, [messages]);
 
-  const handleFileUpload = async (file: File) => {
-    setIsUploading(true);
+  const handleFileUpload = (file: File) => {
+    setStagedFile(file);
+  };
 
-    const isNewChat = !activeConversationId;
-    const targetId = isNewChat
-      ? `optimistic_upload_${Date.now()}`
-      : activeConversationId;
-
-    if (isNewChat) {
-      addProvisionalConversation(
-        targetId,
-        `Doc: ${file.name.substring(0, 20)}`,
-      );
-      setActiveConversationId(targetId);
-    }
-
-    const formData = new FormData();
-    formData.append("file", file);
-
-    try {
-      const response = await fetch(`http://localhost:8080/upload/${targetId}`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
-      });
-
-      if (!response.ok) throw new Error("Upload failed");
-      const data = await response.json();
-
-      if (isNewChat && data.conversation_id) {
-        swapProvisionalId(targetId, data.conversation_id);
-        navigate(`/chat/${data.conversation_id}`, { replace: true });
-        await fetchConversations();
-      }
-
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: `📄 **Document Processed:** \`${data.filename}\`\n\nI have added this to my context. You can now ask me questions about it.`,
-        },
-      ]);
-    } catch (err) {
-      console.error("Upload error:", err);
-      if (isNewChat) {
-        setActiveConversationId(null);
-        navigate("/chat", { replace: true });
-      }
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: "❌ **Error:** Failed to upload document.",
-        },
-      ]);
-    } finally {
-      setIsUploading(false);
-    }
+  const clearStagedFile = () => {
+    setStagedFile(null);
   };
 
   const handleDragEnter = (e: React.DragEvent) => {
@@ -181,22 +150,67 @@ export default function ChatPage() {
   };
 
   const handleSendMessage = async () => {
-    if (!input.trim() || loading) return;
+    if ((!input.trim() && !stagedFile) || loading) return;
 
-    const userMessage = input.trim();
+    isAutoScrollEnabled.current = true;
 
+    let finalUserMessage = input.trim();
+    const displayMessage = stagedFile
+      ? `[FILE: ${stagedFile.name}]\n${input.trim()}`
+      : input.trim();
+
+    setLoading(true);
+
+    // --- PHASE 1: PRE-PROCESS STAGED FILE ---
+    if (stagedFile) {
+      setIsUploading(true);
+      const formData = new FormData();
+      formData.append("file", stagedFile);
+
+      try {
+        const extractRes = await fetch("http://localhost:8080/extract-text", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        });
+
+        if (!extractRes.ok)
+          throw new Error("Failed to extract text from document");
+        const extractData = await extractRes.json();
+
+        // Bundle the extracted text invisibly into the payload sent to the LLM
+        finalUserMessage = `[ATTACHED DOCUMENT: ${stagedFile.name}]\n${extractData.text}\n\n${finalUserMessage}`;
+      } catch (err) {
+        console.error("Document processing failed:", err);
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: "❌ **Error:** Failed to process the attached document.",
+          },
+        ]);
+        setLoading(false);
+        setIsUploading(false);
+        return; // Abort send entirely if extraction fails
+      } finally {
+        setIsUploading(false);
+        setStagedFile(null); // Clear the staging area
+      }
+    }
+
+    // --- PHASE 2: OPTIMISTIC UI UPDATE ---
+    // Use the clean displayMessage here, not the massive finalUserMessage
     setMessages((prev) => [
       ...prev,
-      { role: "user", content: userMessage },
+      { role: "user", content: displayMessage },
       { role: "assistant", content: "" },
     ]);
 
     setInput("");
-    setLoading(true);
 
     const isNewChat = !activeConversationId;
     const tempId = `optimistic_${Date.now()}`;
-    const provisionalTitle = userMessage.substring(0, 25) + "...";
+    const provisionalTitle = displayMessage.substring(0, 25) + "...";
 
     if (isNewChat) {
       addProvisionalConversation(tempId, provisionalTitle);
@@ -204,6 +218,7 @@ export default function ChatPage() {
       setActiveConversationId(tempId);
     }
 
+    // --- PHASE 3: SEND TO LLM ---
     try {
       const response = await fetch("http://localhost:8080/chat", {
         method: "POST",
@@ -212,7 +227,7 @@ export default function ChatPage() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          prompt: userMessage,
+          prompt: finalUserMessage, // FIX: Send the bundled message!
           conversation_id: isNewChat ? null : activeConversationId,
           model: selectedModel,
           client_context: {
@@ -227,13 +242,11 @@ export default function ChatPage() {
       if (!response.body) throw new Error("No response body");
 
       const returnedConvId = response.headers.get("X-Conversation-Id");
+      const targetConvId = returnedConvId || activeConversationId;
 
       if (isNewChat && returnedConvId) {
         swapProvisionalId(tempId, returnedConvId);
         setActiveConversationId(returnedConvId);
-
-        // FIX 2: Silent Routing
-        // This updates the URL without forcing React Router to wipe the component
         window.history.replaceState(null, "", `/chat/${returnedConvId}`);
       }
 
@@ -255,7 +268,9 @@ export default function ChatPage() {
               const rawData = JSON.parse(line.replace("data: ", ""));
 
               if (rawData && rawData._type === "title_update") {
-                updateConversationTitle(returnedConvId, rawData.title);
+                if (targetConvId) {
+                  updateConversationTitle(targetConvId, rawData.title);
+                }
                 setGeneratingTitleId(null);
                 continue;
               }
@@ -263,7 +278,7 @@ export default function ChatPage() {
               setMessages((prev) => {
                 if (prev.length === 0) {
                   return [
-                    { role: "user", content: userMessage },
+                    { role: "user", content: displayMessage },
                     { role: "assistant", content: rawData },
                   ];
                 }
@@ -305,7 +320,12 @@ export default function ChatPage() {
 
   return (
     <SidebarProvider className="h-screen w-full overflow-hidden font-dmsans">
-      <AppSidebar />
+      <AppSidebar
+        onNewChat={() => {
+          setMessages([]);
+          setInput("");
+        }}
+      />
       <SidebarInset
         className="flex flex-col h-full relative overflow-hidden bg-background"
         onDragEnter={handleDragEnter}
@@ -378,6 +398,8 @@ export default function ChatPage() {
                   onSend={handleSendMessage}
                   loading={loading}
                   onUpload={handleFileUpload}
+                  uploadedFile={stagedFile}
+                  onClearFile={clearStagedFile}
                   isUploading={isUploading}
                   activeConversationId={activeConversationId}
                   selectedModel={selectedModel}
@@ -388,12 +410,17 @@ export default function ChatPage() {
           </main>
         ) : (
           <main className="flex-1 flex flex-col w-full h-full overflow-hidden relative">
-            <div className="flex-1 w-full overflow-y-auto px-4 pt-8">
+            <div
+              className="flex-1 w-full overflow-y-auto px-4 pt-8"
+              ref={scrollContainerRef}
+              onScroll={handleScroll}
+            >
               <div className="max-w-3xl mx-auto pb-4">
                 <StreamWindow
                   messages={messages}
                   scrollRef={scrollRef}
                   loading={loading}
+                  user={user}
                 />
               </div>
             </div>
@@ -416,6 +443,8 @@ export default function ChatPage() {
                   onSend={handleSendMessage}
                   loading={loading}
                   onUpload={handleFileUpload}
+                  uploadedFile={stagedFile}
+                  onClearFile={clearStagedFile}
                   isUploading={isUploading}
                   activeConversationId={activeConversationId}
                   selectedModel={selectedModel}
