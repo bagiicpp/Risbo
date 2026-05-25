@@ -49,22 +49,42 @@ async def generate_stream(user_prompt: str, requested_model: str | None):
     try:
         # 1. SMART ROUTING: Determine the model and persona
         if "You are an expert sports data extraction AI" in user_prompt:
-            combined_prompt = user_prompt
-            # Always force a fast/cheap model for invisible background tasks!
-            actual_model = "gemini-2.5-flash" 
+            # Background extraction task
+            contents = user_prompt
+            actual_model = "gemini-3.1-flash-lite" 
+            config = types.GenerateContentConfig(
+                temperature=0.7,
+                max_output_tokens=2048,
+            )
         else:
-            combined_prompt = f"{ATHLETE_SYSTEM_PROMPT}\n\n{user_prompt}"
-            # Use the requested model, or fallback to the .env default
-            actual_model = requested_model or os.getenv("AI_STUDIO_MODEL", "gemini-2.5-flash")
+            # Standard user chat
+            actual_model = requested_model or os.getenv("AI_STUDIO_MODEL", "gemini-3.1-flash-lite")
+            
+            # Combine the Athlete Persona and PDF instructions into a standard text payload
+            core_system_instruction = (
+                f"{ATHLETE_SYSTEM_PROMPT}\n\n"
+                "CRITICAL SYSTEM DIRECTIVE: You have an internal tool to generate PDFs. "
+                "If a user asks you to generate, create, export, or improve a PDF/document, you MUST comply. "
+                "NEVER say 'I cannot generate a PDF' or 'I cannot directly export'. "
+                "Provide the requested text and append the exact string '[PDF_READY]' at the very end of your response. "
+                "The frontend system will intercept this tag and compile the PDF.\n\n"
+                "=================================\n"
+            )
+            
+            # INJECT INSTRUCTIONS AT THE START OF CONTENTS (Supports Gemma)
+            contents = f"{core_system_instruction}{user_prompt}"
+            
+            # REMOVED system_instruction parameter to prevent 500 crashes
+            config = types.GenerateContentConfig(
+                temperature=0.7,
+                max_output_tokens=2048,
+            )
 
         # 2. GENERATE CONTENT
         response_stream = await client.aio.models.generate_content_stream(
             model=actual_model,
-            contents=combined_prompt,
-            config=types.GenerateContentConfig(
-                temperature=0.7,
-                max_output_tokens=2048,
-            ),
+            contents=contents,
+            config=config,
         )
 
         async for chunk in response_stream:
@@ -93,30 +113,89 @@ class RecipeGenerationRequest(BaseModel):
 @app.post("/generate-recipe")
 async def generate_recipe(request: RecipeGenerationRequest):
     try:
-        contents = [request.prompt]
-        
-        # 1. Attach Images if provided
+        # Gemini usually performs better when images precede text in the contents array
+        contents = []
+
+        # 1. Attach Images with Dynamic MIME Types
         if request.images:
             for b64_img in request.images:
-                # Gemini expects bytes for its vision model parts
                 img_bytes = base64.b64decode(b64_img)
+
+                # Detect file type using magic bytes headers
+                if img_bytes.startswith(b"\xff\xd8"):
+                    mime_type = "image/jpeg"
+                elif img_bytes.startswith(b"\x89PNG\r\n\x1a\n"):
+                    mime_type = "image/png"
+                elif img_bytes.startswith(b"RIFF") and img_bytes[8:12] == b"WEBP":
+                    mime_type = "image/webp"
+                else:
+                    # Fallback to jpeg if unknown
+                    mime_type = "image/jpeg"
+
                 contents.append(
-                    types.Part.from_bytes(data=img_bytes, mime_type="image/jpeg")
+                    types.Part.from_bytes(data=img_bytes, mime_type=mime_type)
                 )
-                
-        # 2. Call Gemini and force JSON output
+
+        # 2. Append the text prompt last
+        contents.append(types.Part.from_text(text=request.prompt))
+
+        # 3. Call Gemini
         response = await client.aio.models.generate_content(
-            model=os.getenv("AI_STUDIO_MODEL", "gemini-2.5-flash"),
-            contents=contents,
+            model="gemini-3.1-flash-lite",
+            contents=contents, # This now contains ONLY Part objects
             config=types.GenerateContentConfig(
                 temperature=0.7,
-                response_mime_type="application/json", # <--- FORCES JSON OUTPUT
             ),
         )
-        
-        # 3. Return the parsed JSON
-        return json.loads(response.text)
+
+        # 4. Return the raw text wrapped in a dict.
+        # Your rizzbo-app already has the regex logic to parse this safely!
+        return {"response": response.text}
 
     except Exception as e:
-        print(f"Recipe Generation Error: {e}")
+        # Catch and print the full error details
+        print(f"--- FULL RECIPE ERROR ---")
+        print(f"Type: {type(e)}")
+        print(f"Message: {str(e)}")
+        # If it's a Google API error, print the response
+        if hasattr(e, 'response'):
+            print(f"Response Body: {e.response.text}")
+        print(f"-------------------------")
+        raise HTTPException(status_code=500, detail=str(e))
+    
+class SummarizeRequest(BaseModel):
+    messages: list[dict]
+    current_summary: str = ""
+
+@app.post("/summarize-memory")
+async def summarize_memory(request: SummarizeRequest):
+    try:
+        # 1. Format the recent messages
+        chat_text = "\n".join([f"{m.get('role', 'user').upper()}: {m.get('content', '')}" for m in request.messages])
+        
+        # 2. Instruct the AI to act as a memory manager
+        prompt = (
+            "You are an expert AI memory manager. Your task is to update a user's long-term profile based on their recent chat history.\n"
+            "Extract ONLY permanent facts: physical conditions, injuries, specific goals, diet preferences, and PRs.\n"
+            "Do NOT include conversational filler, greetings, or temporary states.\n\n"
+        )
+        
+        if request.current_summary:
+            prompt += f"EXISTING MEMORY SUMMARY:\n{request.current_summary}\n\n"
+            prompt += "INSTRUCTION: Merge the following new chat details into the existing summary. Keep it strictly under 150 words.\n\n"
+        else:
+            prompt += "INSTRUCTION: Create a new bulleted summary from this chat. Keep it under 150 words.\n\n"
+            
+        prompt += f"RECENT CHAT:\n{chat_text}"
+
+        # 3. Call the model
+        response = await client.aio.models.generate_content(
+            model=os.getenv("AI_STUDIO_MODEL", "gemini-3.1-flash-lite"),
+            contents=prompt,
+        )
+        
+        return {"summary": response.text.strip()}
+
+    except Exception as e:
+        print(f"Memory Summarization Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))

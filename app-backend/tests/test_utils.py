@@ -1,5 +1,5 @@
 import pytest
-from utils import extract_text_from_file
+from utils import extract_text_from_file, trim_conversation_history
 
 @pytest.mark.asyncio
 async def test_unsupported_file_format():
@@ -51,3 +51,24 @@ async def test_extract_xlsx_text(mocker):
     
     result = await extract_text_from_file(b"fake_xlsx_bytes", "spreadsheet.xlsx")
     assert "Row1Col1 Row1Col2" in result
+
+def test_trim_conversation_history():
+    messages = [
+        {"role": "user", "content": "word " * 2000}, 
+        {"role": "assistant", "content": "middle " * 1000},
+        {"role": "user", "content": "recent " * 1000}
+    ]
+    
+    # Budget 1500 words. Should drop the first message completely.
+    trimmed = trim_conversation_history(messages, max_words=1500)
+    
+    assert len(trimmed) == 2
+    assert "recent" in trimmed[-1]["content"]
+    assert "middle" in trimmed[0]["content"]
+    
+def test_trim_conversation_truncates_last_resort():
+    messages = [{"role": "user", "content": "word " * 3000}]
+    trimmed = trim_conversation_history(messages, max_words=1000)
+    
+    assert len(trimmed) == 1
+    assert len(trimmed[0]["content"].split()) == 1002 # 1000 words + "... [Truncated]"

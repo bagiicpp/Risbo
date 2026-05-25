@@ -16,7 +16,7 @@ interface ModelSelectorProps {
 export const AVAILABLE_MODELS = [
   { id: "gemma-4-26b-a4b-it", name: "Risbo Standard (26B)" },
   { id: "gemma-4-31b-a4b-it", name: "Risbo Thinker (31B)" },
-  { id: "gemini-2.5-flash", name: "Risbo Fast (Flash)" },
+  { id: "gemini-3.1-flash-lite", name: "Risbo Fast (Flash)" },
 ];
 
 export function ModelSelector({
