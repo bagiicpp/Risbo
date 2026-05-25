@@ -30,7 +30,8 @@ export function ModelSelector({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button className="flex items-center gap-2 px-3 py-1.5 ml-1 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-lg transition-colors text-sm font-mono cursor-pointer focus:outline-none focus:ring-0">
+        {/* Replaced fixed zinc colors with semantic foreground/accent classes */}
+        <button className="flex items-center gap-2 px-3 py-1.5 ml-1 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors text-sm font-mono cursor-pointer focus:outline-none focus:ring-0">
           <Sparkles size={16} className="text-primary/70 shrink-0" />
           <span className="font-bricolage truncate">{currentModel.name}</span>
           <ChevronDown size={14} className="opacity-50 shrink-0" />
@@ -39,18 +40,23 @@ export function ModelSelector({
 
       <DropdownMenuContent
         align="start"
-        className="w-56 bg-zinc-950 border-zinc-800 text-zinc-300"
+        // Removed hardcoded bg-zinc-950 and border-zinc-800.
+        // shadcn's base components handle their own theme backgrounds natively.
+        className="w-56 border-border shadow-lg"
       >
-        <DropdownMenuLabel className="text-xs text-zinc-500 font-normal">
+        <DropdownMenuLabel className="text-xs text-muted-foreground font-normal">
           Select Model
         </DropdownMenuLabel>
-        <DropdownMenuSeparator className="bg-zinc-800" />
+
+        {/* Replaced bg-zinc-800 with standard border color */}
+        <DropdownMenuSeparator className="bg-border/50" />
 
         {AVAILABLE_MODELS.map((model) => (
           <DropdownMenuItem
             key={model.id}
             onClick={() => onModelSelect(model.id)}
-            className="flex items-center justify-between cursor-pointer hover:bg-zinc-800 hover:text-zinc-100 focus:bg-zinc-800 focus:text-zinc-100"
+            // Standardized hover/focus states to use semantic accent variables
+            className="flex items-center justify-between cursor-pointer transition-colors focus:bg-accent focus:text-accent-foreground"
           >
             <span className="font-bricolage">{model.name}</span>
             {selectedModelId === model.id && (

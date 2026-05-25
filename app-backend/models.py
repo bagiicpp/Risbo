@@ -1,9 +1,11 @@
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Annotated
+from typing import Annotated, Any, Dict, List, Optional
+
 from bson import ObjectId
-from pydantic import BaseModel, EmailStr, Field, BeforeValidator
+from pydantic import BaseModel, BeforeValidator, EmailStr, Field
 
 PyObjectId = Annotated[str, BeforeValidator(str)]
+
 
 class Token(BaseModel):
     access_token: str
@@ -40,6 +42,7 @@ class Message(BaseModel):
     content: str
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
+
 class Conversation(BaseModel):
     id: Optional[PyObjectId] = Field(alias="_id", default=None)
     user_id: str
@@ -49,6 +52,7 @@ class Conversation(BaseModel):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
+
 class Conversation(BaseModel):
     # Optional user_id allows for guest sessions
     user_id: Optional[str] = None
@@ -56,6 +60,11 @@ class Conversation(BaseModel):
     messages: List[Message] = []
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class MessagePayload(BaseModel):
+    role: str
+    content: str
 
 
 class ChatRequest(BaseModel):
@@ -97,6 +106,7 @@ class PreferencesUpdate(BaseModel):
     measurement_system: Optional[str] = None
     dietary_preference: Optional[str] = None
     workout_reminders: Optional[bool] = None
+
 
 class Recipe(BaseModel):
     id: Optional[PyObjectId] = Field(alias="_id", default=None)

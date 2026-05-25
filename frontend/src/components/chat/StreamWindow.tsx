@@ -49,15 +49,14 @@ const StreamWindow: React.FC<StreamWindowProps> = ({
 
   const handleDownloadPDF = async (text: string) => {
     try {
-      // We will build this endpoint in app-backend
       const response = await fetch("http://localhost:8080/generate-pdf", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: text }),
       });
-      
+
       if (!response.ok) throw new Error("Failed to generate PDF");
-      
+
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -75,9 +74,19 @@ const StreamWindow: React.FC<StreamWindowProps> = ({
   return (
     <div className="flex flex-col space-y-6">
       {messages.map((msg, index) => {
-        // Check for PDF trigger
+        // AI PDF Trigger Logic
         const hasPdfTrigger = msg.content.includes("[PDF_READY]");
-        const displayContent = msg.content.replace("[PDF_READY]", "").trim();
+        let displayContent = msg.content.replace("[PDF_READY]", "").trim();
+
+        // User File Upload Parsing Logic
+        let attachedFileName = null;
+        if (msg.role === "user") {
+          const fileMatch = displayContent.match(/^\[FILE:\s*(.*?)\]/);
+          if (fileMatch) {
+            attachedFileName = fileMatch[1];
+            displayContent = displayContent.replace(fileMatch[0], "").trim();
+          }
+        }
 
         return (
           <div
@@ -87,10 +96,26 @@ const StreamWindow: React.FC<StreamWindowProps> = ({
             }`}
           >
             {msg.role === "user" ? (
-              <div className="max-w-[80%] bg-primary text-primary-foreground px-5 py-3 rounded-2xl rounded-tr-sm shadow-sm">
-                <p className="text-sm font-medium whitespace-pre-wrap leading-relaxed">
-                  {displayContent}
-                </p>
+              // NEW: Wrapper container aligning items to the right (end)
+              <div className="flex flex-col items-end gap-2 max-w-[80%]">
+                {/* Embedded File Chip - Now ABOVE the text bubble */}
+                {attachedFileName && (
+                  <div className="flex items-center gap-2 bg-muted/50 border border-border text-muted-foreground px-3 py-1.5 rounded-lg text-sm font-medium shadow-sm">
+                    <FileText size={16} className="text-primary/80" />
+                    <span className="truncate max-w-[220px] tracking-tight">
+                      {attachedFileName}
+                    </span>
+                  </div>
+                )}
+
+                {/* User Text Bubble */}
+                {displayContent && (
+                  <div className="bg-primary text-primary-foreground px-5 py-3 rounded-2xl rounded-tr-sm shadow-sm">
+                    <p className="text-sm font-medium whitespace-pre-wrap leading-relaxed">
+                      {displayContent}
+                    </p>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="max-w-full flex gap-4 w-full flex-col md:flex-row">
@@ -109,13 +134,36 @@ const StreamWindow: React.FC<StreamWindowProps> = ({
                           components={{
                             table: ({ node, ...props }) => (
                               <div className="w-full overflow-x-auto my-6 rounded-xl border border-border/50 shadow-sm">
-                                <table className="w-full text-sm text-left border-collapse" {...props} />
+                                <table
+                                  className="w-full text-sm text-left border-collapse"
+                                  {...props}
+                                />
                               </div>
                             ),
-                            thead: ({ node, ...props }) => <thead className="bg-muted/50 border-b border-border/50 font-semibold text-muted-foreground" {...props} />,
-                            tr: ({ node, ...props }) => <tr className="border-b border-border/50 last:border-0 hover:bg-muted/20 transition-colors" {...props} />,
-                            th: ({ node, ...props }) => <th className="p-4 align-middle font-medium" {...props} />,
-                            td: ({ node, ...props }) => <td className="p-4 align-middle text-foreground/80" {...props} />,
+                            thead: ({ node, ...props }) => (
+                              <thead
+                                className="bg-muted/50 border-b border-border/50 font-semibold text-muted-foreground"
+                                {...props}
+                              />
+                            ),
+                            tr: ({ node, ...props }) => (
+                              <tr
+                                className="border-b border-border/50 last:border-0 hover:bg-muted/20 transition-colors"
+                                {...props}
+                              />
+                            ),
+                            th: ({ node, ...props }) => (
+                              <th
+                                className="p-4 align-middle font-medium"
+                                {...props}
+                              />
+                            ),
+                            td: ({ node, ...props }) => (
+                              <td
+                                className="p-4 align-middle text-foreground/80"
+                                {...props}
+                              />
+                            ),
                           }}
                         >
                           {displayContent}
@@ -124,8 +172,8 @@ const StreamWindow: React.FC<StreamWindowProps> = ({
                         <ThinkingPlaceholder />
                       )}
                     </div>
-                    
-                    {/* Render button if tag detected and streaming finished (no placeholder) */}
+
+                    {/* Render button if tag detected and streaming finished */}
                     {hasPdfTrigger && displayContent && !loading && (
                       <div className="mt-4 flex">
                         <button
@@ -152,7 +200,9 @@ const StreamWindow: React.FC<StreamWindowProps> = ({
           <div className="flex w-full justify-start">
             <div className="max-w-full flex gap-4 w-full">
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center shrink-0 border border-primary/20 mt-1">
-                <span className="text-primary font-bold italic text-sm leading-none">R</span>
+                <span className="text-primary font-bold italic text-sm leading-none">
+                  R
+                </span>
               </div>
               <div className="flex-1 prose prose-sm md:prose-base dark:prose-invert max-w-none break-words leading-relaxed">
                 <ThinkingPlaceholder />
