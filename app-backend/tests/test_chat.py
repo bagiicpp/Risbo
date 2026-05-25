@@ -58,9 +58,9 @@ async def test_kitchen_generate_recipe(async_client, mocker):
     # Mock the HTTPX POST response to return fake JSON from AI
     mock_post_response = mocker.Mock()
     mock_post_response.raise_for_status = mocker.Mock()
+    fake_ai_output_string = '{"title": "Rice Bowl", "macros": {"protein": 30, "carbs": 50, "calories": 400}}'
     mock_post_response.json = mocker.Mock(return_value={
-        "title": "Rice Bowl",
-        "macros": {"protein": 30, "carbs": 50, "calories": 400}
+        "response": fake_ai_output_string
     })
 
     # Override the __aenter__ of our mock client context to handle .post()
