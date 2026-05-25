@@ -45,10 +45,10 @@ class Message(BaseModel):
 
 class Conversation(BaseModel):
     id: Optional[PyObjectId] = Field(alias="_id", default=None)
-    user_id: str
-    title: str
-    messages: list[Message] = []
-    context_summary: str = ""  # <--- NEW FIELD FOR PHASE 2
+    user_id: Optional[str] = None
+    title: str = "New Chat"
+    messages: List[Message] = []
+    context_summary: str = ""
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -108,12 +108,17 @@ class PreferencesUpdate(BaseModel):
     workout_reminders: Optional[bool] = None
 
 
-class Recipe(BaseModel):
-    id: Optional[PyObjectId] = Field(alias="_id", default=None)
-    user_id: str
+# What the frontend is allowed to send
+class RecipeCreate(BaseModel):
     title: str
     prep_time_minutes: int
     macros: Dict[str, float]
     ingredients: List[str]
     instructions: List[str]
+
+
+# What goes into the database (inherits the base fields and adds system fields)
+class RecipeDB(RecipeCreate):
+    id: Optional[PyObjectId] = Field(alias="_id", default=None)
+    user_id: str
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

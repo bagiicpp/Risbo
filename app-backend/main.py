@@ -46,7 +46,7 @@ from models import (
     PantryItem,
     PreferencesUpdate,
     ProfileUpdate,
-    Recipe,
+    RecipeCreate,
     RosterLink,
     Token,
     UserCreate,
@@ -947,18 +947,24 @@ async def invite_athlete(
             detail="Athlete not found, or user is not registered as an athlete.",
         )
 
-    # Check if they are already linked (pending or active)
+    # Check if they are already linked
     existing_link = await db.roster_links.find_one(
         {"coach_id": str(coach["_id"]), "athlete_id": str(athlete["_id"])}
     )
 
     if existing_link:
-        raise HTTPException(
-            status_code=400,
-            detail="Athlete has already been invited or is on your roster.",
-        )
+        if existing_link.get("status") == "rejected":
+            # Allow the coach to re-send the invite by resetting it to pending
+            await db.roster_links.update_one(
+                {"_id": existing_link["_id"]}, {"$set": {"status": "pending"}}
+            )
+            return {"message": "Invite re-sent! Waiting for athlete approval."}
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="Athlete has already been invited or is on your roster.",
+            )
 
-    # UPDATE: Set to pending requiring athlete consent
     new_link = RosterLink(
         coach_id=str(coach["_id"]), athlete_id=str(athlete["_id"]), status="pending"
     )
@@ -1077,14 +1083,13 @@ async def respond_to_invite(
 ):
     athlete = await db.users.find_one({"email": email})
     athlete_id = str(athlete["_id"])
-    action = payload.get("action")  # Expects "accept" or "reject"
+    action = payload.get("action")
 
     if action not in ["accept", "reject"]:
         raise HTTPException(
             status_code=400, detail="Invalid action. Use 'accept' or 'reject'."
         )
 
-    # Find the pending link
     link = await db.roster_links.find_one(
         {"coach_id": coach_id, "athlete_id": athlete_id, "status": "pending"}
     )
@@ -1098,8 +1103,10 @@ async def respond_to_invite(
         )
         return {"message": "Invite accepted. Coach now has access to your data."}
     else:
-        # If rejected, delete the link so the coach can potentially try again in the future
-        await db.roster_links.delete_one({"_id": link["_id"]})
+        # FIX: Keep the record, but mark it as rejected
+        await db.roster_links.update_one(
+            {"_id": link["_id"]}, {"$set": {"status": "rejected"}}
+        )
         return {"message": "Invite rejected."}
 
 
@@ -1438,13 +1445,17 @@ async def update_preferences(
 
 
 @app.post("/recipes", status_code=status.HTTP_201_CREATED)
-async def save_recipe(recipe: Recipe, email: str = Depends(get_current_user_email)):
+async def save_recipe(
+    recipe: RecipeCreate, email: str = Depends(get_current_user_email)
+):
     user = await db.users.find_one({"email": email})
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    recipe_doc = recipe.model_dump(exclude={"id"})
+    recipe_doc = recipe.model_dump()
+
     recipe_doc["user_id"] = str(user["_id"])
+    recipe_doc["created_at"] = datetime.now(timezone.utc)
 
     result = await db.recipes.insert_one(recipe_doc)
     return {"message": "Recipe saved", "id": str(result.inserted_id)}

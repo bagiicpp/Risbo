@@ -17,6 +17,12 @@ import {
   ChevronRight,
   Activity,
   Beef,
+  Inbox,
+  Send,
+  CheckCircle2,
+  X,
+  Clock,
+  XCircle,
 } from "lucide-react";
 import {
   Sidebar,
@@ -49,13 +55,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
 import { Link, useNavigate, useLocation } from "react-router";
-import { useTheme } from "@/context/ThemeProvider";
 import { useConversations } from "@/hooks/useConversations";
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "sonner";
 import api from "@/lib/api";
 
-export function AppSidebar() {
+export function AppSidebar({ onNewChat }: { onNewChat?: () => void } = {}) {
   const { logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -97,18 +103,35 @@ export function AppSidebar() {
 
   // --- COACH SPECIFIC STATE ---
   const [isRosterOpen, setIsRosterOpen] = useState(false);
+  const [coachRoster, setCoachRoster] = useState<any[]>([]);
   const [athleteCount, setAthleteCount] = useState(0);
+  const [isOutboxOpen, setIsOutboxOpen] = useState(false);
 
   useEffect(() => {
     if (user?.role === "coach") {
       api
         .get("/roster/athletes")
         .then((res) => {
-          setAthleteCount(res.data.length);
+          setCoachRoster(res.data);
+          // Only count active athletes for the primary sidebar roster count
+          setAthleteCount(
+            res.data.filter((a: any) => a.status === "active").length,
+          );
         })
         .catch(console.error);
     }
   }, [user]);
+
+  // Sort outbox invites so pending and rejected are up top
+  const sortedOutbox = [...coachRoster].sort((a, b) => {
+    const order: Record<string, number> = {
+      pending: 0,
+      rejected: 1,
+      active: 2,
+      unknown: 3,
+    };
+    return (order[a.status] ?? 3) - (order[b.status] ?? 3);
+  });
 
   // --- ATHLETE SPECIFIC STATE ---
   const [isCoachesOpen, setIsCoachesOpen] = useState(false);
@@ -116,14 +139,54 @@ export function AppSidebar() {
     [],
   );
 
+  // Athlete Inbox State
+  const [pendingInvites, setPendingInvites] = useState<
+    { coach_id: string; name: string; email: string }[]
+  >([]);
+  const [isInboxOpen, setIsInboxOpen] = useState(false);
+  const [isResponding, setIsResponding] = useState<string | null>(null);
+
   useEffect(() => {
     if (user?.role === "athlete") {
       api
         .get("/athlete/coaches")
         .then((res) => setMyCoaches(res.data))
         .catch(console.error);
+
+      api
+        .get("/athlete/invites")
+        .then((res) => setPendingInvites(res.data))
+        .catch(console.error);
     }
   }, [user]);
+
+  // --- INBOX LOGIC ---
+  const handleRespondToInvite = async (
+    coach_id: string,
+    action: "accept" | "reject",
+  ) => {
+    setIsResponding(coach_id);
+    try {
+      await api.post(`/athlete/invites/${coach_id}/respond`, { action });
+
+      setPendingInvites((prev) =>
+        prev.filter((inv) => inv.coach_id !== coach_id),
+      );
+
+      if (action === "accept") {
+        toast.success("Invite accepted! Coach added to roster.");
+        const res = await api.get("/athlete/coaches");
+        setMyCoaches(res.data);
+      } else {
+        toast.success("Invite rejected.");
+      }
+    } catch (error) {
+      console.error("Failed to respond to invite:", error);
+      toast.error("Failed to process invite.");
+    } finally {
+      setIsResponding(null);
+    }
+  };
 
   const filteredConversations =
     conversations?.filter((chat) =>
@@ -137,6 +200,9 @@ export function AppSidebar() {
 
   const handleNewChat = () => {
     setActiveConversationId(null);
+    if (onNewChat) {
+      onNewChat();
+    }
     navigate("/chat");
   };
 
@@ -156,10 +222,7 @@ export function AppSidebar() {
     setIsProcessing(true);
     try {
       await api.patch(`/conversations/${targetChat.id}`, { title: newTitle });
-
-      if (fetchConversations) {
-        await fetchConversations();
-      }
+      if (fetchConversations) await fetchConversations();
     } catch (error) {
       console.error("Failed to rename:", error);
     } finally {
@@ -173,15 +236,11 @@ export function AppSidebar() {
     setIsProcessing(true);
     try {
       await api.delete(`/conversations/${targetChat.id}`);
-
       if (activeConversationId === targetChat.id) {
         setActiveConversationId(null);
         navigate("/chat");
       }
-
-      if (fetchConversations) {
-        await fetchConversations();
-      }
+      if (fetchConversations) await fetchConversations();
     } catch (error) {
       console.error("Failed to delete:", error);
     } finally {
@@ -194,6 +253,7 @@ export function AppSidebar() {
     <>
       <Sidebar variant="inset" collapsible="icon">
         <SidebarHeader className="py-4 px-4 group-data-[collapsible=icon]:px-2">
+          {/* Header Block */}
           <div className="relative flex items-center w-full h-8 mb-2 overflow-visible group/header">
             <div
               onClick={() => isCollapsed && toggleSidebar()}
@@ -204,7 +264,6 @@ export function AppSidebar() {
                   R
                 </span>
               </div>
-
               <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-accent text-foreground opacity-0 transition-opacity duration-200 group-data-[collapsible=icon]:group-hover/header:opacity-100 pointer-events-none">
                 <PanelLeftOpen size={18} />
               </div>
@@ -277,9 +336,7 @@ export function AppSidebar() {
               </SidebarMenuButton>
             </SidebarMenuItem>
 
-            {/* ==========================================
-                COACH ZONE INJECTION
-                ========================================== */}
+            {/* COACH ZONE */}
             {user?.role === "coach" && (
               <>
                 <SidebarMenuItem>
@@ -350,14 +407,12 @@ export function AppSidebar() {
                           </Link>
                         ) : (
                           <div className="px-2 py-1.5 text-xs text-muted-foreground/60 italic">
-                            No athletes yet
+                            No active athletes
                           </div>
                         )}
-
                         <Link to="/coach/roster">
                           <SidebarMenuButton className="w-full h-8 cursor-pointer rounded-md text-xs text-muted-foreground border border-dashed border-border/50 mt-1 hover:text-foreground">
-                            <Settings size={12} className="mr-2" />
-                            Manage Teams
+                            <Settings size={12} className="mr-2" /> Manage Teams
                           </SidebarMenuButton>
                         </Link>
                       </motion.div>
@@ -367,9 +422,7 @@ export function AppSidebar() {
               </>
             )}
 
-            {/* ==========================================
-                ATHLETE ZONE INJECTION
-                ========================================== */}
+            {/* ATHLETE ZONE */}
             {user?.role === "athlete" && (
               <SidebarMenuItem>
                 <SidebarMenuButton
@@ -437,7 +490,6 @@ export function AppSidebar() {
                 <SidebarMenu>
                   {filteredConversations.map((chat) => {
                     const isGenerating = generatingTitleId === chat._id;
-
                     return (
                       <Link
                         key={chat._id}
@@ -468,7 +520,6 @@ export function AppSidebar() {
                                 <MoreVertical className="size-4 cursor-pointer" />
                               </button>
                             </DropdownMenuTrigger>
-
                             <DropdownMenuContent
                               align="end"
                               className="w-48 font-dmsans rounded-xl border-border/50 shadow-lg"
@@ -483,9 +534,7 @@ export function AppSidebar() {
                                 <Pencil className="mr-2 size-4 text-muted-foreground" />
                                 <span>Rename</span>
                               </DropdownMenuItem>
-
                               <DropdownMenuSeparator className="bg-border/50" />
-
                               <DropdownMenuItem
                                 onClick={(e) => {
                                   e.preventDefault();
@@ -509,6 +558,59 @@ export function AppSidebar() {
         </SidebarContent>
 
         <SidebarFooter className="mt-auto p-3 group-data-[collapsible=icon]:p-2 flex flex-col gap-1">
+          {/* ==========================================
+              ATHLETE INBOX
+              ========================================== */}
+          {user?.role === "athlete" && (
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => setIsInboxOpen(true)}
+                  tooltip="Inbox"
+                  className="w-full h-10 gap-3 rounded-xl transition-all duration-300 font-dmsans font-medium text-muted-foreground hover:text-foreground hover:bg-accent/50 cursor-pointer"
+                >
+                  <div className="relative flex items-center justify-center shrink-0">
+                    <Inbox size={18} />
+                    {pendingInvites.length > 0 && (
+                      <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5 items-center justify-center rounded-full bg-primary ring-2 ring-background animate-pulse" />
+                    )}
+                  </div>
+                  <div className="flex flex-1 items-center justify-between transition-all duration-300 group-data-[collapsible=icon]:opacity-0 group-data-[collapsible=icon]:w-0 group-data-[collapsible=icon]:-ml-3">
+                    <span className="truncate">Inbox</span>
+                    {pendingInvites.length > 0 && (
+                      <span className="text-[10px] bg-primary/20 text-primary font-bold px-1.5 py-0.5 rounded-md">
+                        {pendingInvites.length} new
+                      </span>
+                    )}
+                  </div>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          )}
+
+          {/* ==========================================
+              COACH OUTBOX (INVITES STATUS)
+              ========================================== */}
+          {user?.role === "coach" && (
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => setIsOutboxOpen(true)}
+                  tooltip="Invites Status"
+                  className="w-full h-10 gap-3 rounded-xl transition-all duration-300 font-dmsans font-medium text-muted-foreground hover:text-foreground hover:bg-accent/50 cursor-pointer"
+                >
+                  <div className="relative flex items-center justify-center shrink-0">
+                    <Send size={18} />
+                  </div>
+                  <div className="flex flex-1 items-center justify-between transition-all duration-300 group-data-[collapsible=icon]:opacity-0 group-data-[collapsible=icon]:w-0 group-data-[collapsible=icon]:-ml-3">
+                    <span className="truncate">Invites Status</span>
+                  </div>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          )}
+
+          {/* ACCOUNT DROPDOWN */}
           <SidebarMenu>
             <SidebarMenuItem>
               <DropdownMenu>
@@ -594,7 +696,130 @@ export function AppSidebar() {
         </SidebarFooter>
       </Sidebar>
 
-      {/* --- DIALOG MODALS --- */}
+      {/* --- ATHLETE INBOX MODAL --- */}
+      <Dialog open={isInboxOpen} onOpenChange={setIsInboxOpen}>
+        <DialogContent className="font-dmsans sm:max-w-md bg-background border-border/50">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-foreground font-bricolage">
+              <Inbox size={18} className="text-primary" />
+              Pending Invites
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="py-2 space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+            {pendingInvites.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                <Inbox size={32} className="mb-2 opacity-20" />
+                <p className="text-sm font-medium">You're all caught up.</p>
+              </div>
+            ) : (
+              pendingInvites.map((inv) => (
+                <div
+                  key={inv.coach_id}
+                  className="flex items-center justify-between p-3 bg-accent/20 border border-border/50 rounded-xl hover:bg-accent/40 transition-colors"
+                >
+                  <div className="flex flex-col min-w-0 pr-2">
+                    <span className="text-sm font-bold text-foreground truncate">
+                      {inv.name}
+                    </span>
+                    <span className="text-xs text-muted-foreground truncate">
+                      {inv.email}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={() =>
+                        handleRespondToInvite(inv.coach_id, "reject")
+                      }
+                      disabled={isResponding === inv.coach_id}
+                      className="p-2 bg-destructive/10 text-destructive hover:bg-destructive hover:text-destructive-foreground rounded-lg transition-colors disabled:opacity-50 cursor-pointer"
+                      title="Decline"
+                    >
+                      {isResponding === inv.coach_id ? (
+                        <Loader2 size={16} className="animate-spin" />
+                      ) : (
+                        <X size={16} />
+                      )}
+                    </button>
+                    <button
+                      onClick={() =>
+                        handleRespondToInvite(inv.coach_id, "accept")
+                      }
+                      disabled={isResponding === inv.coach_id}
+                      className="p-2 bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground rounded-lg transition-colors disabled:opacity-50 cursor-pointer"
+                      title="Accept"
+                    >
+                      {isResponding === inv.coach_id ? (
+                        <Loader2 size={16} className="animate-spin" />
+                      ) : (
+                        <CheckCircle2 size={16} />
+                      )}
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* --- COACH OUTBOX MODAL --- */}
+      <Dialog open={isOutboxOpen} onOpenChange={setIsOutboxOpen}>
+        <DialogContent className="font-dmsans sm:max-w-md bg-background border-border/50">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-foreground font-bricolage">
+              <Send size={18} className="text-muted-foreground" />
+              Invites Status
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="py-2 space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+            {coachRoster.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                <Send size={32} className="mb-2 opacity-20" />
+                <p className="text-sm font-medium">No invites sent yet.</p>
+              </div>
+            ) : (
+              sortedOutbox.map((a) => (
+                <div
+                  key={a.id}
+                  className="flex items-center justify-between p-3 bg-background border border-border/50 rounded-xl"
+                >
+                  <div className="flex flex-col min-w-0 pr-2">
+                    <span className="text-sm font-bold text-foreground truncate">
+                      {a.name}
+                    </span>
+                    <span className="text-xs text-muted-foreground truncate">
+                      {a.email}
+                    </span>
+                  </div>
+
+                  <div className="shrink-0">
+                    {a.status === "active" && (
+                      <span className="flex items-center gap-1.5 px-2 py-1 bg-primary/10 text-primary text-xs font-bold uppercase tracking-wider rounded-md border border-primary/20">
+                        <CheckCircle2 size={12} /> Accepted
+                      </span>
+                    )}
+                    {a.status === "pending" && (
+                      <span className="flex items-center gap-1.5 px-2 py-1 bg-yellow-500/10 text-yellow-600 dark:text-yellow-500 text-xs font-bold uppercase tracking-wider rounded-md border border-yellow-500/20">
+                        <Clock size={12} /> Pending
+                      </span>
+                    )}
+                    {a.status === "rejected" && (
+                      <span className="flex items-center gap-1.5 px-2 py-1 bg-destructive/10 text-destructive text-xs font-bold uppercase tracking-wider rounded-md border border-destructive/20">
+                        <XCircle size={12} /> Rejected
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* --- RENAME DIALOG --- */}
       <Dialog open={isRenameOpen} onOpenChange={setIsRenameOpen}>
         <DialogContent className="font-dmsans sm:max-w-md">
           <DialogHeader>
@@ -633,6 +858,7 @@ export function AppSidebar() {
         </DialogContent>
       </Dialog>
 
+      {/* --- DELETE DIALOG --- */}
       <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
         <DialogContent className="font-dmsans sm:max-w-md">
           <DialogHeader>

@@ -47,7 +47,14 @@ function App() {
             <Route path="/coach/athlete/:id" element={<AthleteDetailView />} />
           </Route>
 
-          <Route path="/" element={<ProtectedRoute />} />
+          <Route
+            path="/"
+            element={
+              <ProtectedRoute>
+                <Navigate to="/chat" replace />
+              </ProtectedRoute>
+            }
+          />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>

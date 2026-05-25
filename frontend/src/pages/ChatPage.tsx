@@ -11,7 +11,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Upload } from "lucide-react";
 
 export default function ChatPage() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const navigate = useNavigate();
   const { conversationId } = useParams<{ conversationId?: string }>();
 
@@ -28,7 +28,12 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+
   const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const isAutoScrollEnabled = useRef(true);
+  const isProgrammaticScroll = useRef(false);
+
   const [isUploading, setIsUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [stagedFile, setStagedFile] = useState<File | null>(null);
@@ -77,9 +82,32 @@ export default function ChatPage() {
     };
   }, [conversationId]);
 
+  const handleScroll = () => {
+    // If the system is currently forcing a scroll, ignore the event
+    // so we don't accidentally trip the unlock logic.
+    if (!scrollContainerRef.current || isProgrammaticScroll.current) return;
+
+    const { scrollTop, scrollHeight, clientHeight } =
+      scrollContainerRef.current;
+
+    const distanceFromBottom = Math.abs(
+      scrollHeight - scrollTop - clientHeight,
+    );
+
+    isAutoScrollEnabled.current = distanceFromBottom <= 150;
+  };
+
   useEffect(() => {
-    if (scrollRef.current) {
+    if (isAutoScrollEnabled.current && scrollRef.current) {
+      isProgrammaticScroll.current = true;
+
       scrollRef.current.scrollIntoView({ behavior: "smooth" });
+
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          isProgrammaticScroll.current = false;
+        }, 50);
+      });
     }
   }, [messages]);
 
@@ -122,11 +150,11 @@ export default function ChatPage() {
   };
 
   const handleSendMessage = async () => {
-    // Prevent sending if both input and staged file are empty
     if ((!input.trim() && !stagedFile) || loading) return;
 
+    isAutoScrollEnabled.current = true;
+
     let finalUserMessage = input.trim();
-    // Save a clean version for the UI so the chat bubble doesn't look like a giant block of code
     const displayMessage = stagedFile
       ? `[FILE: ${stagedFile.name}]\n${input.trim()}`
       : input.trim();
@@ -292,7 +320,12 @@ export default function ChatPage() {
 
   return (
     <SidebarProvider className="h-screen w-full overflow-hidden font-dmsans">
-      <AppSidebar />
+      <AppSidebar
+        onNewChat={() => {
+          setMessages([]);
+          setInput("");
+        }}
+      />
       <SidebarInset
         className="flex flex-col h-full relative overflow-hidden bg-background"
         onDragEnter={handleDragEnter}
@@ -377,12 +410,17 @@ export default function ChatPage() {
           </main>
         ) : (
           <main className="flex-1 flex flex-col w-full h-full overflow-hidden relative">
-            <div className="flex-1 w-full overflow-y-auto px-4 pt-8">
+            <div
+              className="flex-1 w-full overflow-y-auto px-4 pt-8"
+              ref={scrollContainerRef}
+              onScroll={handleScroll}
+            >
               <div className="max-w-3xl mx-auto pb-4">
                 <StreamWindow
                   messages={messages}
                   scrollRef={scrollRef}
                   loading={loading}
+                  user={user}
                 />
               </div>
             </div>
