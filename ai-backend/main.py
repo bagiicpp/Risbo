@@ -93,30 +93,82 @@ class RecipeGenerationRequest(BaseModel):
 @app.post("/generate-recipe")
 async def generate_recipe(request: RecipeGenerationRequest):
     try:
-        contents = [request.prompt]
-        
-        # 1. Attach Images if provided
+        # Gemini usually performs better when images precede text in the contents array
+        contents = []
+
+        # 1. Attach Images with Dynamic MIME Types
         if request.images:
             for b64_img in request.images:
-                # Gemini expects bytes for its vision model parts
                 img_bytes = base64.b64decode(b64_img)
+
+                # Detect file type using magic bytes headers
+                if img_bytes.startswith(b"\xff\xd8"):
+                    mime_type = "image/jpeg"
+                elif img_bytes.startswith(b"\x89PNG\r\n\x1a\n"):
+                    mime_type = "image/png"
+                elif img_bytes.startswith(b"RIFF") and img_bytes[8:12] == b"WEBP":
+                    mime_type = "image/webp"
+                else:
+                    # Fallback to jpeg if unknown
+                    mime_type = "image/jpeg"
+
                 contents.append(
-                    types.Part.from_bytes(data=img_bytes, mime_type="image/jpeg")
+                    types.Part.from_bytes(data=img_bytes, mime_type=mime_type)
                 )
-                
-        # 2. Call Gemini and force JSON output
+
+        # 2. Append the text prompt last
+        contents.append(request.prompt)
+
+        # 3. Call Gemini (Removed response_mime_type to prevent schema crashes)
         response = await client.aio.models.generate_content(
             model=os.getenv("AI_STUDIO_MODEL", "gemini-2.5-flash"),
             contents=contents,
             config=types.GenerateContentConfig(
                 temperature=0.7,
-                response_mime_type="application/json", # <--- FORCES JSON OUTPUT
             ),
         )
-        
-        # 3. Return the parsed JSON
-        return json.loads(response.text)
+
+        # 4. Return the raw text wrapped in a dict.
+        # Your rizzbo-app already has the regex logic to parse this safely!
+        return {"response": response.text}
 
     except Exception as e:
         print(f"Recipe Generation Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    
+class SummarizeRequest(BaseModel):
+    messages: list[dict]
+    current_summary: str = ""
+
+@app.post("/summarize-memory")
+async def summarize_memory(request: SummarizeRequest):
+    try:
+        # 1. Format the recent messages
+        chat_text = "\n".join([f"{m.get('role', 'user').upper()}: {m.get('content', '')}" for m in request.messages])
+        
+        # 2. Instruct the AI to act as a memory manager
+        prompt = (
+            "You are an expert AI memory manager. Your task is to update a user's long-term profile based on their recent chat history.\n"
+            "Extract ONLY permanent facts: physical conditions, injuries, specific goals, diet preferences, and PRs.\n"
+            "Do NOT include conversational filler, greetings, or temporary states.\n\n"
+        )
+        
+        if request.current_summary:
+            prompt += f"EXISTING MEMORY SUMMARY:\n{request.current_summary}\n\n"
+            prompt += "INSTRUCTION: Merge the following new chat details into the existing summary. Keep it strictly under 150 words.\n\n"
+        else:
+            prompt += "INSTRUCTION: Create a new bulleted summary from this chat. Keep it under 150 words.\n\n"
+            
+        prompt += f"RECENT CHAT:\n{chat_text}"
+
+        # 3. Call the model
+        response = await client.aio.models.generate_content(
+            model=os.getenv("AI_STUDIO_MODEL", "gemini-2.5-flash"),
+            contents=prompt,
+        )
+        
+        return {"summary": response.text.strip()}
+
+    except Exception as e:
+        print(f"Memory Summarization Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))

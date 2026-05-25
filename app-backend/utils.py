@@ -31,3 +31,32 @@ async def extract_text_from_file(file_content: bytes, filename: str) -> str:
         text = f"Error extracting text: {str(e)}"
         
     return text
+
+def trim_conversation_history(messages: list, max_words: int = 2000) -> list:
+    """
+    Trims the conversation history to fit within a specific word budget.
+    Walks backward from the most recent messages to preserve immediate context.
+    """
+    trimmed_messages = []
+    current_word_count = 0
+
+    # Walk backwards (most recent first)
+    for msg in reversed(messages):
+        content = msg.get("content", "")
+        words = content.split()
+        word_count = len(words)
+
+        if current_word_count + word_count > max_words:
+            # Fill whatever budget is remaining before breaking
+            remaining_budget = max_words - current_word_count
+            if remaining_budget > 0:
+                # Notice the space before "... [Truncated]" to ensure word counts match exactly
+                truncated_content = " ".join(words[:remaining_budget]) + " ... [Truncated]"
+                trimmed_messages.append({"role": msg.get("role", "user"), "content": truncated_content})
+            break
+
+        trimmed_messages.append(msg)
+        current_word_count += word_count
+
+    # Reverse back to chronological order
+    return list(reversed(trimmed_messages))

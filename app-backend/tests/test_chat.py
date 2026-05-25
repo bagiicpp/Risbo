@@ -2,7 +2,7 @@ import pytest
 from bson import ObjectId
 from auth import create_access_token
 import main
-
+from main import update_long_term_memory
 # --- Helper Classes to Mock httpx.AsyncClient.stream ---
 class MockResponse:
     def raise_for_status(self): pass
@@ -79,3 +79,33 @@ async def test_kitchen_generate_recipe(async_client, mocker):
 
     assert response.status_code == 200
     assert response.json()["title"] == "Rice Bowl"
+
+@pytest.mark.asyncio
+async def test_update_long_term_memory(mocker):
+    # Mock DB
+    main.db.conversations.find_one = mocker.AsyncMock(return_value={
+        "_id": ObjectId(), 
+        "messages": [{"role": "user", "content": "hurt knee"}],
+        "context_summary": ""
+    })
+    main.db.conversations.update_one = mocker.AsyncMock()
+
+    # Mock HTTPX response
+    mock_post_response = mocker.Mock()
+    mock_post_response.raise_for_status = mocker.Mock()
+    mock_post_response.json = mocker.Mock(return_value={"summary": "User has hurt knee."})
+
+    class MockSummaryClient:
+        async def post(self, *args, **kwargs): return mock_post_response
+        async def __aenter__(self): return self
+        async def __aexit__(self, *args): pass
+
+    mocker.patch("main.httpx.AsyncClient", return_value=MockSummaryClient())
+
+    # Run background task
+    await update_long_term_memory(str(ObjectId()), "http://fake-url")
+
+    # Assert update fired
+    main.db.conversations.update_one.assert_called_once()
+    call_args = main.db.conversations.update_one.call_args[0][1]
+    assert call_args["$set"]["context_summary"] == "User has hurt knee."

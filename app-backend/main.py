@@ -48,7 +48,7 @@ from models import (
     UserInDB,
 )
 from motor.motor_asyncio import AsyncIOMotorClient
-from utils import extract_text_from_file
+from utils import extract_text_from_file, trim_conversation_history
 
 load_dotenv()
 
@@ -313,6 +313,37 @@ async def extract_metrics_background(
     except Exception as e:
         print(f"⚠️ Background metric extraction failed: {repr(e)}")
 
+async def update_long_term_memory(conversation_id: str, ai_backend_url: str):
+    """Background task to update the conversation's rolling memory summary."""
+    try:
+        conv = await db.conversations.find_one({"_id": ObjectId(conversation_id)})
+        if not conv:
+            return
+
+        messages = conv.get("messages", [])
+        current_summary = conv.get("context_summary", "")
+        
+        # We only pass the last 6 messages to the AI to prevent massive token usage
+        recent_chunk = messages[-6:]
+
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            resp = await client.post(
+                f"{ai_backend_url}/summarize-memory",
+                json={"messages": recent_chunk, "current_summary": current_summary}
+            )
+            resp.raise_for_status()
+            new_summary = resp.json().get("summary", "")
+
+        # Save the new compressed memory back to the database
+        if new_summary:
+            await db.conversations.update_one(
+                {"_id": ObjectId(conversation_id)},
+                {"$set": {"context_summary": new_summary}}
+            )
+            print(f"✅ Memory updated for conversation {conversation_id}")
+            
+    except Exception as e:
+        print(f"⚠️ Memory Summarization Failed: {e}")
 
 @app.post("/chat")
 async def chat(
@@ -441,24 +472,34 @@ async def chat(
             try:
                 conv = await db.conversations.find_one({"_id": db_assigned_id})
                 if conv and "messages" in conv:
+                    
+                    # --- PHASE 2: MEMORY INJECTION ---
+                    context_summary = conv.get("context_summary", "")
+                    memory_block = f"[LONG-TERM MEMORY SUMMARY]:\n{context_summary}\n\n" if context_summary else ""
+
+                    # --- PHASE 1: DYNAMIC TRIMMING ---
+                    trimmed_history = trim_conversation_history(conv["messages"], max_words=2500)
+                    
                     history_chunks = []
-                    for m in conv["messages"][-8:]:
+                    for m in trimmed_history:
                         m_role = m.get("role", "user").upper()
                         content = m.get("content", "")
-                        if len(content) > 3000:
-                            content = content[:3000] + "... [Content truncated] ..."
                         history_chunks.append(f"{m_role}: {content}")
 
                     history = "\n\n".join(history_chunks)
                     full_prompt = (
                         f"CONTEXT & CONVERSATION HISTORY:\n"
-                        f"=================================\n{history}\n=================================\n\n"
+                        f"=================================\n"
+                        f"{memory_block}"  # <--- INJECT MEMORY HERE
+                        f"{history}\n"
+                        f"=================================\n\n"
                         f"{roster_context}"
                         f"[SYSTEM INSTRUCTION]: Read the history carefully. \n\n"
                         f"USER PROMPT: {request.prompt}"
                     )
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"Error loading history: {e}")
+
         else:
             full_prompt = f"{roster_context}USER PROMPT: {request.prompt}"
 
@@ -502,6 +543,10 @@ async def chat(
                     "$set": {"updated_at": datetime.utcnow()},
                 },
             )
+
+            current_msg_count = len(conv.get("messages", [])) + 2 if not is_new_conversation else 2
+            if current_msg_count > 0 and current_msg_count % 6 == 0:
+                background_tasks.add_task(update_long_term_memory, str(db_assigned_id), ai_backend_url)
 
             # NEW: Await the title task and inject it into the stream
             if title_task:
