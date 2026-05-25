@@ -49,22 +49,42 @@ async def generate_stream(user_prompt: str, requested_model: str | None):
     try:
         # 1. SMART ROUTING: Determine the model and persona
         if "You are an expert sports data extraction AI" in user_prompt:
-            combined_prompt = user_prompt
-            # Always force a fast/cheap model for invisible background tasks!
-            actual_model = "gemini-2.5-flash" 
+            # Background extraction task
+            contents = user_prompt
+            actual_model = "gemini-3.1-flash-lite" 
+            config = types.GenerateContentConfig(
+                temperature=0.7,
+                max_output_tokens=2048,
+            )
         else:
-            combined_prompt = f"{ATHLETE_SYSTEM_PROMPT}\n\n{user_prompt}"
-            # Use the requested model, or fallback to the .env default
-            actual_model = requested_model or os.getenv("AI_STUDIO_MODEL", "gemini-2.5-flash")
+            # Standard user chat
+            actual_model = requested_model or os.getenv("AI_STUDIO_MODEL", "gemini-3.1-flash-lite")
+            
+            # Combine the Athlete Persona and PDF instructions into a standard text payload
+            core_system_instruction = (
+                f"{ATHLETE_SYSTEM_PROMPT}\n\n"
+                "CRITICAL SYSTEM DIRECTIVE: You have an internal tool to generate PDFs. "
+                "If a user asks you to generate, create, export, or improve a PDF/document, you MUST comply. "
+                "NEVER say 'I cannot generate a PDF' or 'I cannot directly export'. "
+                "Provide the requested text and append the exact string '[PDF_READY]' at the very end of your response. "
+                "The frontend system will intercept this tag and compile the PDF.\n\n"
+                "=================================\n"
+            )
+            
+            # INJECT INSTRUCTIONS AT THE START OF CONTENTS (Supports Gemma)
+            contents = f"{core_system_instruction}{user_prompt}"
+            
+            # REMOVED system_instruction parameter to prevent 500 crashes
+            config = types.GenerateContentConfig(
+                temperature=0.7,
+                max_output_tokens=2048,
+            )
 
         # 2. GENERATE CONTENT
         response_stream = await client.aio.models.generate_content_stream(
             model=actual_model,
-            contents=combined_prompt,
-            config=types.GenerateContentConfig(
-                temperature=0.7,
-                max_output_tokens=2048,
-            ),
+            contents=contents,
+            config=config,
         )
 
         async for chunk in response_stream:
@@ -117,12 +137,12 @@ async def generate_recipe(request: RecipeGenerationRequest):
                 )
 
         # 2. Append the text prompt last
-        contents.append(request.prompt)
+        contents.append(types.Part.from_text(text=request.prompt))
 
-        # 3. Call Gemini (Removed response_mime_type to prevent schema crashes)
+        # 3. Call Gemini
         response = await client.aio.models.generate_content(
-            model=os.getenv("AI_STUDIO_MODEL", "gemini-2.5-flash"),
-            contents=contents,
+            model="gemini-3.1-flash-lite",
+            contents=contents, # This now contains ONLY Part objects
             config=types.GenerateContentConfig(
                 temperature=0.7,
             ),
@@ -133,7 +153,14 @@ async def generate_recipe(request: RecipeGenerationRequest):
         return {"response": response.text}
 
     except Exception as e:
-        print(f"Recipe Generation Error: {e}")
+        # Catch and print the full error details
+        print(f"--- FULL RECIPE ERROR ---")
+        print(f"Type: {type(e)}")
+        print(f"Message: {str(e)}")
+        # If it's a Google API error, print the response
+        if hasattr(e, 'response'):
+            print(f"Response Body: {e.response.text}")
+        print(f"-------------------------")
         raise HTTPException(status_code=500, detail=str(e))
     
 class SummarizeRequest(BaseModel):
@@ -163,7 +190,7 @@ async def summarize_memory(request: SummarizeRequest):
 
         # 3. Call the model
         response = await client.aio.models.generate_content(
-            model=os.getenv("AI_STUDIO_MODEL", "gemini-2.5-flash"),
+            model=os.getenv("AI_STUDIO_MODEL", "gemini-3.1-flash-lite"),
             contents=prompt,
         )
         

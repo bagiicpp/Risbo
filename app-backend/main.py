@@ -3,9 +3,11 @@ import io
 import json
 import os
 import re
+import base64
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Optional
+from pydantic import BaseModel
 
 import httpx
 from auth import (
@@ -30,7 +32,13 @@ from fastapi import (
     HTTPException,
     UploadFile,
     status,
+    Query,
 )
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet
+
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.security import OAuth2PasswordRequestForm
@@ -46,6 +54,7 @@ from models import (
     Token,
     UserCreate,
     UserInDB,
+    Recipe,
 )
 from motor.motor_asyncio import AsyncIOMotorClient
 from utils import extract_text_from_file, trim_conversation_history
@@ -224,28 +233,28 @@ async def generate_smart_title(first_prompt: str, ai_backend_url: str) -> str:
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
-                f"{ai_backend_url}/chat", json={"prompt": title_prompt, "stream": False}
+                f"{ai_backend_url}/chat", 
+                json={
+                    "prompt": title_prompt, 
+                    "stream": False,
+                    "model": "gemini-3.1-flash-lite"
+                }
             )
             response.raise_for_status()
 
-            raw_title = ""
-            for line in response.text.splitlines():
-                if line.startswith("data: "):
-                    try:
-                        raw_title += json.loads(line.replace("data: ", ""))
-                    except json.JSONDecodeError:
-                        pass
+            # Safely extract text without assuming dict
+            try:
+                data = response.json()
+                raw_title = data.get("response", response.text) if isinstance(data, dict) else str(data)
+            except Exception:
+                raw_title = response.text
 
-            if not raw_title:
-                raw_title = response.json().get("response", response.text)
-
-            # Enforce strict Sentence case (Only the very first letter is uppercase)
-            refined_title = raw_title.strip().replace('"', "").replace("'", "")[:40]
-            return refined_title.capitalize()
+            refined_title = raw_title.replace("data: ", "").strip().replace('"', "").replace("'", "")[:40]
+            return refined_title.capitalize() or "New chat"
 
     except Exception:
-        fallback = " ".join(first_prompt.split()[:4])
-        return fallback.capitalize()
+        # Cast to str to prevent .split() crash on NoneTypes
+        return " ".join(str(first_prompt).split()[:4]).capitalize() or "New chat"
 
 
 async def extract_metrics_background(
@@ -323,18 +332,18 @@ async def update_long_term_memory(conversation_id: str, ai_backend_url: str):
         messages = conv.get("messages", [])
         current_summary = conv.get("context_summary", "")
         
-        # We only pass the last 6 messages to the AI to prevent massive token usage
+        # Strip datetime objects before JSON serialization
         recent_chunk = messages[-6:]
+        clean_chunk = [{"role": m.get("role"), "content": m.get("content")} for m in recent_chunk]
 
         async with httpx.AsyncClient(timeout=60.0) as client:
             resp = await client.post(
                 f"{ai_backend_url}/summarize-memory",
-                json={"messages": recent_chunk, "current_summary": current_summary}
+                json={"messages": clean_chunk, "current_summary": current_summary}
             )
             resp.raise_for_status()
             new_summary = resp.json().get("summary", "")
 
-        # Save the new compressed memory back to the database
         if new_summary:
             await db.conversations.update_one(
                 {"_id": ObjectId(conversation_id)},
@@ -477,10 +486,22 @@ async def chat(
                     context_summary = conv.get("context_summary", "")
                     memory_block = f"[LONG-TERM MEMORY SUMMARY]:\n{context_summary}\n\n" if context_summary else ""
 
-                    # --- PHASE 1: DYNAMIC TRIMMING ---
-                    trimmed_history = trim_conversation_history(conv["messages"], max_words=2500)
+                    # --- PHASE 1: PIN DOCUMENTS & DYNAMIC TRIMMING ---
+                    # 1. Separate documents (system messages) from the chat
+                    doc_messages = [m for m in conv["messages"] if m.get("role") == "system"]
+                    chat_messages = [m for m in conv["messages"] if m.get("role") != "system"]
+                    
+                    # 2. Only trim the human/AI back-and-forth
+                    trimmed_history = trim_conversation_history(chat_messages, max_words=2500)
                     
                     history_chunks = []
+                    
+                    # 3. Re-inject the pinned documents at the very top (never trimmed)
+                    for m in doc_messages:
+                        content = m.get("content", "")
+                        history_chunks.append(f"SYSTEM_CONTEXT: {content}")
+
+                    # 4. Add the trimmed chat history
                     for m in trimmed_history:
                         m_role = m.get("role", "user").upper()
                         content = m.get("content", "")
@@ -490,18 +511,20 @@ async def chat(
                     full_prompt = (
                         f"CONTEXT & CONVERSATION HISTORY:\n"
                         f"=================================\n"
-                        f"{memory_block}"  # <--- INJECT MEMORY HERE
+                        f"{memory_block}"
                         f"{history}\n"
                         f"=================================\n\n"
                         f"{roster_context}"
-                        f"[SYSTEM INSTRUCTION]: Read the history carefully. \n\n"
                         f"USER PROMPT: {request.prompt}"
                     )
             except Exception as e:
                 print(f"Error loading history: {e}")
 
         else:
-            full_prompt = f"{roster_context}USER PROMPT: {request.prompt}"
+            full_prompt = (
+                f"{roster_context}"
+                f"USER PROMPT: {request.prompt}"
+            )
 
         try:
             async with httpx.AsyncClient(timeout=120.0) as client:
@@ -713,7 +736,9 @@ async def search_conversations(q: str, email: str = Depends(get_current_user_ema
 
 @app.get("/export/{conversation_id}")
 async def export_conversation(
-    conversation_id: str, email: str = Depends(get_current_user_email)
+    conversation_id: str, 
+    format: str = Query("docx", regex="^(docx|pdf)$"), # Restricts input to docx or pdf
+    email: str = Depends(get_current_user_email)
 ):
     user = await db.users.find_one({"email": email})
     conv = await db.conversations.find_one(
@@ -723,32 +748,39 @@ async def export_conversation(
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
 
-    # Create a new Word document
-    document = Document()
-    document.add_heading(conv.get("title", "RizzBo Chat Export"), 0)
-
-    for msg in conv.get("messages", []):
-        # We skip system messages so the user doesn't see raw RAG context/document injections
-        if msg["role"] == "system":
-            continue
-
-        role_name = "You" if msg["role"] == "user" else "RizzBo"
-
-        p = document.add_paragraph()
-        runner = p.add_run(f"{role_name}: ")
-        runner.bold = True
-        p.add_run(msg["content"])
-
-    # Save the document to a memory stream instead of the hard drive
     file_stream = io.BytesIO()
-    document.save(file_stream)
-    file_stream.seek(0)
 
-    # Stream it back to the user as an attachment
+    if format == "pdf":
+        # --- PDF GENERATION ---
+        p = canvas.Canvas(file_stream, pagesize=letter)
+        p.drawString(100, 750, f"Title: {conv.get('title', 'Chat Export')}")
+        y = 700
+        for msg in conv.get("messages", []):
+            if msg["role"] == "system": continue
+            text = f"{msg['role'].capitalize()}: {msg['content'][:100]}" # Truncate for simplicity
+            p.drawString(100, y, text)
+            y -= 20
+        p.save()
+        filename = "RizzBo_Chat.pdf"
+        media_type = "application/pdf"
+    else:
+        # --- DOCX GENERATION ---
+        document = Document()
+        document.add_heading(conv.get("title", "RizzBo Chat Export"), 0)
+        for msg in conv.get("messages", []):
+            if msg["role"] == "system": continue
+            p = document.add_paragraph()
+            p.add_run(f"{msg['role'].capitalize()}: ").bold = True
+            p.add_run(msg["content"])
+        document.save(file_stream)
+        filename = "RizzBo_Chat.docx"
+        media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+    file_stream.seek(0)
     return StreamingResponse(
         file_stream,
-        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        headers={"Content-Disposition": f"attachment; filename=RizzBo_Chat.docx"},
+        media_type=media_type,
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
 
 
@@ -1315,3 +1347,88 @@ async def update_preferences(
         await db.users.update_one({"_id": user["_id"]}, {"$set": update_data})
 
     return {"message": "Preferences updated", "updated_fields": update_data}
+
+@app.post("/recipes", status_code=status.HTTP_201_CREATED)
+async def save_recipe(recipe: Recipe, email: str = Depends(get_current_user_email)):
+    user = await db.users.find_one({"email": email})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    recipe_doc = recipe.model_dump(exclude={"id"})
+    recipe_doc["user_id"] = str(user["_id"])
+    
+    result = await db.recipes.insert_one(recipe_doc)
+    return {"message": "Recipe saved", "id": str(result.inserted_id)}
+
+@app.get("/recipes")
+async def get_saved_recipes(email: str = Depends(get_current_user_email)):
+    user = await db.users.find_one({"email": email})
+    cursor = db.recipes.find({"user_id": str(user["_id"])}).sort("created_at", -1)
+    recipes = await cursor.to_list(length=100)
+    
+    for r in recipes:
+        r["_id"] = str(r["_id"])
+    return recipes
+
+@app.delete("/recipes/{recipe_id}")
+async def delete_recipe(recipe_id: str, email: str = Depends(get_current_user_email)):
+    user = await db.users.find_one({"email": email})
+    if not ObjectId.is_valid(recipe_id):
+        raise HTTPException(status_code=400, detail="Invalid recipe ID")
+        
+    result = await db.recipes.delete_one(
+        {"_id": ObjectId(recipe_id), "user_id": str(user["_id"])}
+    )
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Recipe not found")
+    return {"message": "Recipe removed"}
+
+class PDFGenerateRequest(BaseModel):
+    content: str
+
+# Add endpoint
+@app.post("/generate-pdf")
+async def generate_pdf(request: PDFGenerateRequest):
+    file_stream = io.BytesIO()
+    
+    doc = SimpleDocTemplate(file_stream, pagesize=letter)
+    styles = getSampleStyleSheet()
+    story = []
+    
+    paragraphs = request.content.split('\n')
+    for text in paragraphs:
+        clean_text = text.strip()
+        if not clean_text:
+            continue
+            
+        # 1. Remove Horizontal Rules (--- or ***)
+        if re.match(r'^[-*_]{3,}$', clean_text):
+            continue
+        
+        # 2. Convert Headers (# Header) to bold text
+        clean_text = re.sub(r'^#+\s+(.*)', r'<b>\1</b>', clean_text)
+        
+        # 3. Convert Bold (**text** or __text__)
+        clean_text = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', clean_text)
+        clean_text = re.sub(r'__(.*?)__', r'<b>\1</b>', clean_text)
+        
+        # 4. Convert Italics (*text* or _text_)
+        # Negative lookbehinds/lookaheads prevent matching ** as *
+        clean_text = re.sub(r'(?<!\*)\*(?!\*)(.*?)(?<!\*)\*(?!\*)', r'<i>\1</i>', clean_text)
+        clean_text = re.sub(r'(?<!_)_(?!_)(.*?)(?<!_)_(?!_)', r'<i>\1</i>', clean_text)
+        
+        # 5. Handle Bullet Points (- item or * item)
+        clean_text = re.sub(r'^[-*]\s+', r'&bull; ', clean_text)
+        
+        story.append(Paragraph(clean_text, styles["Normal"]))
+        story.append(Spacer(1, 12))
+            
+    doc.build(story)
+    file_stream.seek(0)
+    
+    return StreamingResponse(
+        file_stream,
+        media_type="application/pdf",
+        headers={"Content-Disposition": "attachment; filename=Improved_Document.pdf"}
+    )

@@ -97,3 +97,13 @@ class PreferencesUpdate(BaseModel):
     measurement_system: Optional[str] = None
     dietary_preference: Optional[str] = None
     workout_reminders: Optional[bool] = None
+
+class Recipe(BaseModel):
+    id: Optional[PyObjectId] = Field(alias="_id", default=None)
+    user_id: str
+    title: str
+    prep_time_minutes: int
+    macros: Dict[str, float]
+    ingredients: List[str]
+    instructions: List[str]
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

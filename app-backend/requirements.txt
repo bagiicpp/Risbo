@@ -21,6 +21,7 @@ pydantic[email]
 pypdf
 python-docx
 openpyxl
+reportlab
 
 # Testing
 pytest
