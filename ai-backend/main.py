@@ -1,8 +1,9 @@
 import asyncio
+import base64
 import json
+import logging
 import os
-import glob
-from contextlib import asynccontextmanager
+from datetime import datetime
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
@@ -12,49 +13,22 @@ from google import genai
 from google.genai import types
 from pydantic import BaseModel
 
+# --- Tenacity for robust API retries ---
+from tenacity import (
+    before_sleep_log,
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
+
 load_dotenv()
 
-async def run_scrapers_in_background():
-    """Pokreće sve skripte za prikupljanje podataka u pozadini kako ne bi blokiralo paljenje servera."""
-    try:
-        base_dir = os.path.dirname(__file__)
-        wiki_dir = os.path.join(base_dir, "wiki")
-        
-        print("▶️ Pokrećem Wikipedia Scraper u pozadini...")
-        if not os.path.exists(os.path.join(wiki_dir, "standings_serie_b.md")):
-            p1 = await asyncio.create_subprocess_exec("python", "wiki_builder.py", cwd=base_dir)
-            await p1.wait()
-        else:
-            print("⏭️ Preskačem Wikipedia Scraper (fajlovi već postoje).")
-        
-        print("▶️ Pokrećem NBA Scraper u pozadini...")
-        # Ako nema NBA igrača, pokreni 'all' da bi se skinuli rosteri, u suprotnom samo 'weekly' tabele
-        if not os.path.exists(os.path.join(wiki_dir, "players", "index.md")):
-            p2 = await asyncio.create_subprocess_exec("python", "api_uses/nba_builder.py", "--mode", "all", cwd=base_dir)
-            await p2.wait()
-        else:
-            print("⏭️ Preskačem NBA Setup (igrači već postoje). Osvežavam samo nedeljne tabele...")
-            p2 = await asyncio.create_subprocess_exec("python", "api_uses/nba_builder.py", "--mode", "weekly", cwd=base_dir)
-            await p2.wait()
-        
-        print("▶️ Pokrećem CrewAI Football Scraper u pozadini...")
-        # Naša nova Python skripta već ima ugrađenu logiku (if os.path.exists(filepath): continue)
-        p3 = await asyncio.create_subprocess_exec("python", "api_uses/crew_football_scraper.py", cwd=base_dir)
-        await p3.wait()
-        
-        print("✅ Svi Wiki API podaci su uspešno osveženi!")
-    except Exception as e:
-        print(f"❌ Greška pri pozadinskom skrapovanju: {e}")
+# Set up logging so you can monitor Google's flakiness in your Docker console
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    print("🔄 Započinjem proces osvežavanja podataka (Background Tasks)...")
-    # Pokrećemo asinhroni task koji će obraditi sve fajlove nakon što se server upali
-    asyncio.create_task(run_scrapers_in_background())
-    yield
-
-app = FastAPI(title="Risbo AI - Athlete Specialization", lifespan=lifespan)
+app = FastAPI(title="Risbo AI - Athlete Specialization")
 
 app.add_middleware(
     CORSMiddleware,
@@ -64,16 +38,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 @app.get("/ping")
 async def ping():
     return {"status": "ok", "service": "ai-backend"}
+
 
 # Initialize the Google GenAI Client
 client = genai.Client(api_key=os.getenv("AI_STUDIO_API"))
 
 
+class MessagePayload(BaseModel):
+    role: str
+    content: str
+
+
 class ChatRequest(BaseModel):
-    prompt: str
+    messages: list[MessagePayload]
+    model: str | None = None
 
 
 ATHLETE_SYSTEM_PROMPT = (
@@ -82,63 +64,204 @@ ATHLETE_SYSTEM_PROMPT = (
     "You can process and analyze player stats provided in the context (acting as if you are searching the internet or reading provided documents). "
     "You are also skilled at evaluating emerging talents and discussing who looks like the best prospect. "
     "Additionally, you provide rigorous, data-driven advice on improving training, biomechanics, basic nutrition, and recovery. "
+    "If the user is a COACH, you will be provided with a [ROSTER CONTEXT] block containing their team's latest extracted data. "
+    "Use this roster data to generate team reports, spot overtraining trends, congratulate PRs, and suggest roster-wide adjustments when asked. "
     "If a user asks something unrelated to sports, player statistics, or training, politely steer the conversation back to the sports domain."
 )
 
-def load_wiki_context() -> str:
-    """Učitava sve .md fajlove iz 'wiki' foldera i njegovih podfoldera u jedan veliki string."""
-    wiki_dir = os.path.join(os.path.dirname(__file__), "wiki")
-    wiki_text = ""
-    if os.path.exists(wiki_dir):
-        # recursive=True omogućava pretragu kroz sve podfoldere (england/2021-22/...)
-        for filepath in glob.glob(os.path.join(wiki_dir, "**", "*.md"), recursive=True):
-            try:
-                with open(filepath, "r", encoding="utf-8") as f:
-                    # relpath nam daje putanju tipa "england/2021-22/premierleague.md"
-                    rel_path = os.path.relpath(filepath, wiki_dir)
-                    wiki_text += f"\n\n--- Podaci iz: {rel_path} ---\n"
-                    wiki_text += f.read()
-            except Exception as e:
-                print(f"Greška pri čitanju wiki fajla {filepath}: {e}")
-    return wiki_text
 
-async def generate_stream(user_prompt: str):
-    try:
-        wiki_context = load_wiki_context()
-        
-        # Spajamo sistemski prompt, celokupnu wiki bazu znanja i korisnički prompt
-        combined_prompt = f"{ATHLETE_SYSTEM_PROMPT}\n\n[LLM WIKI BAZA ZNANJA (UVEK KORISTI OVE PODATKE)]:\n{wiki_context}\n\n[KORISNIK]:\n{user_prompt}"
+@retry(
+    wait=wait_exponential(multiplier=1, min=2, max=10),
+    stop=stop_after_attempt(3),
+    retry=retry_if_exception_type(Exception),
+    before_sleep=before_sleep_log(logger, logging.WARNING),
+    reraise=True,
+)
+async def safe_generate_content(model: str, contents: list | str, config=None):
+    """A fault-tolerant wrapper for Google's non-streaming content generation."""
+    return await client.aio.models.generate_content(
+        model=model, contents=contents, config=config
+    )
 
-        # Request a stream from the model
-        stream = client.models.generate_content_stream(
-            model=os.getenv("AI_STUDIO_MODEL", "gemma-4-26b-a4b-it"),
-            contents=combined_prompt,
-            config=types.GenerateContentConfig(
-                temperature=0.7,
-                max_output_tokens=2048,
-            ),
+
+# ==============================================================================
+# RESILIENCE LAYER: STREAMING ENDPOINT
+# ==============================================================================
+async def generate_stream(messages: list[MessagePayload], requested_model: str | None):
+    """
+    State-aware retry loop supporting native structured multi-turn conversation arrays.
+    """
+    # Grab the actual user prompt (the last message in the array) to check for background tasks
+    latest_user_prompt = messages[-1].content if messages else ""
+
+    if "You are an expert sports data extraction AI" in latest_user_prompt:
+        # Background extraction task runs independently without history
+        actual_model = "gemini-3.1-flash-lite"
+        config = types.GenerateContentConfig(temperature=0.7, max_output_tokens=2048)
+        formatted_contents = latest_user_prompt
+    else:
+        actual_model = requested_model or os.getenv(
+            "AI_STUDIO_MODEL", "gemini-3.1-flash-lite"
         )
+        current_date = datetime.now().strftime("%B %d, %Y")
+        core_system_instruction = (
+            f"CRITICAL CONTEXT: Today's date is {current_date}.\n\n"
+            f"{ATHLETE_SYSTEM_PROMPT}\n\n"
+            "CRITICAL SYSTEM DIRECTIVE: You have an internal tool to generate PDFs. "
+            "If a user asks you to generate, create, export, or improve a PDF/document, you MUST comply. "
+            "NEVER say 'I cannot generate a PDF' or 'I cannot directly export'. "
+            "Provide the requested text and append the exact string '[PDF_READY]' at the very end of your response. "
+            "The frontend system will intercept this tag and compile the PDF.\n\n"
+            "=================================\n"
+        )
+        config = types.GenerateContentConfig(temperature=0.7, max_output_tokens=8192)
 
-        for chunk in stream:
-            if chunk.text:
-                # SSE standard: data must be prefixed with 'data: ' and end with '\n\n'
-                yield f"data: {json.dumps(chunk.text)}\n\n"
-                # Small sleep to ensure smooth event loop handling
-                await asyncio.sleep(0.01)
+        # Build the structured types.Content array required by Google SDK
+        formatted_contents = []
+        for i, msg in enumerate(messages):
+            # Ensure roles map exactly to what Google expects ("user" or "model")
+            role = "model" if msg.role in ["assistant", "model"] else "user"
+            content = msg.content
 
-    except Exception as e:
-        print(f"Streaming Error: {e}")
-        yield f"data: {json.dumps(f'**[ERROR]:** {str(e)}')}\n\n"
+            # To avoid the 500 crashes associated with the system_instruction config,
+            # we securely prepend the persona directives to the VERY FIRST message in the history.
+            if i == 0 and role == "user":
+                content = f"{core_system_instruction}\n\n{content}"
+
+            formatted_contents.append(
+                types.Content(role=role, parts=[types.Part.from_text(text=content)])
+            )
+
+    max_retries = 3
+    base_wait = 2
+
+    for attempt in range(max_retries):
+        chunks_yielded = 0
+        try:
+            response_stream = await client.aio.models.generate_content_stream(
+                model=actual_model,
+                contents=formatted_contents,  # Send the structured array!
+                config=config,
+            )
+
+            async for chunk in response_stream:
+                if chunk.text:
+                    chunks_yielded += 1
+                    yield f"data: {json.dumps(chunk.text)}\n\n"
+
+            break
+
+        except Exception as e:
+            logger.error(f"Stream failed on attempt {attempt + 1}/{max_retries}: {e}")
+
+            if chunks_yielded > 0:
+                error_msg = "\n\n**[Connection Interrupted]** Google's server dropped the connection. Please try again."
+                yield f"data: {json.dumps(error_msg)}\n\n"
+                break
+            elif attempt < max_retries - 1:
+                await asyncio.sleep(base_wait * (2**attempt))
+                continue
+            else:
+                yield f"data: {json.dumps(f'**[ERROR]:** Failed to reach AI backend after {max_retries} attempts.')}\n\n"
+                break
 
 
 @app.post("/chat")
 async def chat_with_gemma(request: ChatRequest):
-    # Verify the API key exists before starting the stream
     if not os.getenv("AI_STUDIO_API"):
-        raise HTTPException(
-            status_code=500, detail="API Key missing in .env"
-        )
+        raise HTTPException(status_code=500, detail="API Key missing in .env")
 
     return StreamingResponse(
-        generate_stream(request.prompt), media_type="text/event-stream"
+        generate_stream(request.messages, request.model), media_type="text/event-stream"
     )
+
+
+class RecipeGenerationRequest(BaseModel):
+    prompt: str
+    images: list[str] | None = None
+
+
+@app.post("/generate-recipe")
+async def generate_recipe(request: RecipeGenerationRequest):
+    try:
+        contents = []
+
+        if request.images:
+            for b64_img in request.images:
+                img_bytes = base64.b64decode(b64_img)
+
+                if img_bytes.startswith(b"\xff\xd8"):
+                    mime_type = "image/jpeg"
+                elif img_bytes.startswith(b"\x89PNG\r\n\x1a\n"):
+                    mime_type = "image/png"
+                elif img_bytes.startswith(b"RIFF") and img_bytes[8:12] == b"WEBP":
+                    mime_type = "image/webp"
+                else:
+                    # TECH DEBT WARNING: If a user uploads an HEIC file from an iPhone,
+                    # it will fall into this block, be labeled as JPEG, and crash the
+                    # Google decoder with a 500 error that Tenacity cannot fix.
+                    mime_type = "image/jpeg"
+
+                contents.append(
+                    types.Part.from_bytes(data=img_bytes, mime_type=mime_type)
+                )
+
+        contents.append(types.Part.from_text(text=request.prompt))
+
+        # Use the fault-tolerant wrapper instead of calling the client directly
+        response = await safe_generate_content(
+            model="gemini-3.1-flash-lite",
+            contents=contents,
+            config=types.GenerateContentConfig(temperature=0.7),
+        )
+
+        return {"response": response.text}
+
+    except Exception as e:
+        logger.error(f"Recipe Generation Failed after retries: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="AI microservice failed to respond. Please try again.",
+        )
+
+
+class SummarizeRequest(BaseModel):
+    messages: list[dict]
+    current_summary: str = ""
+
+
+@app.post("/summarize-memory")
+async def summarize_memory(request: SummarizeRequest):
+    try:
+        chat_text = "\n".join(
+            [
+                f"{m.get('role', 'user').upper()}: {m.get('content', '')}"
+                for m in request.messages
+            ]
+        )
+
+        prompt = (
+            "You are an expert AI memory manager. Your task is to update a user's long-term profile based on their recent chat history.\n"
+            "Extract ONLY permanent facts: physical conditions, injuries, specific goals, diet preferences, and PRs.\n"
+            "Do NOT include conversational filler, greetings, or temporary states.\n\n"
+        )
+
+        if request.current_summary:
+            prompt += f"EXISTING MEMORY SUMMARY:\n{request.current_summary}\n\n"
+            prompt += "INSTRUCTION: Merge the following new chat details into the existing summary. Keep it strictly under 150 words.\n\n"
+        else:
+            prompt += "INSTRUCTION: Create a new bulleted summary from this chat. Keep it under 150 words.\n\n"
+
+        prompt += f"RECENT CHAT:\n{chat_text}"
+
+        # Use the fault-tolerant wrapper
+        response = await safe_generate_content(
+            model=os.getenv("AI_STUDIO_MODEL", "gemini-3.1-flash-lite"),
+            contents=prompt,
+        )
+
+        return {"summary": response.text.strip()}
+
+    except Exception as e:
+        logger.error(f"Memory Summarization Failed after retries: {str(e)}")
+        raise HTTPException(status_code=500, detail="Summarization failed.")
