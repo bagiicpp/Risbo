@@ -4,3 +4,8 @@ google-genai
 python-dotenv
 pydantic
 tenacity
+pandas
+beautifulsoup4
+lxml
+tabulate
+requests
