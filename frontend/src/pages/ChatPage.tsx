@@ -38,6 +38,7 @@ export default function ChatPage() {
   const [dragActive, setDragActive] = useState(false);
   const [stagedFile, setStagedFile] = useState<File | null>(null);
   const [selectedModel, setSelectedModel] = useState("gemma-4-26b-a4b-it");
+  const [enableSearch, setEnableSearch] = useState(false);
 
   const isChatActive = !!conversationId || messages.length > 0 || loading;
 
@@ -227,9 +228,10 @@ export default function ChatPage() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          prompt: finalUserMessage, // FIX: Send the bundled message!
+          prompt: finalUserMessage,
           conversation_id: isNewChat ? null : activeConversationId,
           model: selectedModel,
+          enable_search: enableSearch,
           client_context: {
             timestamp: new Date().toISOString(),
             timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -253,6 +255,7 @@ export default function ChatPage() {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
+      let accumulatedContent = "";
 
       while (true) {
         const { value, done } = await reader.read();
@@ -275,6 +278,8 @@ export default function ChatPage() {
                 continue;
               }
 
+              accumulatedContent += rawData;
+
               setMessages((prev) => {
                 if (prev.length === 0) {
                   return [
@@ -296,6 +301,114 @@ export default function ChatPage() {
               });
             } catch (e) {}
           }
+        }
+      }
+
+      // --- AUTO-RETRY on [NEEDS_WEB_SEARCH] marker ---
+      // Only trigger if the user didn't already have search enabled (avoid infinite loop).
+      if (!enableSearch && accumulatedContent.includes("[NEEDS_WEB_SEARCH]")) {
+        // 1. Strip the marker from the displayed message
+        setMessages((prev) => {
+          const updated = [...prev];
+          const last = updated[updated.length - 1];
+          if (last?.role === "assistant") {
+            updated[updated.length - 1] = {
+              ...last,
+              content:
+                last.content.replace("[NEEDS_WEB_SEARCH]", "").trimEnd() +
+                "\n\n---\n🌐 **Searching the web...**",
+            };
+          }
+          return updated;
+        });
+
+        // 2. Fire a second request with search enabled and is_retry=true (skips DB save)
+        try {
+          const retryResponse = await fetch("http://localhost:8080/chat", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              prompt: finalUserMessage,
+              conversation_id: targetConvId,
+              model: selectedModel,
+              enable_search: true,
+              is_retry: true,
+              client_context: {
+                timestamp: new Date().toISOString(),
+                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+              },
+            }),
+          });
+
+          if (retryResponse.ok && retryResponse.body) {
+            // Replace the "Searching..." placeholder with the actual separator
+            setMessages((prev) => {
+              const updated = [...prev];
+              const last = updated[updated.length - 1];
+              if (last?.role === "assistant") {
+                updated[updated.length - 1] = {
+                  ...last,
+                  content: last.content.replace(
+                    "\n\n---\n🌐 **Searching the web...**",
+                    "\n\n---\n🌐 **Ažurni podaci sa weba:**\n",
+                  ),
+                };
+              }
+              return updated;
+            });
+
+            const retryReader = retryResponse.body.getReader();
+            const retryDecoder = new TextDecoder();
+            let retryBuffer = "";
+
+            while (true) {
+              const { value, done } = await retryReader.read();
+              if (done) break;
+
+              retryBuffer += retryDecoder.decode(value, { stream: true });
+              const retryLines = retryBuffer.split("\n");
+              retryBuffer = retryLines.pop() || "";
+
+              for (const line of retryLines) {
+                if (line.startsWith("data: ")) {
+                  try {
+                    const rawData = JSON.parse(line.replace("data: ", ""));
+                    if (rawData?._type === "title_update") continue;
+                    setMessages((prev) => {
+                      const updated = [...prev];
+                      const last = updated[updated.length - 1];
+                      if (!last) return prev;
+                      updated[updated.length - 1] = {
+                        ...last,
+                        content: (last.content || "") + rawData,
+                      };
+                      return updated;
+                    });
+                  } catch (e) {}
+                }
+              }
+            }
+          }
+        } catch (retryErr) {
+          console.error("Web search retry failed:", retryErr);
+          // Remove the searching indicator on failure
+          setMessages((prev) => {
+            const updated = [...prev];
+            const last = updated[updated.length - 1];
+            if (last?.role === "assistant") {
+              updated[updated.length - 1] = {
+                ...last,
+                content: last.content.replace(
+                  "\n\n---\n🌐 **Searching the web...**",
+                  "",
+                ),
+              };
+            }
+            return updated;
+          });
         }
       }
     } catch (err) {
@@ -404,6 +517,8 @@ export default function ChatPage() {
                   activeConversationId={activeConversationId}
                   selectedModel={selectedModel}
                   setSelectedModel={setSelectedModel}
+                  enableSearch={enableSearch}
+                  setEnableSearch={setEnableSearch}
                 />
               </motion.div>
             </div>
@@ -449,6 +564,8 @@ export default function ChatPage() {
                   activeConversationId={activeConversationId}
                   selectedModel={selectedModel}
                   setSelectedModel={setSelectedModel}
+                  enableSearch={enableSearch}
+                  setEnableSearch={setEnableSearch}
                 />
               </motion.div>
             </div>

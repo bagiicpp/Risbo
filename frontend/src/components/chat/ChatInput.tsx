@@ -1,4 +1,4 @@
-import { Send, Loader2, Plus, FileText, X, Mic } from "lucide-react";
+import { Send, Loader2, Plus, FileText, X, Mic, Globe } from "lucide-react";
 import React, { useRef, useState, useEffect } from "react";
 import { ModelSelector } from "./ModelSelector";
 
@@ -14,6 +14,8 @@ interface ChatInputProps {
   onClearFile?: () => void;
   selectedModel: string;
   setSelectedModel: (model: string) => void;
+  enableSearch: boolean;
+  setEnableSearch: (v: boolean) => void;
 }
 
 export default function ChatInput({
@@ -28,6 +30,8 @@ export default function ChatInput({
   onClearFile,
   selectedModel,
   setSelectedModel,
+  enableSearch,
+  setEnableSearch,
 }: ChatInputProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -206,6 +210,20 @@ export default function ChatInput({
               selectedModelId={selectedModel}
               onModelSelect={setSelectedModel}
             />
+
+            <button
+              type="button"
+              onClick={() => setEnableSearch(!enableSearch)}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+                enableSearch
+                  ? "bg-primary/15 text-primary border border-primary/30 shadow-[0_0_8px_rgba(34,197,94,0.15)]"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
+              }`}
+              title={enableSearch ? "Web search on — click to disable" : "Enable web search"}
+            >
+              <Globe size={14} />
+              <span>Web</span>
+            </button>
           </div>
 
           <div className="flex items-center gap-1">

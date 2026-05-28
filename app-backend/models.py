@@ -71,6 +71,8 @@ class ChatRequest(BaseModel):
     prompt: str
     conversation_id: Optional[str] = None
     model: Optional[str] = None
+    enable_search: bool = False
+    is_retry: bool = False  # when True: skip DB save, title gen, and background tasks
 
 
 class ConversationRename(BaseModel):

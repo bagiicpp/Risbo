@@ -12,6 +12,9 @@ from fastapi.responses import StreamingResponse
 from google import genai
 from google.genai import types
 from pydantic import BaseModel
+from intent import classify_intent
+from search import smart_search
+
 
 # --- Tenacity for robust API retries ---
 from tenacity import (
@@ -56,7 +59,23 @@ class MessagePayload(BaseModel):
 class ChatRequest(BaseModel):
     messages: list[MessagePayload]
     model: str | None = None
+    enable_search: bool = False
+    search_query: str | None = None  # clean original user text, used for search so context injections don't pollute the query
 
+
+def format_search_results_for_prompt(results: list[dict]) -> str:
+    """Converts smart_search results into a readable block injected into the LLM prompt."""
+    if not results:
+        return ""
+    lines = ["[WEB SEARCH RESULTS — use these to answer the user's question accurately]"]
+    for i, r in enumerate(results, 1):
+        lines.append(
+            f"\n[{i}] {r['tier']} — {r['title']}\n"
+            f"URL: {r['url']}\n"
+            f"Excerpt: {r['snippet']}"
+        )
+    lines.append("\n[END WEB SEARCH RESULTS]")
+    return "\n".join(lines)
 
 ATHLETE_SYSTEM_PROMPT = (
     "You are Risbo, a specialized AI assistant for athletes, coaches, and sports analysts. "
@@ -87,9 +106,16 @@ async def safe_generate_content(model: str, contents: list | str, config=None):
 # ==============================================================================
 # RESILIENCE LAYER: STREAMING ENDPOINT
 # ==============================================================================
-async def generate_stream(messages: list[MessagePayload], requested_model: str | None):
+async def generate_stream(
+    messages: list[MessagePayload],
+    requested_model: str | None,
+    enable_search: bool = False,
+    search_query: str | None = None,
+):
     """
     State-aware retry loop supporting native structured multi-turn conversation arrays.
+    If enable_search=True, runs smart_search() before calling the LLM and injects
+    the results into the last user message.
     """
     # Grab the actual user prompt (the last message in the array) to check for background tasks
     latest_user_prompt = messages[-1].content if messages else ""
@@ -112,6 +138,13 @@ async def generate_stream(messages: list[MessagePayload], requested_model: str |
             "NEVER say 'I cannot generate a PDF' or 'I cannot directly export'. "
             "Provide the requested text and append the exact string '[PDF_READY]' at the very end of your response. "
             "The frontend system will intercept this tag and compile the PDF.\n\n"
+            "WEB SEARCH DIRECTIVE: If the user asks about real-time or recent data "
+            "(live scores, recent transfers, current standings, injuries, news, or anything "
+            "time-sensitive that you cannot answer confidently from your training data), "
+            "provide your best answer and append the exact string '[NEEDS_WEB_SEARCH]' at the "
+            "very end of your response. The system will detect this and automatically retry "
+            "with a live web search. Do NOT append this tag if [WEB SEARCH RESULTS] are "
+            "already provided above — those results are current, use them directly.\n\n"
             "=================================\n"
         )
         config = types.GenerateContentConfig(temperature=0.7, max_output_tokens=8192)
@@ -131,6 +164,25 @@ async def generate_stream(messages: list[MessagePayload], requested_model: str |
             formatted_contents.append(
                 types.Content(role=role, parts=[types.Part.from_text(text=content)])
             )
+
+    # --- WEB SEARCH INJECTION ---
+    # Runs BEFORE the LLM call so results are baked into the prompt.
+    if enable_search and isinstance(formatted_contents, list) and formatted_contents:
+        query = search_query or (messages[-1].content if messages else "")
+        intent = classify_intent(query)
+        logger.info(f"[search] intent={intent!r} query={query[:80]!r}")
+        try:
+            search_results = await smart_search(query, max_results=8, intent=intent)
+            search_block = format_search_results_for_prompt(search_results)
+            if search_block:
+                last = formatted_contents[-1]
+                augmented_text = f"{search_block}\n\n{last.parts[0].text}"
+                formatted_contents[-1] = types.Content(
+                    role=last.role,
+                    parts=[types.Part.from_text(text=augmented_text)],
+                )
+        except Exception as e:
+            logger.warning(f"[search] smart_search failed, proceeding without results: {e}")
 
     max_retries = 3
     base_wait = 2
@@ -172,7 +224,13 @@ async def chat_with_gemma(request: ChatRequest):
         raise HTTPException(status_code=500, detail="API Key missing in .env")
 
     return StreamingResponse(
-        generate_stream(request.messages, request.model), media_type="text/event-stream"
+        generate_stream(
+            request.messages,
+            request.model,
+            enable_search=request.enable_search,
+            search_query=request.search_query,
+        ),
+        media_type="text/event-stream",
     )
 
 

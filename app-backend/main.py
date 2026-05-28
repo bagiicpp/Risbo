@@ -612,7 +612,13 @@ async def chat(
                     "POST",
                     f"{ai_backend_url}/chat",
                     # Send the structured array instead of a single string
-                    json={"messages": payload_messages, "model": request.model},
+                    json={
+                        "messages": payload_messages,
+                        "model": request.model,
+                        "enable_search": request.enable_search,
+                        # Clean original prompt — avoids context injections polluting the search query
+                        "search_query": request.prompt if request.enable_search else None,
+                    }
                 ) as response:
                     response.raise_for_status()
                     async for line in response.aiter_lines():
@@ -632,7 +638,12 @@ async def chat(
                 await asyncio.sleep(0.1)
 
         # --- 5. SAVE FINALIZED MESSAGES TO DB ---
-        if user_id:
+        # Strip the auto-search marker before persisting — it's a frontend signal, not content.
+        ai_content = ai_content.replace("[NEEDS_WEB_SEARCH]", "").strip()
+
+        # is_retry=True means this was an auto-retry triggered by [NEEDS_WEB_SEARCH].
+        # We skip DB save to avoid duplicate user messages; the initial response is already saved.
+        if user_id and not request.is_retry:
             ai_msg = {
                 "role": "assistant",
                 "content": ai_content,
