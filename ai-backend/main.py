@@ -64,15 +64,21 @@ class ChatRequest(BaseModel):
 
 
 def format_search_results_for_prompt(results: list[dict]) -> str:
-    """Converts smart_search results into a readable block injected into the LLM prompt."""
+    """
+    Converts smart_search results into a readable block injected into the LLM prompt.
+    Uses full article content when available (news extractions), otherwise falls back
+    to the search snippet.
+    """
     if not results:
         return ""
     lines = ["[WEB SEARCH RESULTS — use these to answer the user's question accurately]"]
     for i, r in enumerate(results, 1):
+        body = r.get("content") or r.get("snippet", "")
+        label = "Article" if r.get("content") else "Snippet"
         lines.append(
             f"\n[{i}] {r['tier']} — {r['title']}\n"
             f"URL: {r['url']}\n"
-            f"Excerpt: {r['snippet']}"
+            f"{label}: {body}"
         )
     lines.append("\n[END WEB SEARCH RESULTS]")
     return "\n".join(lines)
@@ -106,6 +112,34 @@ async def safe_generate_content(model: str, contents: list | str, config=None):
 # ==============================================================================
 # RESILIENCE LAYER: STREAMING ENDPOINT
 # ==============================================================================
+async def _make_search_query(raw_prompt: str, intent: str = "general") -> str:
+    """
+    Translates and reformulates any-language user prompt into an optimised
+    English web search query using a fast Gemini call (temp=0, ≤50 tokens).
+    For stats intent, adds a hint to return full standings/table pages.
+    Falls back to the original prompt if the call fails.
+    """
+    stats_hint = (
+        " The query must target pages with FULL standings tables listing ALL positions, "
+        "not just top teams. Prefer sites like fbref, worldfootball, soccerway, soccerstats."
+        if intent == "stats" else ""
+    )
+    prompt = (
+        "Convert this user question into a concise English web search query. "
+        f"Output ONLY the query string, no explanation, no quotes.{stats_hint}\n\n"
+        f"Question: {raw_prompt}"
+    )
+    try:
+        resp = await safe_generate_content(
+            model="gemini-3.1-flash-lite",
+            contents=prompt,
+            config=types.GenerateContentConfig(temperature=0, max_output_tokens=50),
+        )
+        return resp.text.strip()
+    except Exception:
+        return raw_prompt
+
+
 async def generate_stream(
     messages: list[MessagePayload],
     requested_model: str | None,
@@ -138,51 +172,67 @@ async def generate_stream(
             "NEVER say 'I cannot generate a PDF' or 'I cannot directly export'. "
             "Provide the requested text and append the exact string '[PDF_READY]' at the very end of your response. "
             "The frontend system will intercept this tag and compile the PDF.\n\n"
-            "WEB SEARCH DIRECTIVE: If the user asks about real-time or recent data "
-            "(live scores, recent transfers, current standings, injuries, news, or anything "
-            "time-sensitive that you cannot answer confidently from your training data), "
-            "provide your best answer and append the exact string '[NEEDS_WEB_SEARCH]' at the "
-            "very end of your response. The system will detect this and automatically retry "
-            "with a live web search. Do NOT append this tag if [WEB SEARCH RESULTS] are "
-            "already provided above — those results are current, use them directly.\n\n"
+            "WEB SEARCH DIRECTIVE: ONLY append '[NEEDS_WEB_SEARCH]' if the user asks about "
+            "events from the LAST 30 DAYS specifically — live scores today, transfers this week, "
+            "injuries announced recently, current standings of an ongoing season. "
+            "For general player stats, career info, historical data, training advice, tactical "
+            "analysis, or anything you can answer confidently from training data — answer directly "
+            "WITHOUT this tag. "
+            "If a [WEB SEARCH RESULTS] block exists anywhere in this conversation — NEVER append "
+            "this tag, use those results directly. "
+            "IMPORTANT: Always provide a substantive answer first; never output ONLY the tag alone.\n\n"
             "=================================\n"
         )
-        config = types.GenerateContentConfig(temperature=0.7, max_output_tokens=8192)
+        config = types.GenerateContentConfig(
+            temperature=0.7,
+            max_output_tokens=8192,
+            system_instruction=core_system_instruction,
+        )
 
         # Build the structured types.Content array required by Google SDK
         formatted_contents = []
-        for i, msg in enumerate(messages):
+        for msg in messages:
             # Ensure roles map exactly to what Google expects ("user" or "model")
             role = "model" if msg.role in ["assistant", "model"] else "user"
-            content = msg.content
-
-            # To avoid the 500 crashes associated with the system_instruction config,
-            # we securely prepend the persona directives to the VERY FIRST message in the history.
-            if i == 0 and role == "user":
-                content = f"{core_system_instruction}\n\n{content}"
-
             formatted_contents.append(
-                types.Content(role=role, parts=[types.Part.from_text(text=content)])
+                types.Content(role=role, parts=[types.Part.from_text(text=msg.content)])
             )
 
     # --- WEB SEARCH INJECTION ---
     # Runs BEFORE the LLM call so results are baked into the prompt.
     if enable_search and isinstance(formatted_contents, list) and formatted_contents:
-        query = search_query or (messages[-1].content if messages else "")
-        intent = classify_intent(query)
+        raw = search_query or messages[-1].content
+        intent = classify_intent(raw)  # classify from original text before translation
+        query = await _make_search_query(raw, intent=intent)  # translation + intent-specific hints
         logger.info(f"[search] intent={intent!r} query={query[:80]!r}")
+        search_block = ""
         try:
             search_results = await smart_search(query, max_results=8, intent=intent)
             search_block = format_search_results_for_prompt(search_results)
-            if search_block:
-                last = formatted_contents[-1]
-                augmented_text = f"{search_block}\n\n{last.parts[0].text}"
-                formatted_contents[-1] = types.Content(
-                    role=last.role,
-                    parts=[types.Part.from_text(text=augmented_text)],
-                )
         except Exception as e:
             logger.warning(f"[search] smart_search failed, proceeding without results: {e}")
+
+        # Always inject the anti-loop guard when enable_search=True.
+        # Without this, if search fails or returns nothing, the LLM still has the
+        # [NEEDS_WEB_SEARCH] directive active and will keep appending the tag.
+        last = formatted_contents[-1]
+        if search_block:
+            prefix = (
+                f"{search_block}\n\n"
+                "[SYSTEM: Web search has already been performed for this turn. "
+                "DO NOT output [NEEDS_WEB_SEARCH]. Answer using the results above, "
+                "even if incomplete — acknowledge any gaps explicitly.]\n\n"
+            )
+        else:
+            prefix = (
+                "[SYSTEM: Web search was attempted but returned no results. "
+                "Answer from your training data as best you can. "
+                "DO NOT output [NEEDS_WEB_SEARCH].]\n\n"
+            )
+        formatted_contents[-1] = types.Content(
+            role=last.role,
+            parts=[types.Part.from_text(text=prefix + last.parts[0].text)],
+        )
 
     max_retries = 3
     base_wait = 2

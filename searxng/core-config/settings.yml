@@ -1,0 +1,56 @@
+use_default_settings: true
+
+general:
+  debug: false
+  instance_name: "Risbo Search"
+
+search:
+  safe_search: 0
+  autocomplete: ""
+  default_lang: "en"
+  formats:
+    - html
+    - json
+    - csv
+    - rss
+
+server:
+  secret_key: "risbo-searxng-change-this-in-production"
+  limiter: false
+  public_instance: false
+
+engines:
+  - name: google
+    engine: google
+    categories: general
+    disabled: false
+
+  - name: bing
+    engine: bing
+    categories: general
+    disabled: false
+
+  - name: brave
+    engine: brave
+    categories: general, news
+    disabled: false
+
+  - name: duckduckgo
+    engine: duckduckgo
+    categories: general, news
+    disabled: false
+
+  - name: google news
+    engine: google_news
+    categories: news
+    disabled: false
+
+  - name: pubmed
+    engine: pubmed
+    categories: science
+    disabled: false
+
+  - name: semantic scholar
+    engine: semantic_scholar
+    categories: science
+    disabled: false
