@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { useParams, useNavigate } from "react-router";
+import { useParams, useNavigate, Link } from "react-router";
 import { AppSidebar } from "@/components/common/AppSidebar";
 import ChatInput from "@/components/chat/ChatInput";
 import StreamWindow from "@/components/chat/StreamWindow";
@@ -11,7 +11,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Upload } from "lucide-react";
 
 export default function ChatPage() {
-  const { token, user } = useAuth();
+  const { token, user, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const { conversationId } = useParams<{ conversationId?: string }>();
 
@@ -213,7 +213,7 @@ export default function ChatPage() {
     const tempId = `optimistic_${Date.now()}`;
     const provisionalTitle = displayMessage.substring(0, 25) + "...";
 
-    if (isNewChat) {
+    if (isNewChat && isAuthenticated) {
       addProvisionalConversation(tempId, provisionalTitle);
       setGeneratingTitleId(tempId);
       setActiveConversationId(tempId);
@@ -246,7 +246,7 @@ export default function ChatPage() {
       const returnedConvId = response.headers.get("X-Conversation-Id");
       const targetConvId = returnedConvId || activeConversationId;
 
-      if (isNewChat && returnedConvId) {
+      if (isNewChat && returnedConvId && isAuthenticated) {
         swapProvisionalId(tempId, returnedConvId);
         setActiveConversationId(returnedConvId);
         window.history.replaceState(null, "", `/chat/${returnedConvId}`);
@@ -271,7 +271,7 @@ export default function ChatPage() {
               const rawData = JSON.parse(line.replace("data: ", ""));
 
               if (rawData && rawData._type === "title_update") {
-                if (targetConvId) {
+                if (targetConvId && isAuthenticated) {
                   updateConversationTitle(targetConvId, rawData.title);
                 }
                 setGeneratingTitleId(null);
@@ -413,7 +413,7 @@ export default function ChatPage() {
       }
     } catch (err) {
       console.error("Stream failed:", err);
-      if (isNewChat) {
+      if (isNewChat && isAuthenticated) {
         setGeneratingTitleId(null);
         await fetchConversations();
       }
@@ -433,16 +433,26 @@ export default function ChatPage() {
 
   return (
     <SidebarProvider className="h-screen w-full overflow-hidden font-dmsans">
-      <AppSidebar
-        onNewChat={() => {
-          setMessages([]);
-          setInput("");
-        }}
-      />
+      {isAuthenticated && (
+        <AppSidebar
+          onNewChat={() => {
+            setMessages([]);
+            setInput("");
+          }}
+        />
+      )}
       <SidebarInset
         className="flex flex-col h-full relative overflow-hidden bg-background"
         onDragEnter={handleDragEnter}
       >
+        {!isAuthenticated && (
+          <div className="flex items-center justify-center gap-2 px-4 py-2 bg-muted/50 border-b border-border text-sm text-muted-foreground shrink-0">
+            Guest mode — conversations won't be saved.{" "}
+            <Link to="/login" className="text-primary hover:underline font-medium">Sign in</Link>
+            {" "}or{" "}
+            <Link to="/register" className="text-primary hover:underline font-medium">Create account</Link>
+          </div>
+        )}
         <AnimatePresence>
           {dragActive && (
             <motion.div

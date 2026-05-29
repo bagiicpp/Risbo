@@ -24,6 +24,7 @@ function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/guest" element={<ChatPage />} />
 
           <Route path="/settings" element={<SettingsLayout />}>
             <Route index element={<Navigate to="profile" replace />} />
@@ -47,14 +48,7 @@ function App() {
             <Route path="/coach/athlete/:id" element={<AthleteDetailView />} />
           </Route>
 
-          <Route
-            path="/"
-            element={
-              <ProtectedRoute>
-                <Navigate to="/chat" replace />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/" element={<ChatPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
