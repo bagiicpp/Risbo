@@ -242,24 +242,23 @@ async def generate_smart_title(first_prompt: str, ai_backend_url: str) -> str:
             )
             response.raise_for_status()
 
-            # Safely extract text without assuming dict
-            try:
-                data = response.json()
-                raw_title = (
-                    data.get("response", response.text)
-                    if isinstance(data, dict)
-                    else str(data)
-                )
-            except Exception:
-                raw_title = response.text
+            # /chat returns an SSE stream — parse each "data: <json>" line properly
+            # so that non-ASCII chars (đ/š/č/ć/ž) are decoded correctly instead of
+            # staying as \uXXXX escape sequences.
+            parts = []
+            for line in response.text.splitlines():
+                line = line.strip()
+                if not line.startswith("data: "):
+                    continue
+                try:
+                    chunk = json.loads(line[6:])
+                    if isinstance(chunk, str):
+                        parts.append(chunk)
+                except Exception:
+                    pass
 
-            refined_title = (
-                raw_title.replace("data: ", "")
-                .strip()
-                .replace('"', "")
-                .replace("'", "")[:40]
-            )
-            return refined_title.capitalize() or "New chat"
+            raw_title = "".join(parts).strip().replace('"', "").replace("'", "")
+            return raw_title[:40].capitalize() or "New chat"
 
     except Exception:
         # Cast to str to prevent .split() crash on NoneTypes

@@ -249,7 +249,7 @@ async def generate_stream(
             async for chunk in response_stream:
                 if chunk.text:
                     chunks_yielded += 1
-                    yield f"data: {json.dumps(chunk.text)}\n\n"
+                    yield f"data: {json.dumps(chunk.text, ensure_ascii=False)}\n\n"
 
             break
 
