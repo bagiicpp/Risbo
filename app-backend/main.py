@@ -54,10 +54,11 @@ from models import (
 )
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel
+from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
-from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.pdfgen import canvas
-from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
+from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 from utils import extract_text_from_file, trim_conversation_history
 
 load_dotenv()
@@ -436,6 +437,10 @@ async def chat(
         if user:
             user_id = str(user["_id"])
             role = user.get("role", "athlete")
+            measurement_system = user.get("preferences", {}).get("measurement_system", "metric")
+    else:
+        measurement_system = "metric"
+
 
     is_valid_id = (
         ObjectId.is_valid(request.conversation_id) if request.conversation_id else False
@@ -592,8 +597,15 @@ async def chat(
         # --- 3. CONSTRUCT THE LATEST PROMPT WITH INJECTED CONTEXT ---
         # We wrap the Roster & Memory specifically around the final user prompt.
         # This acts as dynamic context (RAG) without polluting the history array.
+        unit_hint = (
+            "Use metric units (kg, cm, km, ml)."
+            if measurement_system == "metric"
+            else "Use imperial units (lbs, inches, miles, fl oz)."
+        )
+        measurement_block = f"[USER PREFERENCE] {unit_hint}\n\n"
+
         final_prompt_content = (
-            f"{memory_block}{roster_context}USER PROMPT: {request.prompt}"
+            f"{measurement_block}{memory_block}{roster_context}USER PROMPT: {request.prompt}"
         )
 
         # Ensure the final appended message doesn't break the user->model->user alternation
@@ -1506,39 +1518,186 @@ class PDFGenerateRequest(BaseModel):
 async def generate_pdf(request: PDFGenerateRequest):
     file_stream = io.BytesIO()
 
-    doc = SimpleDocTemplate(file_stream, pagesize=letter)
+    doc = SimpleDocTemplate(
+        file_stream,
+        pagesize=letter,
+        rightMargin=60, leftMargin=60,
+        topMargin=60, bottomMargin=60,
+    )
+
     styles = getSampleStyleSheet()
+
+    # --- Custom styles ---
+    h1 = ParagraphStyle("H1", parent=styles["Normal"], fontSize=20, leading=26, spaceBefore=14, spaceAfter=6, textColor=colors.HexColor("#111111"), fontName="Helvetica-Bold")
+    h2 = ParagraphStyle("H2", parent=styles["Normal"], fontSize=16, leading=22, spaceBefore=12, spaceAfter=4, textColor=colors.HexColor("#222222"), fontName="Helvetica-Bold")
+    h3 = ParagraphStyle("H3", parent=styles["Normal"], fontSize=13, leading=18, spaceBefore=10, spaceAfter=3, textColor=colors.HexColor("#333333"), fontName="Helvetica-Bold")
+    body = ParagraphStyle("Body", parent=styles["Normal"], fontSize=10, leading=16, spaceAfter=6, fontName="Helvetica")
+    bullet_style = ParagraphStyle("Bullet", parent=styles["Normal"], fontSize=10, leading=16, leftIndent=20, firstLineIndent=0, spaceAfter=3, fontName="Helvetica")
+    code_style = ParagraphStyle("Code", parent=styles["Normal"], fontSize=9, leading=14, leftIndent=20, fontName="Courier", backColor=colors.HexColor("#f4f4f4"), spaceAfter=6)
+
+    TABLE_STYLE = TableStyle([
+        ("BACKGROUND",   (0, 0), (-1, 0),  colors.HexColor("#2d2d2d")),
+        ("TEXTCOLOR",    (0, 0), (-1, 0),  colors.white),
+        ("FONTNAME",     (0, 0), (-1, 0),  "Helvetica-Bold"),
+        ("FONTSIZE",     (0, 0), (-1, -1), 9),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.HexColor("#ffffff"), colors.HexColor("#f2f2f2")]),
+        ("GRID",         (0, 0), (-1, -1), 0.4, colors.HexColor("#cccccc")),
+        ("LEFTPADDING",  (0, 0), (-1, -1), 8),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+        ("TOPPADDING",   (0, 0), (-1, -1), 5),
+        ("BOTTOMPADDING",(0, 0), (-1, -1), 5),
+        ("VALIGN",       (0, 0), (-1, -1), "MIDDLE"),
+    ])
+
+    def md_inline(text: str) -> str:
+        """Convert inline markdown (bold, italic, code, links) to ReportLab XML."""
+        # Inline code  `code`  → <font> with courier
+        text = re.sub(r"`([^`]+)`", r'<font name="Courier" size="9">\1</font>', text)
+        # Bold+italic ***text***
+        text = re.sub(r"\*\*\*(.*?)\*\*\*", r"<b><i>\1</i></b>", text)
+        # Bold **text** or __text__
+        text = re.sub(r"\*\*(.*?)\*\*", r"<b>\1</b>", text)
+        text = re.sub(r"__(.*?)__", r"<b>\1</b>", text)
+        # Italic *text* or _text_
+        text = re.sub(r"(?<!\*)\*(?!\*)(.*?)(?<!\*)\*(?!\*)", r"<i>\1</i>", text)
+        text = re.sub(r"(?<!_)_(?!_)(.*?)(?<!_)_(?!_)", r"<i>\1</i>", text)
+        # Links [label](url) → just the label (PDF hyperlinks need extra work)
+        text = re.sub(r"\[([^\]]+)\]\([^\)]+\)", r"\1", text)
+        # Escape bare & that aren't already entities
+        text = re.sub(r"&(?!(?:amp|lt|gt|bull|nbsp);)", "&amp;", text)
+        return text
+
+    def parse_table(lines: list[str]):
+        """Parse a markdown table block into a ReportLab Table."""
+        rows = []
+        for line in lines:
+            if re.match(r"^\|[\s\-:|]+\|$", line):
+                continue  # separator row
+            cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+            rows.append(cells)
+        if not rows:
+            return None
+
+        # Normalize column count
+        col_count = max(len(r) for r in rows)
+        for r in rows:
+            while len(r) < col_count:
+                r.append("")
+
+        # Convert header cells to bold paragraphs, body cells to normal
+        table_data = []
+        for i, row in enumerate(rows):
+            style = h3 if i == 0 else body
+            table_data.append([Paragraph(md_inline(cell), style) for cell in row])
+
+        available_width = letter[0] - 120  # account for margins
+        col_width = available_width / col_count
+        tbl = Table(table_data, colWidths=[col_width] * col_count)
+        tbl.setStyle(TABLE_STYLE)
+        return tbl
+
     story = []
+    lines = request.content.split("\n")
+    for start_i, line in enumerate(lines):
+        if re.match(r"^#{1,3}\s+", line.strip()):
+            lines = lines[start_i:]
+            break
+    i = 0
 
-    paragraphs = request.content.split("\n")
-    for text in paragraphs:
-        clean_text = text.strip()
-        if not clean_text:
+    while i < len(lines):
+        line = lines[i]
+        stripped = line.strip()
+
+        # --- Skip horizontal rules ---
+        if re.match(r"^[-*_]{3,}$", stripped):
+            story.append(Spacer(1, 8))
+            i += 1
             continue
 
-        # 1. Remove Horizontal Rules (--- or ***)
-        if re.match(r"^[-*_]{3,}$", clean_text):
+        # --- Fenced code blocks ```...``` ---
+        if stripped.startswith("```"):
+            i += 1
+            code_lines = []
+            while i < len(lines) and not lines[i].strip().startswith("```"):
+                code_lines.append(lines[i])
+                i += 1
+            i += 1  # consume closing ```
+            code_text = "\n".join(code_lines)
+            # Escape XML special chars inside code blocks
+            code_text = code_text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            story.append(Paragraph(code_text.replace("\n", "<br/>"), code_style))
+            story.append(Spacer(1, 6))
             continue
 
-        # 2. Convert Headers (# Header) to bold text
-        clean_text = re.sub(r"^#+\s+(.*)", r"<b>\1</b>", clean_text)
+        # --- Markdown tables ---
+        if stripped.startswith("|") and stripped.endswith("|"):
+            table_lines = []
+            while i < len(lines) and lines[i].strip().startswith("|"):
+                table_lines.append(lines[i].strip())
+                i += 1
+            tbl = parse_table(table_lines)
+            if tbl:
+                story.append(tbl)
+                story.append(Spacer(1, 10))
+            continue
 
-        # 3. Convert Bold (**text** or __text__)
-        clean_text = re.sub(r"\*\*(.*?)\*\*", r"<b>\1</b>", clean_text)
-        clean_text = re.sub(r"__(.*?)__", r"<b>\1</b>", clean_text)
+        # --- Headings ---
+        h_match = re.match(r"^(#{1,3})\s+(.*)", stripped)
+        if h_match:
+            level = len(h_match.group(1))
+            text = md_inline(h_match.group(2))
+            style = h1 if level == 1 else h2 if level == 2 else h3
+            story.append(Paragraph(text, style))
+            i += 1
+            continue
 
-        # 4. Convert Italics (*text* or _text_)
-        # Negative lookbehinds/lookaheads prevent matching ** as *
-        clean_text = re.sub(
-            r"(?<!\*)\*(?!\*)(.*?)(?<!\*)\*(?!\*)", r"<i>\1</i>", clean_text
-        )
-        clean_text = re.sub(r"(?<!_)_(?!_)(.*?)(?<!_)_(?!_)", r"<i>\1</i>", clean_text)
+        # --- Bullet points (-, *, +) with optional nesting ---
+        bullet_match = re.match(r"^(\s*)([-*+])\s+(.*)", line)
+        if bullet_match:
+            indent = len(bullet_match.group(1))
+            text = md_inline(bullet_match.group(3))
+            b_style = ParagraphStyle(
+                "BulletIndent",
+                parent=bullet_style,
+                leftIndent=20 + indent * 10,
+            )
+            story.append(Paragraph(f"• {text}", b_style))
+            i += 1
+            continue
 
-        # 5. Handle Bullet Points (- item or * item)
-        clean_text = re.sub(r"^[-*]\s+", r"&bull; ", clean_text)
+        # --- Numbered lists ---
+        num_match = re.match(r"^\s*(\d+)[.)]\s+(.*)", stripped)
+        if num_match:
+            num = num_match.group(1)
+            text = md_inline(num_match.group(2))
+            story.append(Paragraph(f"{num}. {text}", bullet_style))
+            i += 1
+            continue
 
-        story.append(Paragraph(clean_text, styles["Normal"]))
-        story.append(Spacer(1, 12))
+        # --- Blockquotes ---
+        if stripped.startswith(">"):
+            quote_text = md_inline(stripped.lstrip("> ").strip())
+            quote_style = ParagraphStyle(
+                "Quote", parent=body,
+                leftIndent=24, borderPad=4,
+                borderColor=colors.HexColor("#aaaaaa"),
+                borderWidth=0,
+                textColor=colors.HexColor("#555555"),
+                fontName="Helvetica-Oblique",
+            )
+            story.append(Paragraph(f"❝ {quote_text}", quote_style))
+            i += 1
+            continue
+
+        # --- Empty lines → small spacer ---
+        if not stripped:
+            story.append(Spacer(1, 6))
+            i += 1
+            continue
+
+        # --- Normal paragraph ---
+        story.append(Paragraph(md_inline(stripped), body))
+        i += 1
 
     doc.build(story)
     file_stream.seek(0)
@@ -1546,5 +1705,5 @@ async def generate_pdf(request: PDFGenerateRequest):
     return StreamingResponse(
         file_stream,
         media_type="application/pdf",
-        headers={"Content-Disposition": "attachment; filename=Improved_Document.pdf"},
+        headers={"Content-Disposition": "attachment; filename=document.pdf"},
     )
