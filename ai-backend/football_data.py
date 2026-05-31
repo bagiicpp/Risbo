@@ -5,58 +5,11 @@ import re
 
 import requests
 
+from domains import LEAGUE_CODE_MAP, FOOTBALL_MATCHES_TOKENS, FOOTBALL_SCORERS_TOKENS
+
 logger = logging.getLogger(__name__)
 
 BASE_URL = "https://api.football-data.org/v4"
-
-LEAGUE_CODE_MAP = {
-    # Engleski
-    "premier league": "PL",
-    "premier liga": "PL",
-    "epl": "PL",
-    # Njemački
-    "bundesliga": "BL1",
-    "bundesliga 2": "BL2",
-    "2. bundesliga": "BL2",
-    # Španski
-    "la liga": "PD",
-    "primera division": "PD",
-    "primera división": "PD",
-    "laliga": "PD",
-    # Talijanski
-    "serie a": "SA",
-    "serie b": "SB",
-    # Francuski
-    "ligue 1": "FL1",
-    "ligue 2": "FL2",
-    # Evropski
-    "champions league": "CL",
-    "liga prvaka": "CL",
-    "ucl": "CL",
-    "uefa champions league": "CL",
-    "europa league": "EL",
-    "uel": "EL",
-    "conference league": "ECL",
-    "konferencijska liga": "ECL",
-    # Ostalo
-    "eredivisie": "DED",
-    "primeira liga": "PPL",
-    "süper lig": "TSL",
-    "super lig": "TSL",
-    "championship": "ELC",
-}
-
-_MATCHES_TOKENS = {
-    "matches", "results", "utakmica", "utakmice", "rezultati", "rezultat",
-    "score", "scores", "fixtures", "raspored", "danas", "sutra",
-    "juče", "juce", "latest", "recent", "last", "next", "played",
-}
-
-_SCORERS_TOKENS = {
-    "scorers", "scorer", "strijelci", "strijelac", "golovi", "goals",
-    "strelac", "assists", "asistencije", "golden boot", "top scorer",
-    "leading scorer", "most goals",
-}
 
 
 def detect_league_code(query: str) -> str | None:
@@ -69,8 +22,8 @@ def detect_league_code(query: str) -> str | None:
 
 def _classify_football_query(query: str) -> str:
     tokens = set(re.sub(r"[^\w\s]", " ", query.lower()).split())
-    m = len(tokens & _MATCHES_TOKENS)
-    s = len(tokens & _SCORERS_TOKENS)
+    m = len(tokens & FOOTBALL_MATCHES_TOKENS)
+    s = len(tokens & FOOTBALL_SCORERS_TOKENS)
     if s > m and s > 0:
         return "scorers"
     if m > 0:

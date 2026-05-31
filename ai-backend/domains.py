@@ -164,6 +164,85 @@ LOW_QUALITY_DOMAINS = {
     "givemesport.com":                   -2,
 }
 
+# ---------------------------------------------------------------------------
+# Football-data.org — league code map + query classification tokens
+# ---------------------------------------------------------------------------
+
+LEAGUE_CODE_MAP = {
+    # ─── ENGLESKA ─────────────────────────────────────────────
+    "premier league": "PL",
+    "premier liga": "PL",
+    "premijer liga": "PL",
+    "engleska liga": "PL",
+    "engleska premier liga": "PL",
+    "epl": "PL",
+    "pl": "PL",
+    "championship": "ELC",
+    "druga engleska": "ELC",
+
+    # ─── NJEMAČKA ─────────────────────────────────────────────
+    "bundesliga": "BL1",
+    "1. bundesliga": "BL1",
+    "erste bundesliga": "BL1",
+    "njemacka liga": "BL1",
+    "njemačka liga": "BL1",
+    "nemacka liga": "BL1",
+    "bundesliga 2": "BL2",
+    "2. bundesliga": "BL2",
+    "druga bundesliga": "BL2",
+
+    # ─── ŠPANIJA ──────────────────────────────────────────────
+    "la liga": "PD",
+    "laliga": "PD",
+    "primera division": "PD",
+    "primera división": "PD",
+    "spanska liga": "PD",
+    "španska liga": "PD",
+    "španija liga": "PD",
+    "spain liga": "PD",
+
+    # ─── ITALIJA ──────────────────────────────────────────────
+    "serie a": "SA",
+    "serija a": "SA",
+    "italijanska liga": "SA",
+    "talijanska liga": "SA",
+    "calcio": "SA",
+    "serie b": "SB",
+    "serija b": "SB",
+
+    # ─── FRANCUSKA ────────────────────────────────────────────
+    "ligue 1": "FL1",
+    "ligue1": "FL1",
+    "francuska liga": "FL1",
+    "france liga": "FL1",
+    "ligue 2": "FL2",
+
+    # ─── OSTALE EVROPSKE LIGE ─────────────────────────────────
+    "eredivisie": "DED",
+    "holandska liga": "DED",
+    "nizozemska liga": "DED",
+    "primeira liga": "PPL",
+    "portugal liga": "PPL",
+    "portugalna liga": "PPL",
+    "süper lig": "TSL",
+    "super lig": "TSL",
+    "turska liga": "TSL",
+    "mls": "MLS",
+}
+
+FOOTBALL_MATCHES_TOKENS = {
+    "matches", "results", "utakmica", "utakmice", "rezultati", "rezultat",
+    "score", "scores", "fixtures", "raspored", "danas", "sutra",
+    "juče", "juce", "latest", "recent", "last", "next", "played",
+}
+
+FOOTBALL_SCORERS_TOKENS = {
+    "scorers", "scorer", "strijelci", "strijelac", "golovi", "goals",
+    "strelac", "assists", "asistencije", "golden boot", "top scorer",
+    "leading scorer", "most goals",
+}
+
+
 # Sites confirmed to be static HTML — extract() actually works on them.
 # Used by search.py to boost these above JS-rendered sites when intent="stats",
 # so they consistently land in the top-2 that get fully extracted.
@@ -188,4 +267,6 @@ STATIC_STATS_DOMAINS = {
     "basketball.realgm.com",
     "fiba.basketball",
 }
+ 
+
  
