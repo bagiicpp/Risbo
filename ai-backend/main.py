@@ -62,6 +62,7 @@ class ChatRequest(BaseModel):
     model: str | None = None
     enable_search: bool = False
     search_query: str | None = None  # clean original user text, used for search so context injections don't pollute the query
+    user_profile: dict | None = None  # onboarding profile, personalizes the system prompt
 
 
 def format_search_results_for_prompt(results: list[dict]) -> str:
@@ -94,6 +95,75 @@ ATHLETE_SYSTEM_PROMPT = (
     "Use this roster data to generate team reports, spot overtraining trends, congratulate PRs, and suggest roster-wide adjustments when asked. "
     "If a user asks something unrelated to sports, player statistics, or training, politely steer the conversation back to the sports domain."
 )
+
+
+# Role → one sentence of tone/focus guidance for the assistant.
+_ROLE_GUIDANCE = {
+    "coach": "The user is a COACH — prioritize team management, roster analysis, "
+             "training load monitoring, and periodization.",
+    "athlete": "The user is an ATHLETE — prioritize personal training, recovery, "
+               "and individual performance improvement.",
+    "scout": "The user is a SCOUT — prioritize player profiling, transfer values, "
+             "and prospect evaluation.",
+    "analyst": "The user is an ANALYST — prioritize advanced stats, data-driven "
+               "metrics, and structured data the user can export.",
+}
+
+# Focus keys → short emphasis phrase.
+_FOCUS_GUIDANCE = {
+    "tactics": "tactical analysis",
+    "player_analysis": "individual player analysis",
+    "training": "training methodology",
+    "scouting": "scouting and prospect evaluation",
+    "nutrition": "nutrition and recovery",
+}
+
+
+def build_system_prompt(profile: dict | None) -> str:
+    """
+    Extends ATHLETE_SYSTEM_PROMPT with personalization from the onboarding
+    profile. Always additive — starts from the base prompt and appends a few
+    sentences of context. A missing/empty/malformed profile returns the base
+    prompt unchanged so chat never breaks.
+    """
+    if not profile:
+        return ATHLETE_SYSTEM_PROMPT
+
+    lines: list[str] = []
+
+    role = (profile.get("role") or "").lower()
+    if role in _ROLE_GUIDANCE:
+        lines.append(_ROLE_GUIDANCE[role])
+
+    sports = [s for s in (profile.get("sport") or []) if s]
+    if sports:
+        pretty = " and ".join(s.capitalize() for s in sports)
+        lines.append(
+            f"Prioritize {pretty} in your answers and reference the most relevant "
+            f"data sources for {'these sports' if len(sports) > 1 else 'this sport'}."
+        )
+
+    team = (profile.get("team") or "").strip()
+    league = (profile.get("league") or "").strip()
+    if team or league:
+        env = " / ".join(p for p in (team, league) if p)
+        lines.append(
+            f"The user follows or works with: {env}. Reference this environment "
+            "when it's relevant to the question."
+        )
+
+    focus = [_FOCUS_GUIDANCE[f] for f in (profile.get("focus") or []) if f in _FOCUS_GUIDANCE]
+    if focus:
+        lines.append(f"Put extra emphasis on: {', '.join(focus)}.")
+
+    if not lines:
+        return ATHLETE_SYSTEM_PROMPT
+
+    return (
+        f"{ATHLETE_SYSTEM_PROMPT}\n\n"
+        "[USER PROFILE — personalize your responses accordingly]\n"
+        + "\n".join(f"- {l}" for l in lines)
+    )
 
 
 @retry(
@@ -146,6 +216,7 @@ async def generate_stream(
     requested_model: str | None,
     enable_search: bool = False,
     search_query: str | None = None,
+    user_profile: dict | None = None,
 ):
     """
     State-aware retry loop supporting native structured multi-turn conversation arrays.
@@ -165,9 +236,10 @@ async def generate_stream(
             "AI_STUDIO_MODEL", "gemini-3.1-flash-lite"
         )
         current_date = datetime.now().strftime("%B %d, %Y")
+        personalized_prompt = build_system_prompt(user_profile)
         core_system_instruction = (
             f"CRITICAL CONTEXT: Today's date is {current_date}.\n\n"
-            f"{ATHLETE_SYSTEM_PROMPT}\n\n"
+            f"{personalized_prompt}\n\n"
             "CRITICAL SYSTEM DIRECTIVE: You have an internal tool to generate PDFs. "
             "If a user asks you to generate, create, export, or improve a PDF/document, you MUST comply. "
             "NEVER say 'I cannot generate a PDF' or 'I cannot directly export'. "
@@ -307,6 +379,7 @@ async def chat_with_gemma(request: ChatRequest):
             request.model,
             enable_search=request.enable_search,
             search_query=request.search_query,
+            user_profile=request.user_profile,
         ),
         media_type="text/event-stream",
     )

@@ -103,6 +103,15 @@ class ProfileUpdate(BaseModel):
     activity_multiplier: Optional[float] = None
 
 
+class SportProfile(BaseModel):
+    # Onboarding profile — personalizes the AI system prompt on every chat.
+    role: str = Field(..., pattern="^(coach|athlete|scout|analyst)$")
+    sport: List[str] = []          # subset of ["football", "basketball"]
+    team: Optional[str] = None
+    league: Optional[str] = None
+    focus: List[str] = []          # e.g. ["tactics", "player_analysis", "training"]
+
+
 class PreferencesUpdate(BaseModel):
     theme: Optional[str] = None
     measurement_system: Optional[str] = None

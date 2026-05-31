@@ -10,6 +10,8 @@ import AthleteDetailView from "./pages/AthleteDetailView";
 import { SettingsLayout } from "./pages/settings/SettingsLayout";
 import { ProfileSettings } from "./pages/settings/ProfileSettings";
 import { PreferencesSettings } from "./pages/settings/PreferencesSettings";
+import { SportProfileSettings } from "./pages/settings/SportProfileSettings";
+import OnboardingPage from "./pages/OnboardingPage";
 
 import { Toaster } from "sonner";
 import { useTheme } from "@/context/ThemeProvider";
@@ -30,9 +32,11 @@ function App() {
             <Route index element={<Navigate to="profile" replace />} />
             <Route path="profile" element={<ProfileSettings />} />
             <Route path="preferences" element={<PreferencesSettings />} />
+            <Route path="sport" element={<SportProfileSettings />} />
           </Route>
 
           <Route element={<ProtectedRoute />}>
+            <Route path="/onboarding" element={<OnboardingPage />} />
             <Route path="/chat" element={<ChatPage />} />
             <Route path="/chat/:conversationId" element={<ChatPage />} />
             <Route path="/kitchen" element={<SmartKitchen />} />

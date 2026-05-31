@@ -16,6 +16,9 @@ export interface AuthContextType {
   login: (token: string) => void;
   logout: () => void;
   loading: boolean;
+  // null = not yet loaded from /users/me; boolean once known.
+  onboardingComplete: boolean | null;
+  setOnboardingComplete: (v: boolean) => void;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(

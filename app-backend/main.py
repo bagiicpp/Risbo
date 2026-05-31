@@ -48,6 +48,7 @@ from models import (
     ProfileUpdate,
     RecipeCreate,
     RosterLink,
+    SportProfile,
     Token,
     UserCreate,
     UserInDB,
@@ -117,6 +118,7 @@ async def register_user(user: UserCreate):
         "hashed_password": hashed_pwd,
         "role": user.role,
         "plan": "Free plan",
+        "onboarding_complete": False,
         "target_weight": None,
         "activity_multiplier": 1.55,
         "preferences": {
@@ -617,6 +619,19 @@ async def chat(
             payload_messages.append({"role": "user", "content": final_prompt_content})
 
         # --- 4. STREAM TO AI-BACKEND ---
+        # Fetch the onboarding sport profile so the AI can personalize its system
+        # prompt. Always falls back to {} — a missing profile must never break chat.
+        sport_profile = {}
+        if user_id:
+            try:
+                doc = await db.user_profiles.find_one({"user_id": user_id})
+                if doc:
+                    doc.pop("_id", None)
+                    doc.pop("updated_at", None)
+                    sport_profile = doc
+            except Exception as e:
+                print(f"⚠️ Profile fetch failed, continuing without it: {e}")
+
         try:
             async with httpx.AsyncClient(timeout=120.0) as client:
                 async with client.stream(
@@ -629,6 +644,7 @@ async def chat(
                         "enable_search": request.enable_search,
                         # Clean original prompt — avoids context injections polluting the search query
                         "search_query": request.prompt if request.enable_search else None,
+                        "user_profile": sport_profile or None,
                     }
                 ) as response:
                     response.raise_for_status()
@@ -1438,6 +1454,65 @@ async def update_profile(
         await db.users.update_one({"_id": user["_id"]}, {"$set": update_data})
 
     return {"message": "Profile updated", "updated_fields": update_data}
+
+
+# --- ONBOARDING / SPORT PROFILE ENDPOINTS ---
+
+
+@app.get("/onboarding/profile")
+async def get_sport_profile(email: str = Depends(get_current_user_email)):
+    """
+    Returns the user's onboarding sport profile. Always returns a consistent
+    shape — an empty default structure if the user hasn't onboarded yet, so the
+    frontend never has to special-case a missing document.
+    """
+    user = await db.users.find_one({"email": email})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    profile = await db.user_profiles.find_one({"user_id": str(user["_id"])})
+    if not profile:
+        return {
+            "role": user.get("role", "athlete"),
+            "sport": [],
+            "team": None,
+            "league": None,
+            "focus": [],
+            "onboarding_complete": user.get("onboarding_complete", False),
+        }
+
+    profile.pop("_id", None)
+    profile["onboarding_complete"] = user.get("onboarding_complete", False)
+    return profile
+
+
+@app.post("/onboarding/profile")
+async def save_sport_profile(
+    payload: SportProfile, email: str = Depends(get_current_user_email)
+):
+    """
+    Creates or updates the user's onboarding sport profile and marks onboarding
+    as complete on the user document. Upsert — users may revisit and edit later.
+    """
+    user = await db.users.find_one({"email": email})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user_id = str(user["_id"])
+    profile_doc = payload.model_dump()
+    profile_doc["user_id"] = user_id
+    profile_doc["updated_at"] = datetime.now(timezone.utc)
+
+    await db.user_profiles.update_one(
+        {"user_id": user_id}, {"$set": profile_doc}, upsert=True
+    )
+    await db.users.update_one(
+        {"_id": user["_id"]}, {"$set": {"onboarding_complete": True}}
+    )
+
+    profile_doc.pop("_id", None)
+    profile_doc["onboarding_complete"] = True
+    return profile_doc
 
 
 @app.patch("/preferences")

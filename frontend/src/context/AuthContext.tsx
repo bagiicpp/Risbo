@@ -29,6 +29,9 @@ const getValidStoredToken = (): string | null => {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [token, setToken] = useState<string | null>(getValidStoredToken);
   const [loading] = useState<boolean>(false);
+  const [onboardingComplete, setOnboardingComplete] = useState<boolean | null>(
+    null,
+  );
 
   const { theme, setTheme } = useTheme();
 
@@ -42,8 +45,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, [token]);
 
   useEffect(() => {
-    const syncPreferences = async () => {
-      if (!token) return;
+    if (!token) {
+      setOnboardingComplete(null);
+      return;
+    }
+
+    const syncFromServer = async () => {
       try {
         const response = await api.get("/users/me");
         const dbTheme = response.data.preferences?.theme;
@@ -51,12 +58,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         if (dbTheme && dbTheme !== theme) {
           setTheme(dbTheme as "light" | "dark" | "system");
         }
+
+        setOnboardingComplete(Boolean(response.data.onboarding_complete));
       } catch (error) {
-        console.error("Failed to sync remote preferences on boot:", error);
+        console.error("Failed to sync remote state on boot:", error);
+        // Don't trap the user in an onboarding redirect loop if the fetch fails.
+        setOnboardingComplete(true);
       }
     };
 
-    syncPreferences();
+    syncFromServer();
   }, [token]);
 
   const login = (newToken: string) => {
@@ -76,6 +87,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const logout = () => {
     localStorage.removeItem("risbo_token");
     setToken(null);
+    setOnboardingComplete(null);
   };
 
   const contextValue: AuthContextType = useMemo(
@@ -86,8 +98,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       login,
       logout,
       loading,
+      onboardingComplete,
+      setOnboardingComplete,
     }),
-    [token, user, loading],
+    [token, user, loading, onboardingComplete],
   );
 
   return (
