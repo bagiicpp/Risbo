@@ -4,6 +4,7 @@ TRUSTED_DOMAINS = {
     "fbref.com":                         3,  # Najdublji football stats, pokriva sve lige
     "understat.com":                     3,  # xG, xA za top 6 liga
     "fotmob.com":                        3,  # Brz, pokrivenost nižih liga odlična
+    "native-stats.org":                3,  # Soccer analytics platforma (snippeti)
     "whoscored.com":                     3,  # Advanced stats, ratings
     "sofascore.com":                     2,  # Multi-sport, 500+ liga (JS rendered, snippeti)
     "theanalyst.com":                    3,  # Opta powered analize

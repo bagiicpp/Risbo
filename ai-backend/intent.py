@@ -19,6 +19,11 @@ _STATS_TOKENS = {
     "value", "salary", "wages", "ranked", "ranking", "h2h",
     "versus", "record", "average", "total", "tally", "percentage",
     "wins", "losses", "draws", "goals_scored", "goals_conceded",
+    # BCS/HR/SR keywords
+    "tabela", "poredak", "bodovi", "stanje", "liga", "ligu",
+    "strijelci", "strijelac", "strelac", "strijelaca",
+    "rezultat", "rezultati", "utakmica", "utakmice",
+    "prvak", "prvaci", "relegacija", "pozicija", "sezona",
 }
 
 _NEWS_TOKENS = {

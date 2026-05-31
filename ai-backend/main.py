@@ -12,6 +12,7 @@ from fastapi.responses import StreamingResponse
 from google import genai
 from google.genai import types
 from pydantic import BaseModel
+from football_data import get_football_context
 from intent import classify_intent
 from search import smart_search
 
@@ -198,23 +199,50 @@ async def generate_stream(
                 types.Content(role=role, parts=[types.Part.from_text(text=msg.content)])
             )
 
+    # --- FOOTBALL DATA INJECTION (always active) ---
+    # detect_league_code() is an instant string lookup — no HTTP cost unless a
+    # supported league is found. Runs regardless of enable_search so users get
+    # live standings/results without needing to toggle web search.
+    if isinstance(formatted_contents, list) and formatted_contents:
+        raw = search_query or messages[-1].content
+        query = await _make_search_query(raw, intent=classify_intent(raw))
+        football_ctx = None
+        try:
+            football_ctx = await get_football_context(query)
+        except Exception as e:
+            logger.warning(f"[football-data] failed: {e}")
+
+        if football_ctx:
+            last = formatted_contents[-1]
+            prefix = (
+                f"{football_ctx}\n\n"
+                "[SYSTEM: Structured football data injected above. "
+                "Use it to answer accurately. DO NOT output [NEEDS_WEB_SEARCH].]\n\n"
+            )
+            formatted_contents[-1] = types.Content(
+                role=last.role,
+                parts=[types.Part.from_text(text=prefix + last.parts[0].text)],
+            )
+            logger.info("[football-data] injected structured data")
+
     # --- WEB SEARCH INJECTION ---
     # Runs BEFORE the LLM call so results are baked into the prompt.
+    # Skipped if football-data already handled the query.
     if enable_search and isinstance(formatted_contents, list) and formatted_contents:
         raw = search_query or messages[-1].content
-        intent = classify_intent(raw)  # classify from original text before translation
-        query = await _make_search_query(raw, intent=intent)  # translation + intent-specific hints
+        intent = classify_intent(raw)
+        query = await _make_search_query(raw, intent=intent)
         logger.info(f"[search] intent={intent!r} query={query[:80]!r}")
         search_block = ""
-        try:
-            search_results = await smart_search(query, max_results=8, intent=intent)
-            search_block = format_search_results_for_prompt(search_results)
-        except Exception as e:
-            logger.warning(f"[search] smart_search failed, proceeding without results: {e}")
 
-        # Always inject the anti-loop guard when enable_search=True.
-        # Without this, if search fails or returns nothing, the LLM still has the
-        # [NEEDS_WEB_SEARCH] directive active and will keep appending the tag.
+        # Only run SearXNG if football-data didn't already inject data
+        if not football_ctx:
+            try:
+                search_results = await smart_search(query, max_results=8, intent=intent)
+                search_block = format_search_results_for_prompt(search_results)
+            except Exception as e:
+                logger.warning(f"[search] smart_search failed, proceeding without results: {e}")
+
         last = formatted_contents[-1]
         if search_block:
             prefix = (
