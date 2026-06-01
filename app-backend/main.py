@@ -4,6 +4,7 @@ import io
 import json
 import os
 import re
+import random
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Optional
@@ -22,6 +23,7 @@ from bson import ObjectId
 from bson.errors import InvalidId
 from docx import Document
 from dotenv import load_dotenv
+from email.mime.text import MIMEText
 from fastapi import (
     APIRouter,
     BackgroundTasks,
@@ -60,6 +62,7 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.pdfgen import canvas
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+import smtplib
 from utils import extract_text_from_file, trim_conversation_history
 
 load_dotenv()
@@ -71,16 +74,19 @@ db = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Connect to MongoDB on startup
     global db_client, db
     mongodb_uri = os.getenv("MONGODB_URI", "mongodb://localhost:27017/rizzbo")
     db_client = AsyncIOMotorClient(mongodb_uri)
     db = db_client.get_database()
     print("✅ Connected to MongoDB")
 
+    # Auto-expire pending registrations after 15 minutes
+    await db.pending_users.create_index(
+        "created_at", expireAfterSeconds=900
+    )
+
     yield
 
-    # Clean up on shutdown
     db_client.close()
     print("❌ Disconnected from MongoDB")
 
@@ -104,19 +110,64 @@ async def ping():
 
 @app.post("/register", status_code=status.HTTP_201_CREATED)
 async def register_user(user: UserCreate):
-    existing_user = await db.users.find_one({"email": user.email})
-    if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered"
-        )
+    # Check both live users and pending
+    if await db.users.find_one({"email": user.email}):
+        raise HTTPException(status_code=400, detail="Email already registered")
+    if await db.pending_users.find_one({"email": user.email}):
+        raise HTTPException(status_code=400, detail="Verification email already sent")
 
+    code = str(random.randint(100000, 999999))
     hashed_pwd = get_password_hash(user.password)
 
-    user_doc = {
+    pending_doc = {
         "email": user.email,
         "name": user.name.strip(),
         "hashed_password": hashed_pwd,
         "role": user.role,
+        "code": code,
+        "created_at": datetime.now(timezone.utc),
+    }
+    await db.pending_users.insert_one(pending_doc)
+
+    msg = MIMEText(
+        f"<p>Hi {user.name},</p><p>Your verification code is: <strong>{code}</strong></p><p>It expires in 15 minutes.</p>",
+        "html"
+    )
+    msg["Subject"] = "Your verification code"
+    msg["From"] = os.getenv("SMTP_EMAIL")
+    msg["To"] = user.email
+
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+        server.login(os.getenv("SMTP_EMAIL"), os.getenv("SMTP_PASSWORD"))
+        server.send_message(msg)
+
+    return {"message": "Verification email sent"}
+
+class EmailVerifyRequest(BaseModel):
+    email: str
+    code: str
+
+@app.post("/verify-email", status_code=status.HTTP_201_CREATED)
+async def verify_email(payload: EmailVerifyRequest):
+    pending = await db.pending_users.find_one({"email": payload.email})
+
+    if not pending:
+        raise HTTPException(status_code=404, detail="No pending registration for this email")
+
+    # Expire after 15 minutes
+    age = datetime.now(timezone.utc) - pending["created_at"].replace(tzinfo=timezone.utc)
+    if age.total_seconds() > 900:
+        await db.pending_users.delete_one({"email": payload.email})
+        raise HTTPException(status_code=400, detail="Code expired, please register again")
+
+    if pending["code"] != payload.code:
+        raise HTTPException(status_code=400, detail="Invalid code")
+
+    user_doc = {
+        "email": pending["email"],
+        "name": pending["name"],
+        "hashed_password": pending["hashed_password"],
+        "role": pending["role"],
         "plan": "Free plan",
         "onboarding_complete": False,
         "target_weight": None,
@@ -132,7 +183,9 @@ async def register_user(user: UserCreate):
     }
 
     await db.users.insert_one(user_doc)
-    return {"message": "User successfully created"}
+    await db.pending_users.delete_one({"email": payload.email})
+
+    return {"message": "Email verified, account created"}
 
 
 @app.post("/login", response_model=Token)

@@ -667,10 +667,7 @@ export function AppSidebar({ onNewChat }: { onNewChat?: () => void } = {}) {
                       <span className="font-medium">My Profile</span>
                     </DropdownMenuItem>
                   )}
-                  <DropdownMenuItem className="gap-3 cursor-pointer rounded-lg p-2.5 transition-colors">
-                    <Download size={16} className="text-muted-foreground" />
-                    <span className="font-medium">Export Data</span>
-                  </DropdownMenuItem>
+
 
                   <DropdownMenuItem
                     className="gap-3 cursor-pointer rounded-lg p-2.5 transition-colors"
