@@ -12,6 +12,10 @@ from fastapi.responses import StreamingResponse
 from google import genai
 from google.genai import types
 from pydantic import BaseModel
+from football_data import get_football_context
+from intent import classify_intent
+from search import smart_search
+
 
 # --- Tenacity for robust API retries ---
 from tenacity import (
@@ -56,7 +60,30 @@ class MessagePayload(BaseModel):
 class ChatRequest(BaseModel):
     messages: list[MessagePayload]
     model: str | None = None
+    enable_search: bool = False
+    search_query: str | None = None  # clean original user text, used for search so context injections don't pollute the query
+    user_profile: dict | None = None  # onboarding profile, personalizes the system prompt
 
+
+def format_search_results_for_prompt(results: list[dict]) -> str:
+    """
+    Converts smart_search results into a readable block injected into the LLM prompt.
+    Uses full article content when available (news extractions), otherwise falls back
+    to the search snippet.
+    """
+    if not results:
+        return ""
+    lines = ["[WEB SEARCH RESULTS — use these to answer the user's question accurately]"]
+    for i, r in enumerate(results, 1):
+        body = r.get("content") or r.get("snippet", "")
+        label = "Article" if r.get("content") else "Snippet"
+        lines.append(
+            f"\n[{i}] {r['tier']} — {r['title']}\n"
+            f"URL: {r['url']}\n"
+            f"{label}: {body}"
+        )
+    lines.append("\n[END WEB SEARCH RESULTS]")
+    return "\n".join(lines)
 
 ATHLETE_SYSTEM_PROMPT = (
     "You are Risbo, a specialized AI assistant for athletes, coaches, and sports analysts. "
@@ -68,6 +95,75 @@ ATHLETE_SYSTEM_PROMPT = (
     "Use this roster data to generate team reports, spot overtraining trends, congratulate PRs, and suggest roster-wide adjustments when asked. "
     "If a user asks something unrelated to sports, player statistics, or training, politely steer the conversation back to the sports domain."
 )
+
+
+# Role → one sentence of tone/focus guidance for the assistant.
+_ROLE_GUIDANCE = {
+    "coach": "The user is a COACH — prioritize team management, roster analysis, "
+             "training load monitoring, and periodization.",
+    "athlete": "The user is an ATHLETE — prioritize personal training, recovery, "
+               "and individual performance improvement.",
+    "scout": "The user is a SCOUT — prioritize player profiling, transfer values, "
+             "and prospect evaluation.",
+    "analyst": "The user is an ANALYST — prioritize advanced stats, data-driven "
+               "metrics, and structured data the user can export.",
+}
+
+# Focus keys → short emphasis phrase.
+_FOCUS_GUIDANCE = {
+    "tactics": "tactical analysis",
+    "player_analysis": "individual player analysis",
+    "training": "training methodology",
+    "scouting": "scouting and prospect evaluation",
+    "nutrition": "nutrition and recovery",
+}
+
+
+def build_system_prompt(profile: dict | None) -> str:
+    """
+    Extends ATHLETE_SYSTEM_PROMPT with personalization from the onboarding
+    profile. Always additive — starts from the base prompt and appends a few
+    sentences of context. A missing/empty/malformed profile returns the base
+    prompt unchanged so chat never breaks.
+    """
+    if not profile:
+        return ATHLETE_SYSTEM_PROMPT
+
+    lines: list[str] = []
+
+    role = (profile.get("role") or "").lower()
+    if role in _ROLE_GUIDANCE:
+        lines.append(_ROLE_GUIDANCE[role])
+
+    sports = [s for s in (profile.get("sport") or []) if s]
+    if sports:
+        pretty = " and ".join(s.capitalize() for s in sports)
+        lines.append(
+            f"Prioritize {pretty} in your answers and reference the most relevant "
+            f"data sources for {'these sports' if len(sports) > 1 else 'this sport'}."
+        )
+
+    team = (profile.get("team") or "").strip()
+    league = (profile.get("league") or "").strip()
+    if team or league:
+        env = " / ".join(p for p in (team, league) if p)
+        lines.append(
+            f"The user follows or works with: {env}. Reference this environment "
+            "when it's relevant to the question."
+        )
+
+    focus = [_FOCUS_GUIDANCE[f] for f in (profile.get("focus") or []) if f in _FOCUS_GUIDANCE]
+    if focus:
+        lines.append(f"Put extra emphasis on: {', '.join(focus)}.")
+
+    if not lines:
+        return ATHLETE_SYSTEM_PROMPT
+
+    return (
+        f"{ATHLETE_SYSTEM_PROMPT}\n\n"
+        "[USER PROFILE — personalize your responses accordingly]\n"
+        + "\n".join(f"- {l}" for l in lines)
+    )
 
 
 @retry(
@@ -87,9 +183,45 @@ async def safe_generate_content(model: str, contents: list | str, config=None):
 # ==============================================================================
 # RESILIENCE LAYER: STREAMING ENDPOINT
 # ==============================================================================
-async def generate_stream(messages: list[MessagePayload], requested_model: str | None):
+async def _make_search_query(raw_prompt: str, intent: str = "general") -> str:
+    """
+    Translates and reformulates any-language user prompt into an optimised
+    English web search query using a fast Gemini call (temp=0, ≤50 tokens).
+    For stats intent, adds a hint to return full standings/table pages.
+    Falls back to the original prompt if the call fails.
+    """
+    stats_hint = (
+        " The query must target pages with FULL standings tables listing ALL positions, "
+        "not just top teams. Prefer sites like fbref, worldfootball, soccerway, soccerstats."
+        if intent == "stats" else ""
+    )
+    prompt = (
+        "Convert this user question into a concise English web search query. "
+        f"Output ONLY the query string, no explanation, no quotes.{stats_hint}\n\n"
+        f"Question: {raw_prompt}"
+    )
+    try:
+        resp = await safe_generate_content(
+            model="gemini-3.1-flash-lite",
+            contents=prompt,
+            config=types.GenerateContentConfig(temperature=0, max_output_tokens=50),
+        )
+        return resp.text.strip()
+    except Exception:
+        return raw_prompt
+
+
+async def generate_stream(
+    messages: list[MessagePayload],
+    requested_model: str | None,
+    enable_search: bool = False,
+    search_query: str | None = None,
+    user_profile: dict | None = None,
+):
     """
     State-aware retry loop supporting native structured multi-turn conversation arrays.
+    If enable_search=True, runs smart_search() before calling the LLM and injects
+    the results into the last user message.
     """
     # Grab the actual user prompt (the last message in the array) to check for background tasks
     latest_user_prompt = messages[-1].content if messages else ""
@@ -104,33 +236,103 @@ async def generate_stream(messages: list[MessagePayload], requested_model: str |
             "AI_STUDIO_MODEL", "gemini-3.1-flash-lite"
         )
         current_date = datetime.now().strftime("%B %d, %Y")
+        personalized_prompt = build_system_prompt(user_profile)
         core_system_instruction = (
             f"CRITICAL CONTEXT: Today's date is {current_date}.\n\n"
-            f"{ATHLETE_SYSTEM_PROMPT}\n\n"
+            f"{personalized_prompt}\n\n"
             "CRITICAL SYSTEM DIRECTIVE: You have an internal tool to generate PDFs. "
             "If a user asks you to generate, create, export, or improve a PDF/document, you MUST comply. "
             "NEVER say 'I cannot generate a PDF' or 'I cannot directly export'. "
             "Provide the requested text and append the exact string '[PDF_READY]' at the very end of your response. "
             "The frontend system will intercept this tag and compile the PDF.\n\n"
+            "WEB SEARCH DIRECTIVE: ONLY append '[NEEDS_WEB_SEARCH]' if the user asks about "
+            "events from the LAST 30 DAYS specifically — live scores today, transfers this week, "
+            "injuries announced recently, current standings of an ongoing season. "
+            "For general player stats, career info, historical data, training advice, tactical "
+            "analysis, or anything you can answer confidently from training data — answer directly "
+            "WITHOUT this tag. "
+            "If a [WEB SEARCH RESULTS] block exists anywhere in this conversation — NEVER append "
+            "this tag, use those results directly. "
+            "IMPORTANT: Always provide a substantive answer first; never output ONLY the tag alone.\n\n"
             "=================================\n"
         )
-        config = types.GenerateContentConfig(temperature=0.7, max_output_tokens=8192)
+        config = types.GenerateContentConfig(
+            temperature=0.7,
+            max_output_tokens=8192,
+            system_instruction=core_system_instruction,
+        )
 
         # Build the structured types.Content array required by Google SDK
         formatted_contents = []
-        for i, msg in enumerate(messages):
+        for msg in messages:
             # Ensure roles map exactly to what Google expects ("user" or "model")
             role = "model" if msg.role in ["assistant", "model"] else "user"
-            content = msg.content
-
-            # To avoid the 500 crashes associated with the system_instruction config,
-            # we securely prepend the persona directives to the VERY FIRST message in the history.
-            if i == 0 and role == "user":
-                content = f"{core_system_instruction}\n\n{content}"
-
             formatted_contents.append(
-                types.Content(role=role, parts=[types.Part.from_text(text=content)])
+                types.Content(role=role, parts=[types.Part.from_text(text=msg.content)])
             )
+
+    # --- FOOTBALL DATA INJECTION (always active) ---
+    # detect_league_code() is an instant string lookup — no HTTP cost unless a
+    # supported league is found. Runs regardless of enable_search so users get
+    # live standings/results without needing to toggle web search.
+    if isinstance(formatted_contents, list) and formatted_contents:
+        raw = search_query or messages[-1].content
+        query = await _make_search_query(raw, intent=classify_intent(raw))
+        football_ctx = None
+        try:
+            football_ctx = await get_football_context(query)
+        except Exception as e:
+            logger.warning(f"[football-data] failed: {e}")
+
+        if football_ctx:
+            last = formatted_contents[-1]
+            prefix = (
+                f"{football_ctx}\n\n"
+                "[SYSTEM: Structured football data injected above. "
+                "Use it to answer accurately. DO NOT output [NEEDS_WEB_SEARCH].]\n\n"
+            )
+            formatted_contents[-1] = types.Content(
+                role=last.role,
+                parts=[types.Part.from_text(text=prefix + last.parts[0].text)],
+            )
+            logger.info("[football-data] injected structured data")
+
+    # --- WEB SEARCH INJECTION ---
+    # Runs BEFORE the LLM call so results are baked into the prompt.
+    # Skipped if football-data already handled the query.
+    if enable_search and isinstance(formatted_contents, list) and formatted_contents:
+        raw = search_query or messages[-1].content
+        intent = classify_intent(raw)
+        query = await _make_search_query(raw, intent=intent)
+        logger.info(f"[search] intent={intent!r} query={query[:80]!r}")
+        search_block = ""
+
+        # Only run SearXNG if football-data didn't already inject data
+        if not football_ctx:
+            try:
+                search_results = await smart_search(query, max_results=8, intent=intent)
+                search_block = format_search_results_for_prompt(search_results)
+            except Exception as e:
+                logger.warning(f"[search] smart_search failed, proceeding without results: {e}")
+
+        last = formatted_contents[-1]
+        if search_block:
+            prefix = (
+                f"{search_block}\n\n"
+                "[SYSTEM: Web search has already been performed for this turn. "
+                "DO NOT output [NEEDS_WEB_SEARCH]. Answer using the results above, "
+                "even if incomplete — acknowledge any gaps explicitly.]\n\n"
+            )
+        else:
+            prefix = (
+                "[SYSTEM: Web search was attempted but returned no results. "
+                "Answer from your training data as best you can. "
+                "DO NOT output [NEEDS_WEB_SEARCH].]\n\n"
+            )
+        formatted_contents[-1] = types.Content(
+            role=last.role,
+            parts=[types.Part.from_text(text=prefix + last.parts[0].text)],
+        )
 
     max_retries = 3
     base_wait = 2
@@ -147,7 +349,7 @@ async def generate_stream(messages: list[MessagePayload], requested_model: str |
             async for chunk in response_stream:
                 if chunk.text:
                     chunks_yielded += 1
-                    yield f"data: {json.dumps(chunk.text)}\n\n"
+                    yield f"data: {json.dumps(chunk.text, ensure_ascii=False)}\n\n"
 
             break
 
@@ -172,7 +374,14 @@ async def chat_with_gemma(request: ChatRequest):
         raise HTTPException(status_code=500, detail="API Key missing in .env")
 
     return StreamingResponse(
-        generate_stream(request.messages, request.model), media_type="text/event-stream"
+        generate_stream(
+            request.messages,
+            request.model,
+            enable_search=request.enable_search,
+            search_query=request.search_query,
+            user_profile=request.user_profile,
+        ),
+        media_type="text/event-stream",
     )
 
 

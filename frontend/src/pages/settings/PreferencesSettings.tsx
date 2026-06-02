@@ -162,49 +162,7 @@ export function PreferencesSettings() {
           </select>
         </SettingsCard>
 
-        <SettingsCard
-          title="Default Dietary Preference"
-          description="Risbo will prioritize these constraints when generating macro-recipes."
-        >
-          <select
-            name="dietary_preference"
-            value={prefs.dietary_preference}
-            onChange={handleChange}
-            className="bg-background border border-border/60 text-sm rounded-lg px-3 py-2 outline-none focus:border-primary focus:ring-1 focus:ring-primary/50 transition-all shadow-sm w-48 text-foreground hover:border-border cursor-pointer"
-          >
-            <option value="none">No Restrictions</option>
-            <option value="vegetarian">Vegetarian</option>
-            <option value="vegan">Vegan</option>
-            <option value="pescatarian">Pescatarian</option>
-          </select>
-        </SettingsCard>
 
-        <SettingsCard
-          title="Workout Reminders"
-          description="Receive browser notifications for scheduled training sessions."
-        >
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => handleToggle("workout_reminders")}
-              className={`w-10 h-6 rounded-full relative transition-colors border cursor-pointer ${
-                prefs.workout_reminders
-                  ? "bg-primary/20 border-primary/30"
-                  : "bg-accent border-border/50"
-              }`}
-            >
-              <span
-                className={`absolute top-[3px] w-4 h-4 rounded-full transition-all ${
-                  prefs.workout_reminders
-                    ? "right-1 bg-primary"
-                    : "left-1 bg-muted-foreground"
-                }`}
-              />
-            </button>
-            <span className="text-sm font-medium text-foreground">
-              {prefs.workout_reminders ? "Enabled" : "Disabled"}
-            </span>
-          </div>
-        </SettingsCard>
       </div>
     </div>
   );

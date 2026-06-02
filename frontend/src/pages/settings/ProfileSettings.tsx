@@ -129,28 +129,7 @@ export function ProfileSettings() {
         </div>
       </SettingsCard>
 
-      <SettingsCard
-        title="Biometrics & Goals"
-        description="Used by Risbo to calculate macros and training loads."
-      >
-        <div className="flex flex-col gap-4 w-full">
-          <SettingsInput
-            label="Target Bodyweight (kg)"
-            name="target_weight"
-            type="number"
-            value={formData.target_weight}
-            onChange={handleChange}
-          />
-          <SettingsInput
-            label="Activity Multiplier"
-            name="activity_multiplier"
-            type="number"
-            step="0.01"
-            value={formData.activity_multiplier}
-            onChange={handleChange}
-          />
-        </div>
-      </SettingsCard>
+
     </div>
   );
 }

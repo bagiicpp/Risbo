@@ -1,4 +1,4 @@
-import { User, Sliders, ArrowLeft } from "lucide-react";
+import { User, Sliders, ArrowLeft, Trophy } from "lucide-react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router";
 
 export function SettingsLayout() {
@@ -27,6 +27,12 @@ export function SettingsLayout() {
           active={location.pathname.includes("/profile")}
           icon={<User size={16} />}
           label="User Profile"
+        />
+        <NavButton
+          to="/settings/sport"
+          active={location.pathname.includes("/sport")}
+          icon={<Trophy size={16} />}
+          label="Sport Profile"
         />
         <NavButton
           to="/settings/preferences"

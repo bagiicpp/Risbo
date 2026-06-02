@@ -71,6 +71,8 @@ class ChatRequest(BaseModel):
     prompt: str
     conversation_id: Optional[str] = None
     model: Optional[str] = None
+    enable_search: bool = False
+    is_retry: bool = False  # when True: skip DB save, title gen, and background tasks
 
 
 class ConversationRename(BaseModel):
@@ -99,6 +101,15 @@ class ProfileUpdate(BaseModel):
     name: Optional[str] = None
     target_weight: Optional[float] = None
     activity_multiplier: Optional[float] = None
+
+
+class SportProfile(BaseModel):
+    # Onboarding profile — personalizes the AI system prompt on every chat.
+    role: str = Field(..., pattern="^(coach|athlete|scout|analyst)$")
+    sport: List[str] = []          # subset of ["football", "basketball"]
+    team: Optional[str] = None
+    league: Optional[str] = None
+    focus: List[str] = []          # e.g. ["tactics", "player_analysis", "training"]
 
 
 class PreferencesUpdate(BaseModel):

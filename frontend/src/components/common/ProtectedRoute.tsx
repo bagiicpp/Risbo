@@ -11,7 +11,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   allowedRoles,
   children,
 }) => {
-  const { user, isAuthenticated, loading } = useAuth();
+  const { user, isAuthenticated, loading, onboardingComplete } = useAuth();
   const location = useLocation();
 
   if (loading) {
@@ -24,6 +24,16 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   if (!isAuthenticated || !user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  // Onboarding gate: send users who haven't completed onboarding through the
+  // flow before anything else. `null` means still loading from /users/me — wait.
+  // The /onboarding route itself is exempt to avoid a redirect loop.
+  if (
+    onboardingComplete === false &&
+    location.pathname !== "/onboarding"
+  ) {
+    return <Navigate to="/onboarding" replace />;
   }
 
   if (allowedRoles && !allowedRoles.includes(user.role)) {
