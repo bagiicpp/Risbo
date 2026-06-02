@@ -1,9 +1,20 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Download, FileText } from "lucide-react";
+import {
+  Download,
+  FileText,
+  Edit2,
+  RefreshCw,
+  Check,
+  X,
+  Copy,
+  ThumbsUp,
+  ThumbsDown,
+} from "lucide-react";
 
 export interface Message {
+  message_id?: string;
   role: "user" | "assistant";
   content: string;
 }
@@ -13,6 +24,8 @@ interface StreamWindowProps {
   scrollRef: React.RefObject<HTMLDivElement | null>;
   loading?: boolean;
   user?: { username?: string; name?: string; role?: string } | null;
+  onEditMessage: (messageId: string, newContent: string) => void;
+  onRegenerate: () => void;
 }
 
 const LOADING_STATES = [
@@ -28,7 +41,6 @@ const ThinkingPlaceholder = () => {
     const interval = setInterval(() => {
       setIndex((prev) => (prev + 1) % LOADING_STATES.length);
     }, 1500);
-
     return () => clearInterval(interval);
   }, []);
 
@@ -48,18 +60,28 @@ const MessageBubble = React.memo(
     loading,
     user,
     handleDownloadPDF,
+    onEdit,
+    onRegenerate,
   }: {
     msg: Message;
     isLast: boolean;
     loading?: boolean;
     user?: any;
     handleDownloadPDF: (text: string) => void;
+    onEdit: (id: string, text: string) => void;
+    onRegenerate: () => void;
   }) => {
-    // AI PDF Trigger Logic
+    const [isEditing, setIsEditing] = useState(false);
+    const [editDraft, setEditDraft] = useState("");
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+    // AI Action States
+    const [copied, setCopied] = useState(false);
+    const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
+
     const hasPdfTrigger = msg.content.includes("[PDF_READY]");
     let displayContent = msg.content.replace("[PDF_READY]", "").trim();
 
-    // User File Upload Parsing Logic
     let attachedFileName = null;
     if (msg.role === "user") {
       const fileMatch = displayContent.match(/^\[FILE:\s*(.*?)\]/);
@@ -75,9 +97,35 @@ const MessageBubble = React.memo(
         ? user.name.charAt(0).toUpperCase()
         : "U";
 
+    const startEdit = () => {
+      setEditDraft(displayContent);
+      setIsEditing(true);
+    };
+
+    useEffect(() => {
+      if (isEditing && textareaRef.current) {
+        textareaRef.current.style.height = "auto";
+        textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+        textareaRef.current.focus();
+      }
+    }, [isEditing, editDraft]);
+
+    const handleSaveEdit = () => {
+      if (editDraft.trim() && editDraft !== displayContent && msg.message_id) {
+        onEdit(msg.message_id, editDraft.trim());
+      }
+      setIsEditing(false);
+    };
+
+    const handleCopy = () => {
+      navigator.clipboard.writeText(displayContent);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    };
+
     return (
       <div
-        className={`flex w-full ${
+        className={`flex w-full group ${
           msg.role === "user" ? "justify-end" : "justify-start"
         }`}
       >
@@ -93,11 +141,50 @@ const MessageBubble = React.memo(
                 </div>
               )}
 
-              {displayContent && (
-                <div className="bg-card text-card-foreground px-5 py-3 rounded-2xl rounded-tr-sm shadow-sm">
-                  <p className="text-sm font-medium whitespace-pre-wrap leading-relaxed">
-                    {displayContent}
-                  </p>
+              {isEditing ? (
+                <div className="bg-card border border-primary/30 text-card-foreground p-3 rounded-2xl rounded-tr-sm shadow-sm w-full min-w-[300px]">
+                  <textarea
+                    ref={textareaRef}
+                    value={editDraft}
+                    onChange={(e) => setEditDraft(e.target.value)}
+                    className="w-full bg-transparent border-none outline-none resize-none text-sm font-medium leading-relaxed"
+                    rows={1}
+                  />
+                  <div className="flex justify-end gap-2 mt-2 pt-2 border-t border-border/50">
+                    <button
+                      onClick={() => setIsEditing(false)}
+                      className="flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded cursor-pointer"
+                    >
+                      <X size={14} /> Cancel
+                    </button>
+                    <button
+                      onClick={handleSaveEdit}
+                      disabled={!editDraft.trim() || loading}
+                      className="flex items-center gap-1 text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors px-3 py-1 rounded disabled:opacity-50 cursor-pointer"
+                    >
+                      <Check size={14} /> Save & Submit
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="relative group/bubble flex items-center gap-2">
+                  {!loading && msg.message_id && (
+                    <button
+                      onClick={startEdit}
+                      className="opacity-0 group-hover/bubble:opacity-100 p-1.5 text-muted-foreground hover:text-primary transition-all rounded-md hover:bg-muted cursor-pointer"
+                      title="Edit message"
+                    >
+                      <Edit2 size={14} />
+                    </button>
+                  )}
+
+                  {displayContent && (
+                    <div className="bg-card text-card-foreground px-5 py-3 rounded-2xl rounded-tr-sm shadow-sm">
+                      <p className="text-sm font-medium whitespace-pre-wrap leading-relaxed">
+                        {displayContent}
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -109,7 +196,7 @@ const MessageBubble = React.memo(
             </div>
           </div>
         ) : (
-          <div className="max-w-full flex gap-4 w-full flex-col md:flex-row">
+          <div className="max-w-full flex gap-4 w-full flex-col md:flex-row group/ai">
             <div className="flex gap-4 w-full">
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center shrink-0 border border-primary/20 mt-1">
                 <span className="text-primary font-bold italic text-sm leading-none">
@@ -160,22 +247,73 @@ const MessageBubble = React.memo(
                       {displayContent}
                     </ReactMarkdown>
                   </div>
-                ) : // Conditional rendering for the "Thinking" state directly inside the bubble
-                isLast && loading ? (
+                ) : isLast && loading ? (
                   <ThinkingPlaceholder />
                 ) : null}
 
-                {/* Render PDF button if tag detected and streaming finished */}
-                {hasPdfTrigger && displayContent && !loading && (
-                  <div className="mt-4 flex">
+                {/* --- AI ACTION BUTTONS (Icon Only) --- */}
+                {displayContent && !loading && (
+                  <div className="mt-2 flex items-center gap-1 opacity-0 group-hover/ai:opacity-100 transition-opacity duration-200">
                     <button
-                      onClick={() => handleDownloadPDF(displayContent)}
-                      className="flex items-center gap-2 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 px-4 py-2 rounded-lg font-medium text-sm transition-colors"
+                      onClick={handleCopy}
+                      className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors cursor-pointer"
+                      title={copied ? "Copied!" : "Copy"}
                     >
-                      <FileText size={16} />
-                      Download as PDF
-                      <Download size={16} className="ml-1 opacity-70" />
+                      {copied ? (
+                        <Check size={16} className="text-green-500" />
+                      ) : (
+                        <Copy size={16} />
+                      )}
                     </button>
+
+                    {isLast && (
+                      <button
+                        onClick={onRegenerate}
+                        className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors cursor-pointer"
+                        title="Regenerate response"
+                      >
+                        <RefreshCw size={16} />
+                      </button>
+                    )}
+
+                    <button
+                      onClick={() =>
+                        setFeedback(feedback === "up" ? null : "up")
+                      }
+                      className={`p-1.5 rounded-md transition-colors cursor-pointer ${
+                        feedback === "up"
+                          ? "text-primary bg-primary/10"
+                          : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                      }`}
+                      title="Good response"
+                    >
+                      <ThumbsUp size={16} />
+                    </button>
+
+                    <button
+                      onClick={() =>
+                        setFeedback(feedback === "down" ? null : "down")
+                      }
+                      className={`p-1.5 rounded-md transition-colors cursor-pointer ${
+                        feedback === "down"
+                          ? "text-red-500 bg-red-500/10"
+                          : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                      }`}
+                      title="Bad response"
+                    >
+                      <ThumbsDown size={16} />
+                    </button>
+
+                    {/* Keep PDF Button distinct if triggered, otherwise purely icons */}
+                    {hasPdfTrigger && (
+                      <button
+                        onClick={() => handleDownloadPDF(displayContent)}
+                        className="p-1.5 text-primary hover:text-primary hover:bg-primary/10 rounded-md transition-colors cursor-pointer ml-1"
+                        title="Download as PDF"
+                      >
+                        <Download size={16} />
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -185,10 +323,12 @@ const MessageBubble = React.memo(
       </div>
     );
   },
-  // Custom Comparison Guard:
-  // Skips re-rendering if the content is identical and it's not the active streaming message.
   (prevProps, nextProps) => {
-    return prevProps.msg.content === nextProps.msg.content && !nextProps.isLast;
+    return (
+      prevProps.msg.content === nextProps.msg.content &&
+      !nextProps.isLast &&
+      prevProps.loading === nextProps.loading
+    );
   },
 );
 
@@ -200,6 +340,8 @@ const StreamWindow: React.FC<StreamWindowProps> = ({
   scrollRef,
   user,
   loading,
+  onEditMessage,
+  onRegenerate,
 }) => {
   if (messages.length === 0 && !loading) return null;
 
@@ -231,12 +373,14 @@ const StreamWindow: React.FC<StreamWindowProps> = ({
     <div className="flex flex-col space-y-6">
       {messages.map((msg, index) => (
         <MessageBubble
-          key={index}
+          key={msg.message_id || index}
           msg={msg}
           isLast={index === messages.length - 1}
           loading={loading}
           user={user}
           handleDownloadPDF={handleDownloadPDF}
+          onEdit={onEditMessage}
+          onRegenerate={onRegenerate}
         />
       ))}
 

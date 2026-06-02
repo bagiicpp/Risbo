@@ -3,10 +3,13 @@ import base64
 import io
 import json
 import os
-import re
 import random
+import re
+import smtplib
+import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+from email.mime.text import MIMEText
 from typing import Optional
 
 import httpx
@@ -23,7 +26,6 @@ from bson import ObjectId
 from bson.errors import InvalidId
 from docx import Document
 from dotenv import load_dotenv
-from email.mime.text import MIMEText
 from fastapi import (
     APIRouter,
     BackgroundTasks,
@@ -33,6 +35,7 @@ from fastapi import (
     Form,
     HTTPException,
     Query,
+    Request,
     UploadFile,
     status,
 )
@@ -59,10 +62,9 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.pdfgen import canvas
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
-import smtplib
 from utils import extract_text_from_file, trim_conversation_history
 
 load_dotenv()
@@ -70,6 +72,9 @@ load_dotenv()
 # Global database client
 db_client = None
 db = None
+
+active_athlete_streams: dict[str, asyncio.Event] = {}
+active_coach_streams: dict[str, asyncio.Event] = {}
 
 
 @asynccontextmanager
@@ -81,9 +86,7 @@ async def lifespan(app: FastAPI):
     print("✅ Connected to MongoDB")
 
     # Auto-expire pending registrations after 15 minutes
-    await db.pending_users.create_index(
-        "created_at", expireAfterSeconds=900
-    )
+    await db.pending_users.create_index("created_at", expireAfterSeconds=900)
 
     yield
 
@@ -110,7 +113,7 @@ async def ping():
 
 @app.post("/register", status_code=status.HTTP_201_CREATED)
 async def register_user(user: UserCreate):
-    # Check both live users and pending
+    # 1. Validation Logic
     if await db.users.find_one({"email": user.email}):
         raise HTTPException(status_code=400, detail="Email already registered")
     if await db.pending_users.find_one({"email": user.email}):
@@ -129,36 +132,54 @@ async def register_user(user: UserCreate):
     }
     await db.pending_users.insert_one(pending_doc)
 
-    msg = MIMEText(
-        f"<p>Hi {user.name},</p><p>Your verification code is: <strong>{code}</strong></p><p>It expires in 15 minutes.</p>",
-        "html"
-    )
-    msg["Subject"] = "Your verification code"
-    msg["From"] = os.getenv("SMTP_EMAIL")
-    msg["To"] = user.email
+    # 2. Environment-Aware Email Logic
+    env = os.getenv("APP_ENV", "development")
 
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-        server.login(os.getenv("SMTP_EMAIL"), os.getenv("SMTP_PASSWORD"))
-        server.send_message(msg)
+    if env == "production":
+        # Production: Actually try to send the email
+        msg = MIMEText(f"Your verification code is: {code}", "html")
+        msg["Subject"] = "Your verification code"
+        msg["From"] = os.getenv("SMTP_EMAIL")
+        msg["To"] = user.email
 
-    return {"message": "Verification email sent"}
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(os.getenv("SMTP_EMAIL"), os.getenv("SMTP_PASSWORD"))
+            server.send_message(msg)
+    else:
+        # Development: Bypass SMTP, log the code to console so you can copy/paste it
+        print(f"--- DEVELOPMENT MODE: Skipping Email ---")
+        print(f"--- Code for {user.email}: {code} ---")
+        print(f"----------------------------------------")
+
+    return {
+        "message": "Verification code generated",
+        "dev_code": code if env != "production" else None,
+    }
+
 
 class EmailVerifyRequest(BaseModel):
     email: str
     code: str
+
 
 @app.post("/verify-email", status_code=status.HTTP_201_CREATED)
 async def verify_email(payload: EmailVerifyRequest):
     pending = await db.pending_users.find_one({"email": payload.email})
 
     if not pending:
-        raise HTTPException(status_code=404, detail="No pending registration for this email")
+        raise HTTPException(
+            status_code=404, detail="No pending registration for this email"
+        )
 
     # Expire after 15 minutes
-    age = datetime.now(timezone.utc) - pending["created_at"].replace(tzinfo=timezone.utc)
+    age = datetime.now(timezone.utc) - pending["created_at"].replace(
+        tzinfo=timezone.utc
+    )
     if age.total_seconds() > 900:
         await db.pending_users.delete_one({"email": payload.email})
-        raise HTTPException(status_code=400, detail="Code expired, please register again")
+        raise HTTPException(
+            status_code=400, detail="Code expired, please register again"
+        )
 
     if pending["code"] != payload.code:
         raise HTTPException(status_code=400, detail="Invalid code")
@@ -321,24 +342,42 @@ async def generate_smart_title(first_prompt: str, ai_backend_url: str) -> str:
         return " ".join(str(first_prompt).split()[:4]).capitalize() or "New chat"
 
 
+ALLOWED_METRICS = {
+    "weight",
+    "height",
+    "body_fat_percentage",
+    "daily_calories",
+    "diet_type",
+    "hydration_liters",
+    "sleep_hours",
+    "soreness_level",
+    "injury_status",
+    "training_split",
+    "session_duration_mins",
+    "rpe",
+    "squat_1rm",
+    "bench_1rm",
+    "deadlift_1rm",
+    "primary_goal",
+}
+
+
 async def extract_metrics_background(
     user_id: str, conversation_id: str, prompt: str, ai_backend_url: str
 ):
     extraction_prompt = (
-        "You are an expert sports data extraction AI. Read the user message and extract important data into a strict JSON array.\n"
-        "Categories to look for:\n"
-        "1. 'body_stats': weight, height, body fat % (e.g., metric_name: 'weight').\n"
-        "2. 'pr': personal records. Use metric_name for the exercise (e.g., 'deadlift_1rm'). Add {'sport': 'powerlifting'} to meta_data if known.\n"
-        "3. 'goal': user's goals. value is the goal text. Add {'deadline': 'YYYY-MM-DD'} to meta_data if mentioned.\n"
-        "4. 'training_data': frequency, duration, intensity, RPE (Rate of Perceived Exertion) (e.g., metric_name: 'session_duration', 'rpe').\n"
-        "5. 'diet': calorie intake, macros, hydration (e.g., metric_name: 'daily_calories').\n"
-        "6. 'recovery': sleep duration, sleep quality, soreness, fatigue levels (e.g., metric_name: 'sleep_hours', 'soreness_level').\n"
-        "7. 'health': injuries, pain levels, resting heart rate, HRV (e.g., metric_name: 'knee_pain').\n\n"
-        "Output ONLY valid JSON. If no metrics are found, output an empty array []. Example:\n"
+        "You are an expert sports data extraction AI functioning as a strict data parser.\n"
+        "Extract actionable athlete data from the user message into a JSON array.\n\n"
+        "CRITICAL RULES:\n"
+        "1. You are FORBIDDEN from inventing your own metric names.\n"
+        f"2. The 'metric_name' field MUST EXACTLY MATCH one of these keys: {list(ALLOWED_METRICS)}\n"
+        "3. If a concept does not perfectly fit one of these allowed keys, DO NOT extract it.\n"
+        "4. Output ONLY a valid JSON array. If no data is found, output [].\n\n"
+        "Example Output:\n"
         "[\n"
-        '  {"category": "body_stats", "metric_name": "weight", "value": 82, "unit": "kg"},\n'
-        '  {"category": "recovery", "metric_name": "sleep_hours", "value": 6, "unit": "hours", "meta_data": {"quality": "poor"}},\n'
-        '  {"category": "training_data", "metric_name": "rpe", "value": 8, "unit": "", "meta_data": {"exercise": "sprints"}}\n'
+        '  {"category": "body_stats", "metric_name": "weight", "value": "82", "unit": "kg"},\n'
+        '  {"category": "health", "metric_name": "injury_status", "value": "grade 2 hamstring strain", "unit": null},\n'
+        '  {"category": "training", "metric_name": "training_split", "value": "Push/Pull/Legs", "unit": null}\n'
         "]\n\n"
         f"User message: {prompt}"
     )
@@ -354,6 +393,7 @@ async def extract_metrics_background(
             )
             response.raise_for_status()
 
+            # Parse the streaming chunks
             raw_json = ""
             for line in response.text.splitlines():
                 if line.startswith("data: "):
@@ -371,19 +411,38 @@ async def extract_metrics_background(
 
                 if clean_json_string != "[]":
                     metrics = json.loads(clean_json_string)
-                    for metric in metrics:
-                        metric["user_id"] = user_id
-                        metric["source_chat_id"] = conversation_id
-                        metric["date"] = datetime.now(
-                            timezone.utc
-                        )  # Updated to timezone-aware UTC
-                        if "meta_data" not in metric:
-                            metric["meta_data"] = {}
+                    valid_metrics_to_insert = []
 
-                        await db.metrics.insert_one(metric)
-                        print(
-                            f"✅ Extracted: {metric['metric_name']} ({metric['value']})"
+                    # --- APPLICATION LAYER VALIDATION ---
+                    for metric in metrics:
+                        # Normalize string to lowercase and strip whitespace to catch minor formatting errors
+                        extracted_name = (
+                            str(metric.get("metric_name", "")).strip().lower()
                         )
+
+                        if extracted_name in ALLOWED_METRICS:
+                            metric["metric_name"] = (
+                                extracted_name  # Force normalized string
+                            )
+                            metric["user_id"] = user_id
+                            metric["source_chat_id"] = conversation_id
+                            metric["date"] = datetime.now(timezone.utc)
+
+                            if "meta_data" not in metric:
+                                metric["meta_data"] = {}
+
+                            valid_metrics_to_insert.append(metric)
+                        else:
+                            print(f"🛑 REJECTED Hallucinated Metric: {extracted_name}")
+
+                    # Bulk insert only the validated metrics
+                    if valid_metrics_to_insert:
+                        await db.metrics.insert_many(valid_metrics_to_insert)
+
+                        for m in valid_metrics_to_insert:
+                            print(
+                                f"✅ Extracted & Validated: {m['metric_name']} ({m['value']})"
+                            )
             else:
                 print("No JSON array found in the AI response.")
 
@@ -492,10 +551,11 @@ async def chat(
         if user:
             user_id = str(user["_id"])
             role = user.get("role", "athlete")
-            measurement_system = user.get("preferences", {}).get("measurement_system", "metric")
+            measurement_system = user.get("preferences", {}).get(
+                "measurement_system", "metric"
+            )
     else:
         measurement_system = "metric"
-
 
     is_valid_id = (
         ObjectId.is_valid(request.conversation_id) if request.conversation_id else False
@@ -520,11 +580,6 @@ async def chat(
         db_assigned_id = ObjectId(current_conv_id)
 
     async def generate():
-        user_msg = {
-            "role": "user",
-            "content": request.prompt,
-            "timestamp": datetime.now(timezone.utc),
-        }
         ai_content = ""
         ai_backend_url = os.getenv("AI_BACKEND_URL", "http://127.0.0.1:8000")
 
@@ -537,7 +592,6 @@ async def chat(
         # --- 1. GATHER DYNAMIC CONTEXT (Roster & Memory) ---
         roster_context = ""
         if role == "coach" and user_id:
-            # (Your existing roster fetching logic remains exactly the same here)
             links = await db.roster_links.find(
                 {"coach_id": user_id, "status": "active"}
             ).to_list(length=100)
@@ -594,21 +648,45 @@ async def chat(
                         roster_context += f"- {a_name}: {', '.join(stats)}\n"
                     roster_context += "[END ROSTER CONTEXT]\n\n"
 
-        # --- 2. BUILD STRUCTURED MESSAGE ARRAY ---
+        # --- 2. BUILD STRUCTURED MESSAGE ARRAY & HANDLE TRUNCATION ---
         payload_messages = []
         memory_block = ""
+        current_msg_count = 2
 
         if not is_new_conversation:
             try:
                 conv = await db.conversations.find_one({"_id": db_assigned_id})
+
                 if conv and "messages" in conv:
+                    # Execute Truncation Logic before building the context window
+                    if request.truncate_from_message_id:
+                        messages_list = conv["messages"]
+                        truncate_index = next(
+                            (
+                                i
+                                for i, msg in enumerate(messages_list)
+                                if msg.get("message_id")
+                                == request.truncate_from_message_id
+                            ),
+                            -1,
+                        )
+
+                        if truncate_index != -1:
+                            # Keep everything BEFORE the edited message
+                            conv["messages"] = messages_list[:truncate_index]
+                            await db.conversations.update_one(
+                                {"_id": db_assigned_id},
+                                {"$set": {"messages": conv["messages"]}},
+                            )
+
+                    current_msg_count = len(conv.get("messages", [])) + 2
+
                     context_summary = conv.get("context_summary", "")
                     if context_summary:
                         memory_block = (
                             f"[LONG-TERM MEMORY SUMMARY]:\n{context_summary}\n\n"
                         )
 
-                    # Separate system/doc messages from chat
                     doc_messages = [
                         m for m in conv["messages"] if m.get("role") == "system"
                     ]
@@ -616,29 +694,22 @@ async def chat(
                         m for m in conv["messages"] if m.get("role") != "system"
                     ]
 
-                    # Trim chat history (you should update your trim_conversation_history util
-                    # to return a list of dicts instead of formatting strings)
                     trimmed_history = trim_conversation_history(
                         chat_messages, max_words=2500
                     )
 
-                    # Inject pinned documents as a system-like preamble to the first message
                     doc_preamble = ""
                     for m in doc_messages:
                         doc_preamble += (
                             f"PINNED DOCUMENT CONTEXT: {m.get('content', '')}\n\n"
                         )
 
-                    # SANITIZER: Ensure strictly alternating roles (user -> model)
                     last_role = None
                     for m in trimmed_history:
                         m_role = "user" if m.get("role") == "user" else "model"
-
-                        # Skip consecutive messages from the same role to prevent Google 400 errors
                         if m_role == last_role:
                             continue
 
-                        # If this is the very first message in the payload, inject the doc_preamble
                         content = m.get("content", "")
                         if last_role is None and doc_preamble:
                             content = f"{doc_preamble}{content}"
@@ -649,9 +720,7 @@ async def chat(
             except Exception as e:
                 print(f"Error loading history: {e}")
 
-        # --- 3. CONSTRUCT THE LATEST PROMPT WITH INJECTED CONTEXT ---
-        # We wrap the Roster & Memory specifically around the final user prompt.
-        # This acts as dynamic context (RAG) without polluting the history array.
+        # --- 3. CONSTRUCT THE LATEST PROMPT ---
         unit_hint = (
             "Use metric units (kg, cm, km, ml)."
             if measurement_system == "metric"
@@ -659,21 +728,14 @@ async def chat(
         )
         measurement_block = f"[USER PREFERENCE] {unit_hint}\n\n"
 
-        final_prompt_content = (
-            f"{measurement_block}{memory_block}{roster_context}USER PROMPT: {request.prompt}"
-        )
+        final_prompt_content = f"{measurement_block}{memory_block}{roster_context}USER PROMPT: {request.prompt}"
 
-        # Ensure the final appended message doesn't break the user->model->user alternation
         if payload_messages and payload_messages[-1]["role"] == "user":
-            # Edge case: Last saved message was a user (e.g. generation failed previously)
-            # Replace it with the new prompt
             payload_messages[-1] = {"role": "user", "content": final_prompt_content}
         else:
             payload_messages.append({"role": "user", "content": final_prompt_content})
 
         # --- 4. STREAM TO AI-BACKEND ---
-        # Fetch the onboarding sport profile so the AI can personalize its system
-        # prompt. Always falls back to {} — a missing profile must never break chat.
         sport_profile = {}
         if user_id:
             try:
@@ -683,22 +745,22 @@ async def chat(
                     doc.pop("updated_at", None)
                     sport_profile = doc
             except Exception as e:
-                print(f"⚠️ Profile fetch failed, continuing without it: {e}")
+                print(f"⚠️ Profile fetch failed: {e}")
 
         try:
             async with httpx.AsyncClient(timeout=120.0) as client:
                 async with client.stream(
                     "POST",
                     f"{ai_backend_url}/chat",
-                    # Send the structured array instead of a single string
                     json={
                         "messages": payload_messages,
                         "model": request.model,
                         "enable_search": request.enable_search,
-                        # Clean original prompt — avoids context injections polluting the search query
-                        "search_query": request.prompt if request.enable_search else None,
+                        "search_query": request.prompt
+                        if request.enable_search
+                        else None,
                         "user_profile": sport_profile or None,
-                    }
+                    },
                 ) as response:
                     response.raise_for_status()
                     async for line in response.aiter_lines():
@@ -711,67 +773,84 @@ async def chat(
                         yield line + "\n"
         except (httpx.HTTPStatusError, httpx.RequestError) as e:
             print(f"❌ AI Backend connection failure: {e}")
-            mock_words = ["I", " couldn't", " reach", " the", " AI..."]
-            for word in mock_words:
-                ai_content += word
-                yield f"data: {json.dumps(word)}\n\n"
-                await asyncio.sleep(0.1)
+            yield f"data: {json.dumps('Failed to reach the AI backend.')}\n\n"
 
         # --- 5. SAVE FINALIZED MESSAGES TO DB ---
-        # Strip the auto-search marker before persisting — it's a frontend signal, not content.
-        ai_content = ai_content.replace("[NEEDS_WEB_SEARCH]", "").strip()
+        try:
+            ai_content = ai_content.replace("[NEEDS_WEB_SEARCH]", "").strip()
 
-        # is_retry=True means this was an auto-retry triggered by [NEEDS_WEB_SEARCH].
-        # We skip DB save to avoid duplicate user messages; the initial response is already saved.
-        if user_id and not request.is_retry:
-            ai_msg = {
-                "role": "assistant",
-                "content": ai_content,
-                "timestamp": datetime.utcnow(),
-            }
-            await db.conversations.update_one(
-                {"_id": db_assigned_id},
-                {
-                    "$push": {"messages": {"$each": [user_msg, ai_msg]}},
-                    "$set": {"updated_at": datetime.utcnow()},
-                },
-            )
+            if user_id:
+                if request.is_retry:
+                    # RETRY FIX: Overwrite the last AI message rather than skipping save
+                    latest_conv = await db.conversations.find_one(
+                        {"_id": db_assigned_id}
+                    )
+                    if (
+                        latest_conv
+                        and "messages" in latest_conv
+                        and len(latest_conv["messages"]) > 0
+                    ):
+                        latest_conv["messages"][-1]["content"] = ai_content
+                        latest_conv["messages"][-1]["timestamp"] = datetime.now(
+                            timezone.utc
+                        )
 
-            # --- CALCULATE MESSAGE COUNT FOR LONG-TERM MEMORY TRIGGER ---
-            # If it's a new conversation, we just added 2 messages.
-            # Otherwise, we fetch the length of the existing messages from the 'conv' object and add 2.
-            try:
-                current_msg_count = (
-                    len(conv.get("messages", [])) + 2 if not is_new_conversation else 2
+                        await db.conversations.update_one(
+                            {"_id": db_assigned_id},
+                            {
+                                "$set": {
+                                    "messages": latest_conv["messages"],
+                                    "updated_at": datetime.now(timezone.utc),
+                                }
+                            },
+                        )
+                else:
+                    # Standard generation save
+                    user_msg = {
+                        "message_id": request.truncate_from_message_id
+                        or uuid.uuid4().hex,
+                        "role": "user",
+                        "content": request.prompt,
+                        "timestamp": datetime.now(timezone.utc),
+                    }
+                    ai_msg = {
+                        "message_id": request.message_id
+                        or request.truncate_from_message_id
+                        or uuid.uuid4().hex,
+                        "role": "assistant",
+                        "content": ai_content,
+                        "timestamp": datetime.now(timezone.utc),
+                    }
+                    await db.conversations.update_one(
+                        {"_id": db_assigned_id},
+                        {
+                            "$push": {"messages": {"$each": [user_msg, ai_msg]}},
+                            "$set": {"updated_at": datetime.now(timezone.utc)},
+                        },
+                    )
+
+                # --- FIRE-AND-FORGET BACKGROUND TASKS ---
+                if current_msg_count > 0 and current_msg_count % 6 == 0:
+                    asyncio.create_task(
+                        update_long_term_memory(str(db_assigned_id), ai_backend_url)
+                    )
+
+                asyncio.create_task(
+                    extract_metrics_background(
+                        user_id, current_conv_id, request.prompt, ai_backend_url
+                    )
                 )
-            except NameError:
-                # Fallback just in case 'conv' wasn't loaded
-                current_msg_count = 2
 
             if title_task:
-                try:
-                    generated_title = await title_task
-                    await db.conversations.update_one(
-                        {"_id": db_assigned_id}, {"$set": {"title": generated_title}}
-                    )
-                    yield f"data: {json.dumps({'_type': 'title_update', 'title': generated_title})}\n\n"
-                except Exception as e:
-                    pass
-
-            # --- FIRE-AND-FORGET BACKGROUND TASKS (Bypassing FastAPI Streaming limitations) ---
-
-            # 1. Trigger the RAG Summarization every 6 messages
-            if current_msg_count > 0 and current_msg_count % 6 == 0:
-                asyncio.create_task(
-                    update_long_term_memory(str(db_assigned_id), ai_backend_url)
+                generated_title = await title_task
+                await db.conversations.update_one(
+                    {"_id": db_assigned_id}, {"$set": {"title": generated_title}}
                 )
+                yield f"data: {json.dumps({'_type': 'title_update', 'title': generated_title})}\n\n"
 
-            # 2. Trigger the Metric Extraction on every single message
-            asyncio.create_task(
-                extract_metrics_background(
-                    user_id, current_conv_id, request.prompt, ai_backend_url
-                )
-            )
+        except Exception as db_err:
+            # Catching the error ensures the generator exits cleanly instead of severing the HTTP connection
+            print(f"❌ Backend Post-Processing Error: {db_err}")
 
     return StreamingResponse(
         generate(),
@@ -1021,6 +1100,43 @@ async def get_profile_metrics(
     return metrics
 
 
+@app.get("/coach/roster/stream")
+async def stream_coach_roster(
+    request: Request, email: str = Depends(get_current_user_email)
+):
+    coach = await db.users.find_one({"email": email})
+    if not coach:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    coach_id = str(coach["_id"])
+
+    if coach_id not in active_coach_streams:
+        active_coach_streams[coach_id] = asyncio.Event()
+
+    async def event_generator():
+        try:
+            while True:
+                if await request.is_disconnected():
+                    break
+
+                try:
+                    await asyncio.wait_for(
+                        active_coach_streams[coach_id].wait(), timeout=15.0
+                    )
+                except asyncio.TimeoutError:
+                    yield ": heartbeat\n\n"
+                    continue
+
+                active_coach_streams[coach_id].clear()
+                yield f"data: {json.dumps({'event': 'ROSTER_UPDATE'})}\n\n"
+
+        finally:
+            if coach_id in active_coach_streams:
+                del active_coach_streams[coach_id]
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
 @app.post("/roster/invite")
 async def invite_athlete(
     payload: dict, coach_email: str = Depends(get_current_coach_email)
@@ -1038,9 +1154,11 @@ async def invite_athlete(
             detail="Athlete not found, or user is not registered as an athlete.",
         )
 
+    athlete_id_str = str(athlete["_id"])
+
     # Check if they are already linked
     existing_link = await db.roster_links.find_one(
-        {"coach_id": str(coach["_id"]), "athlete_id": str(athlete["_id"])}
+        {"coach_id": str(coach["_id"]), "athlete_id": athlete_id_str}
     )
 
     if existing_link:
@@ -1049,6 +1167,11 @@ async def invite_athlete(
             await db.roster_links.update_one(
                 {"_id": existing_link["_id"]}, {"$set": {"status": "pending"}}
             )
+
+            # --- TRIGGER FRONTEND UPDATE ---
+            if athlete_id_str in active_athlete_streams:
+                active_athlete_streams[athlete_id_str].set()
+
             return {"message": "Invite re-sent! Waiting for athlete approval."}
         else:
             raise HTTPException(
@@ -1057,10 +1180,16 @@ async def invite_athlete(
             )
 
     new_link = RosterLink(
-        coach_id=str(coach["_id"]), athlete_id=str(athlete["_id"]), status="pending"
+        coach_id=str(coach["_id"]), athlete_id=athlete_id_str, status="pending"
     )
 
     await db.roster_links.insert_one(new_link.model_dump())
+
+    # --- TRIGGER FRONTEND UPDATE ---
+    # Instantly wake up the athlete's open SSE connection if they are online
+    if athlete_id_str in active_athlete_streams:
+        active_athlete_streams[athlete_id_str].set()
+
     return {"message": "Invite sent! Waiting for athlete approval."}
 
 
@@ -1105,6 +1234,52 @@ async def get_roster(coach_email: str = Depends(get_current_coach_email)):
 
 
 # --- ATHLETE CONSENT ENDPOINTS ---
+
+
+@app.get("/athlete/invites/stream")
+async def stream_invites(
+    request: Request, email: str = Depends(get_current_user_email)
+):
+    athlete = await db.users.find_one({"email": email})
+    if not athlete:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    athlete_id = str(athlete["_id"])
+
+    # Initialize the trigger event for this specific athlete
+    if athlete_id not in active_athlete_streams:
+        active_athlete_streams[athlete_id] = asyncio.Event()
+
+    async def event_generator():
+        try:
+            while True:
+                # 1. Check if the client disconnected (e.g. they closed the browser)
+                if await request.is_disconnected():
+                    break
+
+                # 2. Wait until the trigger is pulled by the POST /roster/invite endpoint
+                # We use a 15-second timeout as a "heartbeat" to keep proxies from dropping the connection
+                try:
+                    await asyncio.wait_for(
+                        active_athlete_streams[athlete_id].wait(), timeout=15.0
+                    )
+                except asyncio.TimeoutError:
+                    # Send a blank comment line to keep the connection alive
+                    yield ": heartbeat\n\n"
+                    continue
+
+                # 3. The event was triggered! Clear it so it can be triggered again later.
+                active_athlete_streams[athlete_id].clear()
+
+                # 4. Push the notification to the frontend
+                yield f"data: {json.dumps({'event': 'NEW_INVITE'})}\n\n"
+
+        finally:
+            # Cleanup when the user logs out or disconnects
+            if athlete_id in active_athlete_streams:
+                del active_athlete_streams[athlete_id]
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
 @app.get("/athlete/invites")
@@ -1192,13 +1367,20 @@ async def respond_to_invite(
         await db.roster_links.update_one(
             {"_id": link["_id"]}, {"$set": {"status": "active"}}
         )
-        return {"message": "Invite accepted. Coach now has access to your data."}
+        message = "Invite accepted. Coach now has access to your data."
     else:
-        # FIX: Keep the record, but mark it as rejected
+        # Keep the record, but mark it as rejected
         await db.roster_links.update_one(
             {"_id": link["_id"]}, {"$set": {"status": "rejected"}}
         )
-        return {"message": "Invite rejected."}
+        message = "Invite rejected."
+
+    # --- THE MAGIC TRIGGER ---
+    # Wake up the coach's stream if they are currently online looking at their dashboard
+    if coach_id in active_coach_streams:
+        active_coach_streams[coach_id].set()
+
+    return {"message": message}
 
 
 @app.get("/coach/metrics/summary")
@@ -1649,33 +1831,94 @@ async def generate_pdf(request: PDFGenerateRequest):
     doc = SimpleDocTemplate(
         file_stream,
         pagesize=letter,
-        rightMargin=60, leftMargin=60,
-        topMargin=60, bottomMargin=60,
+        rightMargin=60,
+        leftMargin=60,
+        topMargin=60,
+        bottomMargin=60,
     )
 
     styles = getSampleStyleSheet()
 
     # --- Custom styles ---
-    h1 = ParagraphStyle("H1", parent=styles["Normal"], fontSize=20, leading=26, spaceBefore=14, spaceAfter=6, textColor=colors.HexColor("#111111"), fontName="Helvetica-Bold")
-    h2 = ParagraphStyle("H2", parent=styles["Normal"], fontSize=16, leading=22, spaceBefore=12, spaceAfter=4, textColor=colors.HexColor("#222222"), fontName="Helvetica-Bold")
-    h3 = ParagraphStyle("H3", parent=styles["Normal"], fontSize=13, leading=18, spaceBefore=10, spaceAfter=3, textColor=colors.HexColor("#333333"), fontName="Helvetica-Bold")
-    body = ParagraphStyle("Body", parent=styles["Normal"], fontSize=10, leading=16, spaceAfter=6, fontName="Helvetica")
-    bullet_style = ParagraphStyle("Bullet", parent=styles["Normal"], fontSize=10, leading=16, leftIndent=20, firstLineIndent=0, spaceAfter=3, fontName="Helvetica")
-    code_style = ParagraphStyle("Code", parent=styles["Normal"], fontSize=9, leading=14, leftIndent=20, fontName="Courier", backColor=colors.HexColor("#f4f4f4"), spaceAfter=6)
+    h1 = ParagraphStyle(
+        "H1",
+        parent=styles["Normal"],
+        fontSize=20,
+        leading=26,
+        spaceBefore=14,
+        spaceAfter=6,
+        textColor=colors.HexColor("#111111"),
+        fontName="Helvetica-Bold",
+    )
+    h2 = ParagraphStyle(
+        "H2",
+        parent=styles["Normal"],
+        fontSize=16,
+        leading=22,
+        spaceBefore=12,
+        spaceAfter=4,
+        textColor=colors.HexColor("#222222"),
+        fontName="Helvetica-Bold",
+    )
+    h3 = ParagraphStyle(
+        "H3",
+        parent=styles["Normal"],
+        fontSize=13,
+        leading=18,
+        spaceBefore=10,
+        spaceAfter=3,
+        textColor=colors.HexColor("#333333"),
+        fontName="Helvetica-Bold",
+    )
+    body = ParagraphStyle(
+        "Body",
+        parent=styles["Normal"],
+        fontSize=10,
+        leading=16,
+        spaceAfter=6,
+        fontName="Helvetica",
+    )
+    bullet_style = ParagraphStyle(
+        "Bullet",
+        parent=styles["Normal"],
+        fontSize=10,
+        leading=16,
+        leftIndent=20,
+        firstLineIndent=0,
+        spaceAfter=3,
+        fontName="Helvetica",
+    )
+    code_style = ParagraphStyle(
+        "Code",
+        parent=styles["Normal"],
+        fontSize=9,
+        leading=14,
+        leftIndent=20,
+        fontName="Courier",
+        backColor=colors.HexColor("#f4f4f4"),
+        spaceAfter=6,
+    )
 
-    TABLE_STYLE = TableStyle([
-        ("BACKGROUND",   (0, 0), (-1, 0),  colors.HexColor("#2d2d2d")),
-        ("TEXTCOLOR",    (0, 0), (-1, 0),  colors.white),
-        ("FONTNAME",     (0, 0), (-1, 0),  "Helvetica-Bold"),
-        ("FONTSIZE",     (0, 0), (-1, -1), 9),
-        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.HexColor("#ffffff"), colors.HexColor("#f2f2f2")]),
-        ("GRID",         (0, 0), (-1, -1), 0.4, colors.HexColor("#cccccc")),
-        ("LEFTPADDING",  (0, 0), (-1, -1), 8),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
-        ("TOPPADDING",   (0, 0), (-1, -1), 5),
-        ("BOTTOMPADDING",(0, 0), (-1, -1), 5),
-        ("VALIGN",       (0, 0), (-1, -1), "MIDDLE"),
-    ])
+    TABLE_STYLE = TableStyle(
+        [
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2d2d2d")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, -1), 9),
+            (
+                "ROWBACKGROUNDS",
+                (0, 1),
+                (-1, -1),
+                [colors.HexColor("#ffffff"), colors.HexColor("#f2f2f2")],
+            ),
+            ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#cccccc")),
+            ("LEFTPADDING", (0, 0), (-1, -1), 8),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+            ("TOPPADDING", (0, 0), (-1, -1), 5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ]
+    )
 
     def md_inline(text: str) -> str:
         """Convert inline markdown (bold, italic, code, links) to ReportLab XML."""
@@ -1752,7 +1995,11 @@ async def generate_pdf(request: PDFGenerateRequest):
             i += 1  # consume closing ```
             code_text = "\n".join(code_lines)
             # Escape XML special chars inside code blocks
-            code_text = code_text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            code_text = (
+                code_text.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+            )
             story.append(Paragraph(code_text.replace("\n", "<br/>"), code_style))
             story.append(Spacer(1, 6))
             continue
@@ -1806,8 +2053,10 @@ async def generate_pdf(request: PDFGenerateRequest):
         if stripped.startswith(">"):
             quote_text = md_inline(stripped.lstrip("> ").strip())
             quote_style = ParagraphStyle(
-                "Quote", parent=body,
-                leftIndent=24, borderPad=4,
+                "Quote",
+                parent=body,
+                leftIndent=24,
+                borderPad=4,
                 borderColor=colors.HexColor("#aaaaaa"),
                 borderWidth=0,
                 textColor=colors.HexColor("#555555"),

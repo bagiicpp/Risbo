@@ -67,7 +67,7 @@ export function AppSidebar({ onNewChat }: { onNewChat?: () => void } = {}) {
   const location = useLocation();
   const { state, toggleSidebar } = useSidebar();
   const isCollapsed = state === "collapsed";
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const displayName = user?.name || "User";
 
   const displayInitial = displayName
@@ -107,20 +107,55 @@ export function AppSidebar({ onNewChat }: { onNewChat?: () => void } = {}) {
   const [athleteCount, setAthleteCount] = useState(0);
   const [isOutboxOpen, setIsOutboxOpen] = useState(false);
 
+  // --- COACH SPECIFIC STATE (in AppSidebar.tsx) ---
   useEffect(() => {
-    if (user?.role === "coach") {
-      api
-        .get("/roster/athletes")
-        .then((res) => {
-          setCoachRoster(res.data);
-          // Only count active athletes for the primary sidebar roster count
-          setAthleteCount(
-            res.data.filter((a: any) => a.status === "active").length,
-          );
-        })
-        .catch(console.error);
+    if (user?.role === "coach" && token) {
+      // 1. Initial Data Fetch
+      const fetchRoster = () => {
+        api
+          .get("/roster/athletes")
+          .then((res) => {
+            setCoachRoster(res.data);
+            setAthleteCount(
+              res.data.filter((a: any) => a.status === "active").length,
+            );
+          })
+          .catch(console.error);
+      };
+
+      fetchRoster(); // Fetch immediately on mount
+
+      // 2. Open Real-Time SSE Connection using the hook's token
+      const eventSource = new EventSource(
+        `http://localhost:8080/coach/roster/stream?token=${token}`,
+      );
+
+      eventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.event === "ROSTER_UPDATE") {
+            // An athlete responded! Silently fetch the updated roster.
+            fetchRoster();
+            // Optional: Alert the coach
+            toast.info("An athlete responded to your invite.");
+          }
+        } catch (err) {
+          console.error("Failed to parse SSE event:", err);
+        }
+      };
+
+      eventSource.onerror = (err) => {
+        console.error("SSE Connection Error:", err);
+        eventSource.close();
+      };
+
+      return () => {
+        if (eventSource) {
+          eventSource.close();
+        }
+      };
     }
-  }, [user]);
+  }, [user, token]);
 
   // Sort outbox invites so pending and rejected are up top
   const sortedOutbox = [...coachRoster].sort((a, b) => {
@@ -148,15 +183,50 @@ export function AppSidebar({ onNewChat }: { onNewChat?: () => void } = {}) {
 
   useEffect(() => {
     if (user?.role === "athlete") {
+      // 1. Initial Data Fetch
       api
         .get("/athlete/coaches")
         .then((res) => setMyCoaches(res.data))
         .catch(console.error);
 
-      api
-        .get("/athlete/invites")
-        .then((res) => setPendingInvites(res.data))
-        .catch(console.error);
+      const fetchInvites = () => {
+        api
+          .get("/athlete/invites")
+          .then((res) => setPendingInvites(res.data))
+          .catch(console.error);
+      };
+
+      fetchInvites(); // Fetch immediately on mount
+
+      let eventSource: EventSource;
+
+      eventSource = new EventSource(
+        `http://localhost:8080/athlete/invites/stream?token=${token}`,
+      );
+
+      eventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.event === "NEW_INVITE") {
+            fetchInvites();
+
+            toast("You received a new coach invite!", { icon: "📩" });
+          }
+        } catch (err) {
+          console.error("Failed to parse SSE event:", err);
+        }
+      };
+
+      eventSource.onerror = (err) => {
+        console.error("SSE Connection Error:", err);
+        eventSource.close();
+      };
+
+      return () => {
+        if (eventSource) {
+          eventSource.close();
+        }
+      };
     }
   }, [user]);
 
@@ -667,7 +737,6 @@ export function AppSidebar({ onNewChat }: { onNewChat?: () => void } = {}) {
                       <span className="font-medium">My Profile</span>
                     </DropdownMenuItem>
                   )}
-
 
                   <DropdownMenuItem
                     className="gap-3 cursor-pointer rounded-lg p-2.5 transition-colors"

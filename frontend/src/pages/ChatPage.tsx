@@ -33,6 +33,14 @@ export default function ChatPage() {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const isAutoScrollEnabled = useRef(true);
   const isProgrammaticScroll = useRef(false);
+  const streamAbortRef = useRef<AbortController | null>(null);
+
+  const stopStream = () => {
+    if (streamAbortRef.current) {
+      streamAbortRef.current.abort();
+      setLoading(false);
+    }
+  };
 
   const [isUploading, setIsUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
@@ -60,7 +68,16 @@ export default function ChatPage() {
           );
           if (response.ok) {
             const data = await response.json();
-            setMessages(data.messages || []);
+
+            const formattedHistory = (data.messages || [])
+              .filter((msg: any) => msg.role !== "system")
+              .map((msg: any) => ({
+                message_id: msg.message_id,
+                role: msg.role,
+                content: msg.content,
+              }));
+
+            setMessages(formattedHistory);
           } else {
             console.error("Conversation not found, falling back.");
             navigate("/chat", { replace: true });
@@ -150,17 +167,31 @@ export default function ChatPage() {
     }
   };
 
-  const handleSendMessage = async () => {
-    if ((!input.trim() && !stagedFile) || loading) return;
+  const handleSendMessage = async (
+    overrideContent?: string,
+    truncateId?: string,
+  ) => {
+    const messageText = overrideContent ?? input.trim();
+    if ((!messageText && !stagedFile) || loading) return;
 
+    streamAbortRef.current = new AbortController();
     isAutoScrollEnabled.current = true;
 
-    let finalUserMessage = input.trim();
+    let finalUserMessage = messageText;
     const displayMessage = stagedFile
-      ? `[FILE: ${stagedFile.name}]\n${input.trim()}`
-      : input.trim();
+      ? `[FILE: ${stagedFile.name}]\n${messageText}`
+      : messageText;
 
     setLoading(true);
+
+    if (!overrideContent) {
+      setInput("");
+    }
+
+    // --- THE FIX: CLIENT-SIDE ID GENERATION ---
+    // If we are editing/regenerating, reuse the existing ID. Otherwise, create a new one.
+    const currentMessageId =
+      truncateId || crypto.randomUUID().replace(/-/g, "");
 
     // --- PHASE 1: PRE-PROCESS STAGED FILE ---
     if (stagedFile) {
@@ -179,35 +210,54 @@ export default function ChatPage() {
           throw new Error("Failed to extract text from document");
         const extractData = await extractRes.json();
 
-        // Bundle the extracted text invisibly into the payload sent to the LLM
         finalUserMessage = `[ATTACHED DOCUMENT: ${stagedFile.name}]\n${extractData.text}\n\n${finalUserMessage}`;
       } catch (err) {
         console.error("Document processing failed:", err);
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: "assistant",
-            content: "❌ **Error:** Failed to process the attached document.",
-          },
-        ]);
+        setMessages((prev) => {
+          let baseMessages = prev;
+          if (truncateId) {
+            const truncateIndex = prev.findIndex(
+              (m) => m.message_id === truncateId,
+            );
+            if (truncateIndex !== -1)
+              baseMessages = prev.slice(0, truncateIndex);
+          }
+          return [
+            ...baseMessages,
+            {
+              role: "assistant",
+              content: "❌ **Error:** Failed to process the attached document.",
+            },
+          ];
+        });
         setLoading(false);
         setIsUploading(false);
-        return; // Abort send entirely if extraction fails
+        setStagedFile(null);
+        return;
       } finally {
         setIsUploading(false);
-        setStagedFile(null); // Clear the staging area
+        setStagedFile(null);
       }
     }
 
-    // --- PHASE 2: OPTIMISTIC UI UPDATE ---
-    // Use the clean displayMessage here, not the massive finalUserMessage
-    setMessages((prev) => [
-      ...prev,
-      { role: "user", content: displayMessage },
-      { role: "assistant", content: "" },
-    ]);
-
-    setInput("");
+    // --- PHASE 2: OPTIMISTIC UI UPDATE WITH TRUNCATION ---
+    setMessages((prev) => {
+      let baseMessages = prev;
+      if (truncateId) {
+        const truncateIndex = prev.findIndex(
+          (m) => m.message_id === truncateId,
+        );
+        if (truncateIndex !== -1) {
+          baseMessages = prev.slice(0, truncateIndex);
+        }
+      }
+      return [
+        ...baseMessages,
+        // Attach the frontend-generated ID to the state so Regenerate can find it later
+        { role: "user", content: displayMessage, message_id: currentMessageId },
+        { role: "assistant", content: "" },
+      ];
+    });
 
     const isNewChat = !activeConversationId;
     const tempId = `optimistic_${Date.now()}`;
@@ -227,11 +277,14 @@ export default function ChatPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
+        signal: streamAbortRef.current.signal,
         body: JSON.stringify({
           prompt: finalUserMessage,
           conversation_id: isNewChat ? null : activeConversationId,
           model: selectedModel,
           enable_search: enableSearch,
+          truncate_from_message_id: truncateId || null,
+          message_id: currentMessageId, // Send the ID to the backend
           client_context: {
             timestamp: new Date().toISOString(),
             timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -281,16 +334,8 @@ export default function ChatPage() {
               accumulatedContent += rawData;
 
               setMessages((prev) => {
-                if (prev.length === 0) {
-                  return [
-                    { role: "user", content: displayMessage },
-                    { role: "assistant", content: rawData },
-                  ];
-                }
-
                 const updatedMessages = [...prev];
                 const lastIndex = updatedMessages.length - 1;
-
                 if (!updatedMessages[lastIndex]) return prev;
 
                 updatedMessages[lastIndex] = {
@@ -305,9 +350,7 @@ export default function ChatPage() {
       }
 
       // --- AUTO-RETRY on [NEEDS_WEB_SEARCH] marker ---
-      // Only trigger if the user didn't already have search enabled (avoid infinite loop).
       if (!enableSearch && accumulatedContent.includes("[NEEDS_WEB_SEARCH]")) {
-        // 1. Strip the marker from the displayed message
         setMessages((prev) => {
           const updated = [...prev];
           const last = updated[updated.length - 1];
@@ -322,7 +365,6 @@ export default function ChatPage() {
           return updated;
         });
 
-        // 2. Fire a second request with search enabled and is_retry=true (skips DB save)
         try {
           const retryResponse = await fetch("http://localhost:8080/chat", {
             method: "POST",
@@ -344,7 +386,6 @@ export default function ChatPage() {
           });
 
           if (retryResponse.ok && retryResponse.body) {
-            // Replace the "Searching..." placeholder with the actual separator
             setMessages((prev) => {
               const updated = [...prev];
               const last = updated[updated.length - 1];
@@ -394,7 +435,6 @@ export default function ChatPage() {
           }
         } catch (retryErr) {
           console.error("Web search retry failed:", retryErr);
-          // Remove the searching indicator on failure
           setMessages((prev) => {
             const updated = [...prev];
             const last = updated[updated.length - 1];
@@ -411,7 +451,24 @@ export default function ChatPage() {
           });
         }
       }
-    } catch (err) {
+    } catch (err: any) {
+      if (err.name === "AbortError") {
+        console.log("Stream safely stopped by user.");
+        setMessages((prev) => {
+          const updated = [...prev];
+          const lastIndex = updated.length - 1;
+          if (updated[lastIndex]?.role === "assistant") {
+            updated[lastIndex] = {
+              ...updated[lastIndex],
+              content:
+                updated[lastIndex].content + "\n\n### Stream stopped by user",
+            };
+          }
+          return updated;
+        });
+        return;
+      }
+
       console.error("Stream failed:", err);
       if (isNewChat && isAuthenticated) {
         setGeneratingTitleId(null);
@@ -420,15 +477,48 @@ export default function ChatPage() {
 
       setMessages((prev) => {
         const updated = [...prev];
-        updated[updated.length - 1] = {
-          role: "assistant",
-          content: "### Connection Error\nFailed to reach the AI backend.",
-        };
+        const lastIndex = updated.length - 1;
+
+        if (updated[lastIndex]?.role === "assistant") {
+          const existingText = updated[lastIndex].content;
+
+          if (existingText.trim().length > 0) {
+            updated[lastIndex] = {
+              ...updated[lastIndex],
+              content:
+                existingText +
+                "\n\n⚠️ *Stream interrupted at the very end, but response was preserved.*",
+            };
+          } else {
+            updated[lastIndex] = {
+              ...updated[lastIndex],
+              content: "### Connection Error\nFailed to reach the AI backend.",
+            };
+          }
+        }
         return updated;
       });
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleEditMessage = (messageId: string, newContent: string) => {
+    if (loading) return;
+    handleSendMessage(newContent, messageId);
+  };
+
+  const handleRegenerate = () => {
+    if (loading || messages.length < 2) return;
+    const lastUserMessageIndex = messages
+      .map((m) => m.role)
+      .lastIndexOf("user");
+    if (lastUserMessageIndex === -1) return;
+
+    const targetUserMessage = messages[lastUserMessageIndex];
+    if (!targetUserMessage.message_id) return;
+
+    handleSendMessage(targetUserMessage.content, targetUserMessage.message_id);
   };
 
   return (
@@ -448,9 +538,19 @@ export default function ChatPage() {
         {!isAuthenticated && (
           <div className="flex items-center justify-center gap-2 px-4 py-2 bg-muted/50 border-b border-border text-sm text-muted-foreground shrink-0">
             Guest mode — conversations won't be saved.{" "}
-            <Link to="/login" className="text-primary hover:underline font-medium">Sign in</Link>
-            {" "}or{" "}
-            <Link to="/register" className="text-primary hover:underline font-medium">Create account</Link>
+            <Link
+              to="/login"
+              className="text-primary hover:underline font-medium"
+            >
+              Sign in
+            </Link>{" "}
+            or{" "}
+            <Link
+              to="/register"
+              className="text-primary hover:underline font-medium"
+            >
+              Create account
+            </Link>
           </div>
         )}
         <AnimatePresence>
@@ -529,6 +629,7 @@ export default function ChatPage() {
                   setSelectedModel={setSelectedModel}
                   enableSearch={enableSearch}
                   setEnableSearch={setEnableSearch}
+                  stopStream={stopStream}
                 />
               </motion.div>
             </div>
@@ -546,6 +647,8 @@ export default function ChatPage() {
                   scrollRef={scrollRef}
                   loading={loading}
                   user={user}
+                  onEditMessage={handleEditMessage}
+                  onRegenerate={handleRegenerate}
                 />
               </div>
             </div>
@@ -576,6 +679,7 @@ export default function ChatPage() {
                   setSelectedModel={setSelectedModel}
                   enableSearch={enableSearch}
                   setEnableSearch={setEnableSearch}
+                  stopStream={stopStream}
                 />
               </motion.div>
             </div>

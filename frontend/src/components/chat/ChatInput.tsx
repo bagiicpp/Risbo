@@ -1,4 +1,4 @@
-import { Send, Loader2, Plus, FileText, X, Mic, Globe } from "lucide-react";
+import { Send, Square, Plus, FileText, X, Mic, Globe } from "lucide-react";
 import React, { useRef, useState, useEffect } from "react";
 import { ModelSelector } from "./ModelSelector";
 
@@ -16,6 +16,7 @@ interface ChatInputProps {
   setSelectedModel: (model: string) => void;
   enableSearch: boolean;
   setEnableSearch: (v: boolean) => void;
+  stopStream: () => void;
 }
 
 export default function ChatInput({
@@ -32,6 +33,7 @@ export default function ChatInput({
   setSelectedModel,
   enableSearch,
   setEnableSearch,
+  stopStream,
 }: ChatInputProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -98,7 +100,6 @@ export default function ChatInput({
       if (input.trim() || uploadedFile) {
         onSend();
 
-        // Reset height on send
         if (textareaRef.current) {
           textareaRef.current.style.height = "auto";
         }
@@ -133,9 +134,7 @@ export default function ChatInput({
 
   return (
     <div className="w-full max-w-4xl mx-auto">
-      <div className="flex gap-2 mb-3 px-2 overflow-x-auto pb-1 no-scrollbar">
-        {/* We will populate this in Phase 2 */}
-      </div>
+      <div className="flex gap-2 mb-3 px-2 overflow-x-auto pb-1 no-scrollbar"></div>
 
       <div
         onDragOver={handleDragOver}
@@ -163,7 +162,6 @@ export default function ChatInput({
               value={input}
               onChange={(e) => {
                 setInput(e.target.value);
-                // FIX: Performant auto-resize directly in the DOM event handler
                 e.target.style.height = "auto";
                 e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`;
               }}
@@ -185,7 +183,7 @@ export default function ChatInput({
               {onClearFile && (
                 <button
                   onClick={onClearFile}
-                  className="hover:text-primary-foreground hover:bg-primary rounded-full p-0.5 transition-colors ml-1"
+                  className="hover:text-primary-foreground hover:bg-primary rounded-full p-0.5 transition-colors ml-1 cursor-pointer"
                 >
                   <X size={14} />
                 </button>
@@ -214,12 +212,16 @@ export default function ChatInput({
             <button
               type="button"
               onClick={() => setEnableSearch(!enableSearch)}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 cursor-pointer ${
                 enableSearch
                   ? "bg-primary/15 text-primary border border-primary/30 shadow-[0_0_8px_rgba(34,197,94,0.15)]"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted"
               }`}
-              title={enableSearch ? "Web search on — click to disable" : "Enable web search"}
+              title={
+                enableSearch
+                  ? "Web search on — click to disable"
+                  : "Enable web search"
+              }
             >
               <Globe size={14} />
               <span>Web</span>
@@ -240,18 +242,22 @@ export default function ChatInput({
               <Mic size={18} />
             </button>
 
+            {/* --- SLEEK GREEN OUTLINE (Stop Button) --- */}
             <button
               type="button"
-              onClick={onSend}
-              disabled={(!input.trim() && !uploadedFile) || loading}
-              className={`p-2.5 rounded-xl transition-all duration-300 flex items-center justify-center shrink-0 ${
-                input.trim() || uploadedFile
-                  ? "bg-primary text-primary-foreground shadow-[0_0_15px_rgba(var(--primary),0.3)] hover:scale-105"
-                  : "bg-transparent text-muted-foreground/50 cursor-not-allowed"
+              onClick={loading ? stopStream : onSend}
+              disabled={!loading && !input.trim() && !uploadedFile}
+              className={`p-2.5 rounded-xl transition-all duration-300 flex items-center justify-center shrink-0 cursor-pointer ${
+                loading
+                  ? "bg-transparent text-emerald-600 dark:text-emerald-500 border border-emerald-500/30 hover:bg-emerald-500/10 hover:border-emerald-500/60"
+                  : input.trim() || uploadedFile
+                    ? "bg-primary text-primary-foreground shadow-[0_0_15px_rgba(var(--primary),0.3)] hover:scale-105"
+                    : "bg-transparent text-muted-foreground/50 cursor-not-allowed border border-transparent"
               }`}
+              title={loading ? "Stop generating" : "Send message"}
             >
               {loading ? (
-                <Loader2 size={18} className="animate-spin" />
+                <Square size={16} className="fill-current opacity-80" />
               ) : (
                 <Send size={18} />
               )}

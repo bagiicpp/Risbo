@@ -53,15 +53,6 @@ class Conversation(BaseModel):
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
-class Conversation(BaseModel):
-    # Optional user_id allows for guest sessions
-    user_id: Optional[str] = None
-    title: str = "New Chat"
-    messages: List[Message] = []
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
-
 class MessagePayload(BaseModel):
     role: str
     content: str
@@ -72,7 +63,9 @@ class ChatRequest(BaseModel):
     conversation_id: Optional[str] = None
     model: Optional[str] = None
     enable_search: bool = False
-    is_retry: bool = False  # when True: skip DB save, title gen, and background tasks
+    is_retry: bool = False
+    truncate_from_message_id: Optional[str] = None
+    message_id: Optional[str] = None
 
 
 class ConversationRename(BaseModel):
@@ -104,12 +97,11 @@ class ProfileUpdate(BaseModel):
 
 
 class SportProfile(BaseModel):
-    # Onboarding profile — personalizes the AI system prompt on every chat.
     role: str = Field(..., pattern="^(coach|athlete|scout|analyst)$")
-    sport: List[str] = []          # subset of ["football", "basketball"]
+    sport: List[str] = []  # subset of ["football", "basketball"]
     team: Optional[str] = None
     league: Optional[str] = None
-    focus: List[str] = []          # e.g. ["tactics", "player_analysis", "training"]
+    focus: List[str] = []  # e.g. ["tactics", "player_analysis", "training"]
 
 
 class PreferencesUpdate(BaseModel):

@@ -5,7 +5,7 @@ from typing import Optional
 import bcrypt
 import jwt
 from dotenv import load_dotenv
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Query, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from jwt.exceptions import InvalidTokenError
 
@@ -43,12 +43,26 @@ def create_access_token(data: dict):
     return encoded_jwt
 
 
-async def get_current_user_email(token: str = Depends(oauth2_scheme)):
+async def get_current_user_email(
+    request: Request, token_query: str = Query(None, alias="token")
+):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+
+    auth_header = request.headers.get("Authorization")
+    token = None
+
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1]
+    elif token_query:
+        token = token_query
+
+    if not token:
+        raise credentials_exception
+
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         sub = payload.get("sub")
@@ -73,6 +87,7 @@ async def get_optional_user_email(
     except InvalidTokenError:
         return None
 
+
 async def get_current_coach_email(token: str = Depends(oauth2_scheme)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -83,17 +98,17 @@ async def get_current_coach_email(token: str = Depends(oauth2_scheme)):
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         sub = payload.get("sub")
         role = payload.get("role")
-        
+
         if sub is None:
             raise credentials_exception
-            
+
         # SECURITY: Block athletes from accessing coach endpoints
         if role != "coach":
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied. Coach privileges required."
+                detail="Access denied. Coach privileges required.",
             )
-            
+
         return str(sub)
     except InvalidTokenError:
         raise credentials_exception
