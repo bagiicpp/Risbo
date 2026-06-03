@@ -112,3 +112,26 @@ async def get_current_coach_email(token: str = Depends(oauth2_scheme)):
         return str(sub)
     except InvalidTokenError:
         raise credentials_exception
+
+
+async def get_email_from_query_token(token: str = Query(...)):
+    """
+    Dedicated dependency for SSE endpoints where tokens cannot be sent
+    via the Authorization header.
+    """
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        # Decode the token exactly as your normal dependency does
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+
+        # Assuming 'sub' holds the email, adjust if your payload differs
+        email: str = payload.get("sub")
+        if email is None:
+            raise credentials_exception
+        return email
+    except JWTError:
+        raise credentials_exception

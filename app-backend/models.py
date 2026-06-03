@@ -125,3 +125,8 @@ class RecipeDB(RecipeCreate):
     id: Optional[PyObjectId] = Field(alias="_id", default=None)
     user_id: str
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class EmailVerifyRequest(BaseModel):
+    email: str
+    code: str

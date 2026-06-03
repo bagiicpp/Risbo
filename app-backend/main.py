@@ -18,6 +18,7 @@ from auth import (
     create_access_token,
     get_current_coach_email,
     get_current_user_email,
+    get_email_from_query_token,
     get_optional_user_email,
     get_password_hash,
     verify_password,
@@ -46,6 +47,7 @@ from models import (
     ChatRequest,
     Conversation,
     ConversationRename,
+    EmailVerifyRequest,
     Message,
     MessagePayload,
     PantryItem,
@@ -65,6 +67,7 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.pdfgen import canvas
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from sse_starlette.sse import EventSourceResponse
 from utils import extract_text_from_file, trim_conversation_history
 
 load_dotenv()
@@ -113,11 +116,9 @@ async def ping():
 
 @app.post("/register", status_code=status.HTTP_201_CREATED)
 async def register_user(user: UserCreate):
-    # 1. Validation Logic
+    # 1. Reject only if the user is fully registered
     if await db.users.find_one({"email": user.email}):
         raise HTTPException(status_code=400, detail="Email already registered")
-    if await db.pending_users.find_one({"email": user.email}):
-        raise HTTPException(status_code=400, detail="Verification email already sent")
 
     code = str(random.randint(100000, 999999))
     hashed_pwd = get_password_hash(user.password)
@@ -130,36 +131,44 @@ async def register_user(user: UserCreate):
         "code": code,
         "created_at": datetime.now(timezone.utc),
     }
-    await db.pending_users.insert_one(pending_doc)
 
-    # 2. Environment-Aware Email Logic
+    # 2. Upsert Logic: Overwrite existing pending data or insert new
+    # This prevents the UI from locking up if they try to register twice
+    await db.pending_users.update_one(
+        {"email": user.email}, {"$set": pending_doc}, upsert=True
+    )
+
+    # 3. Environment-Aware Delivery Logic
     env = os.getenv("APP_ENV", "development")
 
     if env == "production":
-        # Production: Actually try to send the email
-        msg = MIMEText(f"Your verification code is: {code}", "html")
-        msg["Subject"] = "Your verification code"
-        msg["From"] = os.getenv("SMTP_EMAIL")
-        msg["To"] = user.email
+        # Ensure SMTP errors are caught so they don't fail the DB commit
+        try:
+            msg = MIMEText(f"Your verification code is: {code}", "html")
+            msg["Subject"] = "Your verification code"
+            msg["From"] = os.getenv("SMTP_EMAIL")
+            msg["To"] = user.email
 
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-            server.login(os.getenv("SMTP_EMAIL"), os.getenv("SMTP_PASSWORD"))
-            server.send_message(msg)
+            with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+                server.login(os.getenv("SMTP_EMAIL"), os.getenv("SMTP_PASSWORD"))
+                server.send_message(msg)
+        except Exception as e:
+            # Log the error to your observability platform (e.g., Sentry)
+            print(f"SMTP Error: {e}")
+            raise HTTPException(
+                status_code=500, detail="Failed to send verification email."
+            )
     else:
-        # Development: Bypass SMTP, log the code to console so you can copy/paste it
-        print(f"--- DEVELOPMENT MODE: Skipping Email ---")
-        print(f"--- Code for {user.email}: {code} ---")
-        print(f"----------------------------------------")
+        print(f"\n{'=' * 40}")
+        print(f"🚀 DEV MODE: Registration Code Generated")
+        print(f"📧 Email: {user.email}")
+        print(f"🔑 Code:  {code}")
+        print(f"{'=' * 40}\n")
 
     return {
         "message": "Verification code generated",
         "dev_code": code if env != "production" else None,
     }
-
-
-class EmailVerifyRequest(BaseModel):
-    email: str
-    code: str
 
 
 @app.post("/verify-email", status_code=status.HTTP_201_CREATED)
@@ -1238,7 +1247,7 @@ async def get_roster(coach_email: str = Depends(get_current_coach_email)):
 
 @app.get("/athlete/invites/stream")
 async def stream_invites(
-    request: Request, email: str = Depends(get_current_user_email)
+    request: Request, email: str = Depends(get_email_from_query_token)
 ):
     athlete = await db.users.find_one({"email": email})
     if not athlete:
@@ -1246,40 +1255,51 @@ async def stream_invites(
 
     athlete_id = str(athlete["_id"])
 
-    # Initialize the trigger event for this specific athlete
     if athlete_id not in active_athlete_streams:
         active_athlete_streams[athlete_id] = asyncio.Event()
 
     async def event_generator():
+        # 1. IMMEDIATE FLUSH: This defeats the CORS (null) error by forcing
+        # Uvicorn to send the 200 OK and CORS headers before React can unmount.
+        yield {
+            "event": "connected",
+            "data": json.dumps({"status": "Stream established"}),
+        }
+
         try:
             while True:
-                # 1. Check if the client disconnected (e.g. they closed the browser)
+                # 2. Handle client disconnects gracefully
                 if await request.is_disconnected():
                     break
 
-                # 2. Wait until the trigger is pulled by the POST /roster/invite endpoint
-                # We use a 15-second timeout as a "heartbeat" to keep proxies from dropping the connection
                 try:
+                    # 3. Wait for the trigger
                     await asyncio.wait_for(
                         active_athlete_streams[athlete_id].wait(), timeout=15.0
                     )
                 except asyncio.TimeoutError:
-                    # Send a blank comment line to keep the connection alive
-                    yield ": heartbeat\n\n"
+                    # sse-starlette handles standard pings, but yielding our own
+                    # heartbeat ensures intermediate proxies (like Nginx) don't drop us.
+                    yield {"event": "ping", "data": "keep-alive"}
                     continue
 
-                # 3. The event was triggered! Clear it so it can be triggered again later.
+                # 4. Trigger pulled, clear state and push notification
                 active_athlete_streams[athlete_id].clear()
-
-                # 4. Push the notification to the frontend
-                yield f"data: {json.dumps({'event': 'NEW_INVITE'})}\n\n"
+                yield {"event": "message", "data": json.dumps({"event": "NEW_INVITE"})}
 
         finally:
-            # Cleanup when the user logs out or disconnects
+            # 5. Cleanup memory leak prevention
             if athlete_id in active_athlete_streams:
                 del active_athlete_streams[athlete_id]
 
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
+    # EventSourceResponse handles the content-type and disables buffering natively
+    return EventSourceResponse(
+        event_generator(),
+        headers={
+            "Access-Control-Allow-Origin": "http://localhost:5173",
+            "Access-Control-Allow-Credentials": "true",
+        },
+    )
 
 
 @app.get("/athlete/invites")

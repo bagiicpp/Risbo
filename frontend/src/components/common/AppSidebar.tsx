@@ -123,20 +123,22 @@ export function AppSidebar({ onNewChat }: { onNewChat?: () => void } = {}) {
           .catch(console.error);
       };
 
-      fetchRoster(); // Fetch immediately on mount
+      fetchRoster();
 
-      // 2. Open Real-Time SSE Connection using the hook's token
+      // 2. Open Real-Time SSE Connection
       const eventSource = new EventSource(
         `http://localhost:8080/coach/roster/stream?token=${token}`,
       );
+
+      eventSource.onopen = () => {
+        console.log("Coach SSE Stream connected successfully.");
+      };
 
       eventSource.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
           if (data.event === "ROSTER_UPDATE") {
-            // An athlete responded! Silently fetch the updated roster.
             fetchRoster();
-            // Optional: Alert the coach
             toast.info("An athlete responded to your invite.");
           }
         } catch (err) {
@@ -145,14 +147,15 @@ export function AppSidebar({ onNewChat }: { onNewChat?: () => void } = {}) {
       };
 
       eventSource.onerror = (err) => {
-        console.error("SSE Connection Error:", err);
-        eventSource.close();
+        // Log the error, but DO NOT close the connection.
+        // The browser will automatically attempt to reconnect.
+        console.error("SSE Connection interrupted. Retrying...", err);
       };
 
+      // 3. Cleanup on unmount
       return () => {
-        if (eventSource) {
-          eventSource.close();
-        }
+        console.log("Unmounting: Closing Coach SSE Stream.");
+        eventSource.close();
       };
     }
   }, [user, token]);
