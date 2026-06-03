@@ -1,196 +1,135 @@
-# RizzBo AI — Športni & Analitični Asistent
+# RizzBo AI — Sports & Analytical Assistant
 
-Specializiran AI asistent za športnike, trenerje in športne analitike, z globokim znanjem o nogometu in košarki, statistiki igralcev ter optimizaciji treninga.
-
----
-
-## O projektu
-
-Risbo je spletna aplikacija in napredni AI asistent, specializiran za športno analitiko. Njegovo strokovno znanje zajema podrobno poznavanje nogometnih in košarkarskih igralcev, njihovih statistik in analizo uspešnosti. Prav tako je strokovnjak za ocenjevanje prihajajočih talentov in iskanje najboljših prospektov.
-
-Poleg analitike Risbo ponuja stroge, s podatki podprte nasvete za izboljšanje treninga, biomehanike, osnovne prehrane in regeneracije. Aplikacija omogoča nalaganje dokumentov s statistikami, ki jih sistem obdela in analizira ob ohranjanju strogega fokusa na športno domeno.
-
-| Domena                      | Primer uporabe                                                                                         |
-| --------------------------- | ------------------------------------------------------------------------------------------------------ |
-| **Športna analitika**       | Analiza podrobnih statistik (nogomet, košarka), ocena mladih talentov (prospektov).                    |
-| **Trening in regeneracija** | Nasveti za trening, biomehaniko, osnovno prehrano in strategije regeneracije.                          |
-| **Delo z datotekami**       | Nalaganje dokumentov (npr. .md) s statistikami igralcev kot kontekst za natančne odgovore in skavting. |
+RizzBo is a specialized AI assistant designed for athletes, coaches, and sports analysts. It provides deep expertise in football (soccer) and basketball, player statistics, and training optimization.
 
 ---
 
-## Trenutno stanje projekta
+## 🚀 Project Overview
 
-Uspešno smo zaključili prvo fazo razvoja in dosegli popolnoma delujoč MVP (Minimum Viable Product).
+RizzBo is a full-stack web application that leverages Large Language Models (LLMs) to provide data-driven sports analytics. The system is designed to help users analyze player performance, scout emerging talents, and optimize training regimes based on biomechanics, nutrition, and recovery data.
 
-### MVP funkcionalnosti
-
-- [x] Pogovor z asistentom v naravnem jeziku (chat vmesnik)
-- [x] Shranjevanje zgodovine pogovorov v podatkovno bazo
-- [x] Iskanje po preteklih pogovorih po ključnih besedah
-- [x] Ustvarjanje novih pogovorov po temah
-- [x] Nalaganje dokumentov (PDF, Word, Excel)
-- [x] Povzemanje naloženih dokumentov
-- [x] Odgovarjanje na vprašanja na podlagi vsebine dokumentov
-- [x] Izvoz rezultatov (Word, Excel, PDF)
-- [x] Enostaven, pregleden in odziven uporabniški vmesnik
+### Core Domains
+| Domain | Use Case |
+| :--- | :--- |
+| **Sports Analytics** | Detailed analysis of football and basketball stats, scouting and evaluating young prospects. |
+| **Training & Recovery** | Evidence-based advice on training loads, biomechanics, basic nutrition, and regeneration strategies. |
+| **Document Analysis** | Uploading statistics (PDF, Word, Excel) to provide context for precise, data-backed scouting reports. |
 
 ---
 
-## Tehnološki sklad
+## ✨ Features
 
-**Frontend:** React + Tailwind CSS + Vite (npm/bun)  
-**App Backend:** Python FastAPI + MongoDB  
-**AI Backend:** Python FastAPI + Ollama (Lokalni modeli)  
-**AI Model:** Gemma 3 (4B) ali katerikoli drug lokalni model  
-**Infrastruktura:** Docker + Docker Compose
-
-### Zakaj ta izbor?
-
-| Tehnologija      | Razlog                                                                                  |
-| ---------------- | --------------------------------------------------------------------------------------- |
-| React + Tailwind | Hiter razvoj UI, komponente, responsive design brez napora                              |
-| Python FastAPI   | Hiter async REST API, avtomatska OpenAPI dokumentacija, primerno za AI                  |
-| Ollama           | Omogoča enostavno poganjanje močnih LLM-jev na lokalnem računalniku (brezplačno, varno) |
-| MongoDB          | Fleksibilna NoSQL baza — idealna za shranjevanje pogovorov in dokumentov v JSON obliki  |
-| Docker Compose   | Celoten "stack" aplikacije (baza, oba backenda, frontend) se zažene z eno samo komando  |
+### MVP Functionalities
+- [x] **Natural Language Interaction:** Intuitive chat interface for interacting with the AI.
+- [x] **Conversation Management:** Save, categorize, and search through chat history.
+- [x] **RAG (Retrieval-Augmented Generation):** Upload documents (PDF, Word, Excel) and ask questions based on their content.
+- [x] **Export Capabilities:** Export analysis results to Word, Excel, or PDF.
+- [x] **Responsive UI:** A modern, clean interface built for both desktop and mobile.
+- [x] **Integrated Search:** Powered by SearxNG for real-time web data retrieval.
 
 ---
 
-## Arhitektura
+## 🛠 Tech Stack
 
-```
-┌────────────────────────┐      REST      ┌─────────────────┐      REST      ┌──────────────────┐
-│   Frontend (Docker)    │ ◄────────────► │   App Backend   │ ◄────────────► │   AI Backend     │
-│   React SPA (Vite)     │                │   (Docker)      │                │   (Docker)       │
-│   localhost:5173       │                │   localhost:8080│                │   localhost:8000 │
-└────────────────────────┘                └────────┬────────┘                └────────┬─────────┘
-                                                   │                                  │
-                                          ┌────────▼────────┐                ┌────────▼─────────┐
-                                          │     MongoDB     │                │  Ollama Server   │
-                                          │    (Docker)     │                │  (Host mašina)   │
-                                          │ localhost:27017 │                │                  │
-                                          └─────────────────┘                └──────────────────┘
-```
+### Frontend
+- **Framework:** React + Vite
+- **Styling:** Tailwind CSS + shadcn/ui
+- **Package Manager:** Bun / npm
 
-- **AI Backend** — Upravlja neposredno komunikacijo z vašim lokalnim Ollama strežnikom. Skrbi za sistemski "prompt" in usmerja asistenta k strokovnosti.
-- **App Backend** — Poslovna logika aplikacije: baza uporabnikov, avtentikacija (JWT), shranjevanje pogovorov, procesiranje dokumentov.
-- **Frontend** — Uporabniški vmesnik, podoben ChatGPT, kjer poteka interakcija z uporabnikom.
+### Backends
+- **App Backend:** Python FastAPI + MongoDB (User management, Auth, Session storage)
+- **AI Backend:** Python FastAPI + Google Gemini / Ollama (LLM orchestration and domain-specific prompting)
+
+### Infrastructure
+- **Containerization:** Docker & Docker Compose
+- **Search:** SearxNG
+
+### Architecture Flow
+`Frontend (React)` $\leftrightarrow$ `App Backend (FastAPI)` $\leftrightarrow$ `AI Backend (FastAPI)` $\leftrightarrow$ `LLM (Gemini/Ollama)`
+$\quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \downarrow \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \downarrow$
+$\quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \text{MongoDB} \quad \quad \quad \quad \quad \quad \quad \text{SearxNG / Local Data}$
 
 ---
 
-## Struktura projekta
+## 📂 Project Structure
 
-```
+```text
 rizzbo/
-├── ai-backend/             # FastAPI Google GenAI vmesnik
-│   ├── main.py
-│   ├── Dockerfile
-│   ├── requirements.txt
-│   └── .env
+├── ai-backend/             # AI Orchestration Layer
+│   ├── main.py             # FastAPI entry point
+│   ├── intent.py           # Intent classification for sports domains
+│   ├── search.py           # Integration with SearxNG/Web search
+│   ├── football_data.py    # Specialized football data handlers
+│   ├── domains.py          # Domain-specific prompt engineering
+│   └── Dockerfile
 │
-├── app-backend/            # Glavna poslovna logika in API
-│   ├── auth.py
-│   ├── main.py
-│   ├── models.py
-│   ├── utils.py
-│   │   tests/
-│   │   ├── __init__.py
-│   │   ├── test_auth.py
-│   │   ├── test_chat.py
-│   │   ├── test_endpoints.py
-│   │   └── test_utils.py
-│   ├── Dockerfile
-│   ├── requirements-test.txt
-│   ├── requirements.txt
-│   └── .env
+├── app-backend/            # Core Application Logic
+│   ├── main.py             # API entry point
+│   ├── auth.py             # JWT Authentication & User management
+│   ├── models.py           # MongoDB schemas
+│   ├── utils.py            # File processing and helper functions
+│   └── tests/              # Comprehensive test suite
 │
-├── frontend/               # Uporabniški vmesnik (React/Vite)
-│   ├── src/
+├── frontend/               # Modern User Interface
+│   ├── src/                # React components, hooks, and pages
+│   │   ├── components/     # UI components (shadcn/ui)
+│   │   ├── pages/          # Chat, Settings, and Analytics views
+│   │   └── hooks/          # Custom React hooks for API interaction
 │   ├── Dockerfile
-│   ├── package.json
-│   └── vite.config.ts
+│   └── package.json
 │
-├── docker-compose.yml      # Orkestracija vseh kontejnerjev
-├── .gitignore
-└── README.md
+├── searxng/                # Self-hosted search engine configuration
+│
+└── docker-compose.yml      # Full-stack orchestration
 ```
 
 ---
 
-## Lokalni zagon (Docker)
+## ⚙️ Local Setup (Docker)
 
-Zahvaljujoč Dockerju je zagon celotne aplikacije izjemno preprost. Nič več ročnega zaganjanja vsake skripte posebej!
+The easiest way to run RizzBo is using Docker Compose.
 
-### 0. Zahteve
+### Prerequisites
+- Docker & Docker Compose installed.
+- A Google Gemini API Key (via AI Studio) or a running Ollama instance.
 
-Pred začetkom preveri, da imaš nameščeno:
-
-- Veljaven Google Gemini API ključ (AI Studio)
-
-### 1. Kloniranje repozitorija
-
+### 1. Clone the Repository
 ```bash
-git clone https://github.com/vaš-repo/rizzbo.git
-cd rizzbo
+git clone https://github.com/bagiicpp/Risbo.git
+cd Risbo
 ```
 
-### 3. Konfiguracija .env datotek
+### 2. Environment Configuration
 
-Ker aplikacija teče v Docker omrežju, morajo biti okoljske spremenljivke nastavljene tako, da kontejnerji vidijo drug drugega in vašo host mašino.
-
-Ustvarite `ai-backend/.env`:
-
-```
-AI_STUDIO_API=NAS kljuc sve spojeno kopiraj
-AI_STUDIO_MODEL=gemma-4-26b-a4b-it
-
+Create an `.env` file in `ai-backend/`:
+```env
+AI_STUDIO_API=your_google_gemini_api_key
+AI_STUDIO_MODEL=gemma-4-26b-a4b-it # Or your preferred model
 ```
 
-Ustvarite `app-backend/.env`:
-
-```
-# Komunikacija poteka preko internih imen Docker servisov
+Create an `.env` file in `app-backend/`:
+```env
 AI_BACKEND_URL=http://ai-backend:8000
 MONGODB_URI=mongodb://mongodb:27017/rizzbo
-JWT_SECRET_KEY=JjqFPLGx6GUU1gboqJtMlGq4pqXCg5DEVpISfEBY1v4
+JWT_SECRET_KEY=your_super_secret_jwt_key
 ```
 
-Za frontend trenutno ne potrebujemo `.env` datoteke, saj Vite proxy ali API klici privzeto ciljajo ustrezna vrata na host mašini.
-
-### 4. Zagon aplikacije
-
-V korenski mapi projekta (tam, kjer se nahaja `docker-compose.yml`) zaženite:
-
+### 3. Launch the Application
 ```bash
 docker compose up --build
 ```
 
-To je to! Docker bo prenesel bazo, zgradil frontend in oba backenda ter jih med seboj povezal.
-
-- **Aplikacija (UI):** http://localhost:5173
-- **App Backend API:** http://localhost:8080/docs
-- **AI Backend API:** http://localhost:8000/docs
-
-Za varno ustavitev aplikacije uporabite ukaz `docker compose down`.
+**Access Points:**
+- **Frontend:** [http://localhost:5173](http://localhost:5173)
+- **App Backend API Docs:** [http://localhost:8080/docs](http://localhost:8080/docs)
+- **AI Backend API Docs:** [http://localhost:8000/docs](http://localhost:8000/docs)
 
 ---
 
-## Ekipa
-
-| Vloga              | Odgovornosti                                                      |
-| ------------------ | ----------------------------------------------------------------- |
-| Frontend developer | UI, React komponente, UX, integracija API-jev                     |
-| Backend developer  | FastAPI arhitektura, Dockerizacija, Ollama, MongoDB               |
-| Projektni vodja    | Koordinacija, testiranje, specializacija promptov (Trening/Sport) |
+## 👥 Contributors
+- **Frontend Development:** UI/UX, React integration.
+- **Backend Development:** FastAPI Architecture, Dockerization, LLM Integration.
+- **Project Management:** Prompt Engineering, Domain Specialization (Sports/Training).
 
 ---
-
-## Opombe
-
-- **Zasebnost:** Ker aplikacija uporablja Ollamo in lokalne modele, noben podatek (vključno z občutljivimi plani treningov in meritvami) ne zapusti vašega računalnika.
-- **Avtentikacija:** Aplikacija podpira registracijo in prijavo preko JWT žetonov. Zgodovina in dokumenti se varno vežejo na posameznega uporabnika.
-- **Zamenjava modela:** Če želite preskusiti drug model (npr. `llama3` ali `mistral`), ga preprosto prenesite z `ollama pull <model>` in spremenite spremenljivko `AI_STUDIO_MODEL` v datoteki `ai-backend/.env`.
-
----
-
-_Zadnja posodobitev: Maj 2026_
+*Last Updated: June 2026*
