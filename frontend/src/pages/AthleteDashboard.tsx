@@ -65,12 +65,22 @@ export default function ProfilePage() {
       if (!activeChartMetric) return;
       try {
         const data = await getProfileMetrics(activeChartMetric);
+
         const formattedData = data
-          .filter((item: any) => typeof item.value === "number")
           .map((item: any) => ({
             ...item,
-            displayDate: format(parseISO(item.date), "MMM d"),
+            // 1. Attempt to cast the string to a float
+            parsedValue: parseFloat(item.value),
+            displayDate: format(parseISO(item.date), "MMM d, HH:mm"),
+          }))
+          // 2. Filter out anything that resulted in NaN (e.g., text goals)
+          .filter((item: any) => !isNaN(item.parsedValue))
+          // 3. Overwrite the original value with the strict number for Recharts
+          .map((item: any) => ({
+            ...item,
+            value: item.parsedValue,
           }));
+
         setChartData(formattedData);
       } catch (error) {
         console.error("Failed to load chart data:", error);
@@ -171,7 +181,7 @@ export default function ProfilePage() {
                         {Object.entries(summary)
                           .filter(
                             ([_, data]: [string, any]) =>
-                              typeof data.value === "number",
+                              !isNaN(parseFloat(data.value)),
                           )
                           .map(([key, _]) => (
                             <option key={key} value={key}>
@@ -223,10 +233,22 @@ export default function ProfilePage() {
                             <Line
                               type="monotone"
                               dataKey="value"
-                              stroke="hsl(var(--primary))"
+                              // Safe CSS variable injection for Recharts
+                              stroke="var(--color-risbo-green-500, #10b981)"
                               strokeWidth={3}
-                              dot={{ r: 4 }}
-                              activeDot={{ r: 6 }}
+                              dot={{
+                                r: 4,
+                                fill: "var(--background)",
+                                stroke: "var(--color-risbo-green-500, #10b981)",
+                                strokeWidth: 2,
+                              }}
+                              activeDot={{
+                                r: 6,
+                                fill: "var(--color-risbo-green-600, #059669)",
+                                stroke: "var(--background)",
+                              }}
+                              isAnimationActive={true} // You can safely turn this back on now!
+                              connectNulls={true}
                             />
                           </LineChart>
                         </ResponsiveContainer>
