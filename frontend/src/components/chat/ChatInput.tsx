@@ -147,7 +147,7 @@ export default function ChatInput({
           className="hidden"
           ref={fileInputRef}
           onChange={handleFileChange}
-          accept=".txt,.pdf,.docx,.md,.csv"
+          accept=".txt,.pdf,.docx,.md,.csv, ,image/jpeg,image/png,image/gif,image/webp"
         />
 
         <div className="p-4 pb-2">
@@ -175,20 +175,33 @@ export default function ChatInput({
 
         {uploadedFile && !isDragging && (
           <div className="px-4 pb-2">
-            <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 text-primary rounded-lg px-3 py-1.5 text-sm font-dmsans">
-              <FileText size={14} />
-              <span className="truncate max-w-[200px]">
-                {uploadedFile.name}
-              </span>
-              {onClearFile && (
-                <button
-                  onClick={onClearFile}
-                  className="hover:text-primary-foreground hover:bg-primary rounded-full p-0.5 transition-colors ml-1 cursor-pointer"
-                >
-                  <X size={14} />
-                </button>
-              )}
-            </div>
+            {uploadedFile.type.startsWith("image/") ? (
+              <div className="relative inline-block">
+                <img
+                  src={URL.createObjectURL(uploadedFile)}
+                  alt={uploadedFile.name}
+                  className="h-20 w-20 object-cover rounded-lg border border-border/50"
+                />
+                {onClearFile && (
+                  <button
+                    onClick={onClearFile}
+                    className="absolute -top-1.5 -right-1.5 bg-background border border-border rounded-full p-0.5 hover:bg-muted transition-colors cursor-pointer"
+                  >
+                    <X size={12} />
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 text-primary rounded-lg px-3 py-1.5 text-sm font-dmsans">
+                <FileText size={14} />
+                <span className="truncate max-w-[200px]">{uploadedFile.name}</span>
+                {onClearFile && (
+                  <button onClick={onClearFile} className="hover:text-primary-foreground hover:bg-primary rounded-full p-0.5 transition-colors ml-1 cursor-pointer">
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         )}
 

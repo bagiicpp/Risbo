@@ -67,7 +67,13 @@ export function AppSidebar({ onNewChat }: { onNewChat?: () => void } = {}) {
   const { state, toggleSidebar } = useSidebar();
   const isCollapsed = state === "collapsed";
 
-  const displayName = user?.name || "User";
+  // Add this right after the existing state declarations (around line 69):
+  useEffect(() => {
+    if (isCollapsed) {
+      toggleSidebar();
+    }
+  }, [location.pathname]);
+
   const displayInitial = displayName
     ? displayName.charAt(0).toUpperCase()
     : "U";
@@ -545,7 +551,7 @@ export function AppSidebar({ onNewChat }: { onNewChat?: () => void } = {}) {
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <button
-                                onClick={(e) => e.preventDefault()}
+                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
                                 className="p-1.5 rounded-md hover:bg-background text-muted-foreground hover:text-foreground transition-colors mr-1 outline-none"
                               >
                                 <MoreVertical className="size-4 cursor-pointer" />
@@ -558,6 +564,7 @@ export function AppSidebar({ onNewChat }: { onNewChat?: () => void } = {}) {
                               <DropdownMenuItem
                                 onClick={(e) => {
                                   e.preventDefault();
+                                  e.stopPropagation();
                                   handleRenameClick(chat._id, chat.title);
                                 }}
                                 className="cursor-pointer"
@@ -569,6 +576,7 @@ export function AppSidebar({ onNewChat }: { onNewChat?: () => void } = {}) {
                               <DropdownMenuItem
                                 onClick={(e) => {
                                   e.preventDefault();
+                                  e.stopPropagation();
                                   handleDeleteClick(chat._id, chat.title);
                                 }}
                                 className="cursor-pointer text-destructive transition-colors"
