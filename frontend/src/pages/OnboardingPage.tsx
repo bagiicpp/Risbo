@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import {
   Users,
@@ -18,33 +18,37 @@ import { useAuth } from "@/hooks/useAuth";
 type Role = "coach" | "athlete" | "scout" | "analyst";
 type Sport = "football" | "basketball";
 
-const ROLES: { id: Role; label: string; desc: string; icon: React.ReactNode }[] =
-  [
-    {
-      id: "coach",
-      label: "Coach",
-      desc: "Team management & roster analysis",
-      icon: <Users size={22} />,
-    },
-    {
-      id: "athlete",
-      label: "Athlete",
-      desc: "Personal training & recovery",
-      icon: <Dumbbell size={22} />,
-    },
-    {
-      id: "scout",
-      label: "Scout",
-      desc: "Player profiling & prospects",
-      icon: <Telescope size={22} />,
-    },
-    {
-      id: "analyst",
-      label: "Analyst",
-      desc: "Advanced stats & data",
-      icon: <BarChart3 size={22} />,
-    },
-  ];
+const ROLES: {
+  id: Role;
+  label: string;
+  desc: string;
+  icon: React.ReactNode;
+}[] = [
+  {
+    id: "coach",
+    label: "Coach",
+    desc: "Team management & roster analysis",
+    icon: <Users size={22} />,
+  },
+  {
+    id: "athlete",
+    label: "Athlete",
+    desc: "Personal training & recovery",
+    icon: <Dumbbell size={22} />,
+  },
+  {
+    id: "scout",
+    label: "Scout",
+    desc: "Player profiling & prospects",
+    icon: <Telescope size={22} />,
+  },
+  {
+    id: "analyst",
+    label: "Analyst",
+    desc: "Advanced stats & data",
+    icon: <BarChart3 size={22} />,
+  },
+];
 
 const SPORTS: { id: Sport; label: string }[] = [
   { id: "football", label: "Football" },
@@ -65,17 +69,37 @@ export default function OnboardingPage() {
   const navigate = useNavigate();
   const { user, setOnboardingComplete } = useAuth();
 
+  const [isLoadingData, setIsLoadingData] = useState(true);
   const [step, setStep] = useState(1);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Role defaults to the account role so "Skip" always yields a valid profile.
-  const [role, setRole] = useState<Role>(
-    (user?.role as Role) || "athlete",
-  );
+  const [role, setRole] = useState<Role>((user?.role as Role) || "athlete");
   const [sport, setSport] = useState<Sport[]>([]);
   const [team, setTeam] = useState("");
   const [league, setLeague] = useState("");
   const [focus, setFocus] = useState<string[]>([]);
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const res = await api.get("/onboarding/profile");
+        const data = res.data;
+        if (data) {
+          setRole(data.role || "athlete");
+          setSport(data.sport || []);
+          setTeam(data.team || "");
+          setLeague(data.league || "");
+          setFocus(data.focus || []);
+        }
+      } catch (error) {
+        console.error("Failed to load existing onboarding profile", error);
+      } finally {
+        setIsLoadingData(false);
+      }
+    };
+
+    fetchProfile();
+  }, []);
 
   const toggle = <T,>(list: T[], value: T): T[] =>
     list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
@@ -107,6 +131,14 @@ export default function OnboardingPage() {
 
   const next = () => setStep((s) => Math.min(s + 1, TOTAL_STEPS));
   const back = () => setStep((s) => Math.max(s - 1, 1));
+
+  if (isLoadingData) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-background">
+        <Loader2 className="animate-spin text-primary" size={32} />
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen w-full items-center justify-center bg-background text-foreground font-dmsans px-4">
@@ -158,7 +190,9 @@ export default function OnboardingPage() {
                     {r.icon}
                   </span>
                   <div>
-                    <div className="font-semibold font-bricolage">{r.label}</div>
+                    <div className="font-semibold font-bricolage">
+                      {r.label}
+                    </div>
                     <div className="text-xs text-muted-foreground mt-0.5">
                       {r.desc}
                     </div>

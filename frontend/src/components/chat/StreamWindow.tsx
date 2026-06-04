@@ -16,7 +16,7 @@ import {
 export interface Message {
   message_id?: string;
   role: "user" | "assistant";
-  content: string;
+  content: string | any; // Explicitly acknowledging runtime reality
 }
 
 interface StreamWindowProps {
@@ -75,12 +75,21 @@ const MessageBubble = React.memo(
     const [editDraft, setEditDraft] = useState("");
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-    // AI Action States
     const [copied, setCopied] = useState(false);
     const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
 
-    const hasPdfTrigger = msg.content.includes("[PDF_READY]");
-    let displayContent = msg.content.replace("[PDF_READY]", "").trim();
+    // =========================================================================
+    // DEFENSIVE DATA PARSING: Force content into a guaranteed string format
+    // =========================================================================
+    const safeContent =
+      typeof msg.content === "string"
+        ? msg.content
+        : msg.content !== null && msg.content !== undefined
+          ? JSON.stringify(msg.content)
+          : "";
+
+    const hasPdfTrigger = safeContent.includes("[PDF_READY]");
+    let displayContent = safeContent.replace("[PDF_READY]", "").trim();
 
     let attachedFileName = null;
     if (msg.role === "user") {
@@ -125,9 +134,7 @@ const MessageBubble = React.memo(
 
     return (
       <div
-        className={`flex w-full group ${
-          msg.role === "user" ? "justify-end" : "justify-start"
-        }`}
+        className={`flex w-full group ${msg.role === "user" ? "justify-end" : "justify-start"}`}
       >
         {msg.role === "user" ? (
           <div className="max-w-full flex gap-4 w-full justify-end flex-row">
@@ -177,7 +184,6 @@ const MessageBubble = React.memo(
                       <Edit2 size={14} />
                     </button>
                   )}
-
                   {displayContent && (
                     <div className="bg-card text-card-foreground px-5 py-3 rounded-2xl rounded-tr-sm shadow-sm">
                       <p className="text-sm font-medium whitespace-pre-wrap leading-relaxed">
@@ -188,7 +194,6 @@ const MessageBubble = React.memo(
                 </div>
               )}
             </div>
-
             <div className="w-8 h-8 rounded-lg bg-muted/50 flex items-center justify-center shrink-0 border border-border/50 mt-1">
               <span className="text-foreground/70 font-bricolage font-bold text-sm">
                 {userInitial}
@@ -203,7 +208,6 @@ const MessageBubble = React.memo(
                   R
                 </span>
               </div>
-
               <div className="flex-1 min-w-0">
                 {displayContent ? (
                   <div className="prose prose-sm md:prose-base dark:prose-invert max-w-none break-words leading-relaxed">
@@ -211,34 +215,37 @@ const MessageBubble = React.memo(
                       remarkPlugins={[remarkGfm]}
                       components={{
                         table: ({ node, ...props }) => (
-                          <div className="w-full overflow-x-auto my-6 rounded-xl border border-border/50 shadow-sm">
-                            <table
-                              className="w-full text-sm text-left border-collapse"
-                              {...props}
-                            />
+                          // Reduced outer margin (my-3 instead of my-6) and forced zero padding
+                          <div className="my-3 w-full overflow-hidden rounded-xl border border-border/50 shadow-sm bg-card !p-0">
+                            <div className="w-full overflow-x-auto !m-0 !p-0">
+                              <table
+                                className="!m-0 !p-0 w-full text-sm text-left border-collapse whitespace-nowrap"
+                                {...props}
+                              />
+                            </div>
                           </div>
                         ),
                         thead: ({ node, ...props }) => (
                           <thead
-                            className="bg-muted/50 border-b border-border/50 font-semibold text-muted-foreground"
+                            className="bg-muted/40 border-b border-border/50 !m-0 !p-0"
                             {...props}
                           />
                         ),
                         tr: ({ node, ...props }) => (
                           <tr
-                            className="border-b border-border/50 last:border-0 hover:bg-muted/20 transition-colors"
+                            className="border-b border-border/50 last:border-0 hover:bg-muted/10 transition-colors !m-0 !p-0"
                             {...props}
                           />
                         ),
                         th: ({ node, ...props }) => (
                           <th
-                            className="p-4 align-middle font-medium"
+                            className="px-4 py-3.5 align-middle text-xs font-semibold text-muted-foreground uppercase tracking-wider first:pl-6 last:pr-6 !mt-0 !mb-0"
                             {...props}
                           />
                         ),
                         td: ({ node, ...props }) => (
                           <td
-                            className="p-4 align-middle text-foreground/80"
+                            className="px-4 py-4 align-middle text-foreground/80 font-medium first:pl-6 last:pr-6 !mt-0 !mb-0"
                             {...props}
                           />
                         ),
@@ -251,7 +258,6 @@ const MessageBubble = React.memo(
                   <ThinkingPlaceholder />
                 ) : null}
 
-                {/* --- AI ACTION BUTTONS (Icon Only) --- */}
                 {displayContent && !loading && (
                   <div className="mt-2 flex items-center gap-1 opacity-0 group-hover/ai:opacity-100 transition-opacity duration-200">
                     <button
@@ -265,7 +271,6 @@ const MessageBubble = React.memo(
                         <Copy size={16} />
                       )}
                     </button>
-
                     {isLast && (
                       <button
                         onClick={onRegenerate}
@@ -275,36 +280,24 @@ const MessageBubble = React.memo(
                         <RefreshCw size={16} />
                       </button>
                     )}
-
                     <button
                       onClick={() =>
                         setFeedback(feedback === "up" ? null : "up")
                       }
-                      className={`p-1.5 rounded-md transition-colors cursor-pointer ${
-                        feedback === "up"
-                          ? "text-primary bg-primary/10"
-                          : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                      }`}
+                      className={`p-1.5 rounded-md transition-colors cursor-pointer ${feedback === "up" ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}
                       title="Good response"
                     >
                       <ThumbsUp size={16} />
                     </button>
-
                     <button
                       onClick={() =>
                         setFeedback(feedback === "down" ? null : "down")
                       }
-                      className={`p-1.5 rounded-md transition-colors cursor-pointer ${
-                        feedback === "down"
-                          ? "text-red-500 bg-red-500/10"
-                          : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                      }`}
+                      className={`p-1.5 rounded-md transition-colors cursor-pointer ${feedback === "down" ? "text-red-500 bg-red-500/10" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}
                       title="Bad response"
                     >
                       <ThumbsDown size={16} />
                     </button>
-
-                    {/* Keep PDF Button distinct if triggered, otherwise purely icons */}
                     {hasPdfTrigger && (
                       <button
                         onClick={() => handleDownloadPDF(displayContent)}
@@ -332,9 +325,6 @@ const MessageBubble = React.memo(
   },
 );
 
-// ==========================================
-// MAIN STREAM WINDOW COMPONENT
-// ==========================================
 const StreamWindow: React.FC<StreamWindowProps> = ({
   messages,
   scrollRef,
@@ -352,9 +342,7 @@ const StreamWindow: React.FC<StreamWindowProps> = ({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: text }),
       });
-
       if (!response.ok) throw new Error("Failed to generate PDF");
-
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -383,7 +371,6 @@ const StreamWindow: React.FC<StreamWindowProps> = ({
           onRegenerate={onRegenerate}
         />
       ))}
-
       <div ref={scrollRef} className="h-32 w-full shrink-0" />
     </div>
   );

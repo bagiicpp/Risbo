@@ -1,13 +1,7 @@
 import React, { useState, useRef } from "react";
-import api from "../lib/api";
+import axios, { AxiosError } from "axios";
 import { useNavigate, Link } from "react-router";
-import {
-  Loader2,
-  AlertCircle,
-  Activity,
-  User,
-  ShieldCheck,
-} from "lucide-react";
+import { Loader2, AlertCircle, ShieldCheck } from "lucide-react";
 import { motion, AnimatePresence, type Variants } from "framer-motion";
 
 import { Button } from "@/components/ui/button";
@@ -37,18 +31,20 @@ const itemVariants: Variants = {
   visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: "easeOut" } },
 };
 
-type UserRole = "athlete" | "coach";
 type Step = "register" | "verify";
+
+interface ApiErrorResponse {
+  detail: string;
+}
 
 const RegisterPage: React.FC = () => {
   const [step, setStep] = useState<Step>("register");
 
-  // Registration fields
+  // Registration fields (Role removed for Progressive Profiling)
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [role, setRole] = useState<UserRole>("athlete");
 
   // Verification fields — 6 individual digit inputs
   const [digits, setDigits] = useState<string[]>(["", "", "", "", "", ""]);
@@ -71,10 +67,20 @@ const RegisterPage: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      await api.post("/register", { name, email, password, role });
+      // Hardcoded base URL due to raw axios usage.
+      // Ensure this aligns with your environment variables in production.
+      await axios.post("http://localhost:8080/register", {
+        name,
+        email,
+        password,
+      });
       setStep("verify");
-    } catch (err: any) {
-      setError(err.response?.data?.detail || "Registration failed.");
+    } catch (err) {
+      const axiosError = err as AxiosError<ApiErrorResponse>;
+      setError(
+        axiosError.response?.data?.detail ||
+          "Registration failed. Please try again.",
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -93,10 +99,17 @@ const RegisterPage: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      await api.post("/verify-email", { email, code });
+      await axios.post("http://localhost:8080/verify-email", {
+        email,
+        code,
+      });
       navigate("/login", { replace: true });
-    } catch (err: any) {
-      setError(err.response?.data?.detail || "Verification failed.");
+    } catch (err) {
+      const axiosError = err as AxiosError<ApiErrorResponse>;
+      setError(
+        axiosError.response?.data?.detail ||
+          "Verification failed. Invalid or expired code.",
+      );
       setDigits(["", "", "", "", "", ""]);
       digitRefs.current[0]?.focus();
     } finally {
@@ -108,7 +121,7 @@ const RegisterPage: React.FC = () => {
   const handleDigitChange = (index: number, value: string) => {
     if (!/^\d*$/.test(value)) return;
     const updated = [...digits];
-    updated[index] = value.slice(-1); // only keep last char
+    updated[index] = value.slice(-1);
     setDigits(updated);
     if (value && index < 5) {
       digitRefs.current[index + 1]?.focus();
@@ -117,7 +130,6 @@ const RegisterPage: React.FC = () => {
 
   const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
     e.preventDefault();
-    // Extract only numbers and slice to 6 digits maximum
     const pastedData = e.clipboardData
       .getData("text")
       .replace(/\D/g, "")
@@ -130,7 +142,6 @@ const RegisterPage: React.FC = () => {
       }
       setDigits(newDigits);
 
-      // Auto-focus the next empty input, or the last input if full
       const focusIndex = Math.min(pastedData.length, 5);
       digitRefs.current[focusIndex]?.focus();
     }
@@ -200,32 +211,6 @@ const RegisterPage: React.FC = () => {
                     )}
 
                     <div className="space-y-5">
-                      <motion.div variants={itemVariants} className="space-y-3">
-                        <Label className="text-muted-foreground ml-1">
-                          I am a...
-                        </Label>
-                        <div className="grid grid-cols-2 gap-4">
-                          <button
-                            type="button"
-                            onClick={() => setRole("athlete")}
-                            className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all duration-200 ${role === "athlete" ? "border-primary bg-primary/10 text-primary shadow-sm" : "border-border bg-background/50 text-muted-foreground hover:border-primary/40 hover:bg-background"}`}
-                          >
-                            <Activity size={24} className="mb-2" />
-                            <span className="font-semibold text-sm">
-                              Athlete
-                            </span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setRole("coach")}
-                            className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all duration-200 ${role === "coach" ? "border-primary bg-primary/10 text-primary shadow-sm" : "border-border bg-background/50 text-muted-foreground hover:border-primary/40 hover:bg-background"}`}
-                          >
-                            <User size={24} className="mb-2" />
-                            <span className="font-semibold text-sm">Coach</span>
-                          </button>
-                        </div>
-                      </motion.div>
-
                       <motion.div variants={itemVariants} className="space-y-2">
                         <Label
                           htmlFor="name"

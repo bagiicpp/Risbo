@@ -9,14 +9,15 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from football_data import get_football_context
 from google import genai
 from google.genai import types
 from pydantic import BaseModel
 from football_data import get_football_context
 from typing import Union
 from intent import classify_intent
+from pydantic import BaseModel
 from search import smart_search
-
 
 # --- Tenacity for robust API retries ---
 from tenacity import (
@@ -62,8 +63,12 @@ class ChatRequest(BaseModel):
     messages: list[MessagePayload]
     model: str | None = None
     enable_search: bool = False
-    search_query: str | None = None  # clean original user text, used for search so context injections don't pollute the query
-    user_profile: dict | None = None  # onboarding profile, personalizes the system prompt
+    search_query: str | None = (
+        None  # clean original user text, used for search so context injections don't pollute the query
+    )
+    user_profile: dict | None = (
+        None  # onboarding profile, personalizes the system prompt
+    )
 
 
 def format_search_results_for_prompt(results: list[dict]) -> str:
@@ -74,17 +79,18 @@ def format_search_results_for_prompt(results: list[dict]) -> str:
     """
     if not results:
         return ""
-    lines = ["[WEB SEARCH RESULTS — use these to answer the user's question accurately]"]
+    lines = [
+        "[WEB SEARCH RESULTS — use these to answer the user's question accurately]"
+    ]
     for i, r in enumerate(results, 1):
         body = r.get("content") or r.get("snippet", "")
         label = "Article" if r.get("content") else "Snippet"
         lines.append(
-            f"\n[{i}] {r['tier']} — {r['title']}\n"
-            f"URL: {r['url']}\n"
-            f"{label}: {body}"
+            f"\n[{i}] {r['tier']} — {r['title']}\nURL: {r['url']}\n{label}: {body}"
         )
     lines.append("\n[END WEB SEARCH RESULTS]")
     return "\n".join(lines)
+
 
 ATHLETE_SYSTEM_PROMPT = (
     "You are Risbo, a specialized AI assistant for athletes, coaches, and sports analysts. "
@@ -98,19 +104,17 @@ ATHLETE_SYSTEM_PROMPT = (
 )
 
 
-# Role → one sentence of tone/focus guidance for the assistant.
 _ROLE_GUIDANCE = {
     "coach": "The user is a COACH — prioritize team management, roster analysis, "
-             "training load monitoring, and periodization.",
+    "training load monitoring, and periodization.",
     "athlete": "The user is an ATHLETE — prioritize personal training, recovery, "
-               "and individual performance improvement.",
+    "and individual performance improvement.",
     "scout": "The user is a SCOUT — prioritize player profiling, transfer values, "
-             "and prospect evaluation.",
+    "and prospect evaluation.",
     "analyst": "The user is an ANALYST — prioritize advanced stats, data-driven "
-               "metrics, and structured data the user can export.",
+    "metrics, and structured data the user can export.",
 }
 
-# Focus keys → short emphasis phrase.
 _FOCUS_GUIDANCE = {
     "tactics": "tactical analysis",
     "player_analysis": "individual player analysis",
@@ -122,21 +126,28 @@ _FOCUS_GUIDANCE = {
 
 def build_system_prompt(profile: dict | None) -> str:
     """
-    Extends ATHLETE_SYSTEM_PROMPT with personalization from the onboarding
-    profile. Always additive — starts from the base prompt and appends a few
-    sentences of context. A missing/empty/malformed profile returns the base
-    prompt unchanged so chat never breaks.
+    Extends ATHLETE_SYSTEM_PROMPT with personalization from the onboarding profile.
+    Handles the nested MongoDB architecture defensively.
     """
     if not profile:
         return ATHLETE_SYSTEM_PROMPT
 
     lines: list[str] = []
 
+    # Defensive check: Extract nested sport_profile dict
+    sport_profile = (
+        profile.get("sport_profile")
+        if isinstance(profile.get("sport_profile"), dict)
+        else profile
+    )
+
+    # 1. Parse Role (Root level)
     role = (profile.get("role") or "").lower()
     if role in _ROLE_GUIDANCE:
         lines.append(_ROLE_GUIDANCE[role])
 
-    sports = [s for s in (profile.get("sport") or []) if s]
+    # 2. Parse Sports (Nested level)
+    sports = [s for s in (sport_profile.get("sport") or []) if s]
     if sports:
         pretty = " and ".join(s.capitalize() for s in sports)
         lines.append(
@@ -144,8 +155,9 @@ def build_system_prompt(profile: dict | None) -> str:
             f"data sources for {'these sports' if len(sports) > 1 else 'this sport'}."
         )
 
-    team = (profile.get("team") or "").strip()
-    league = (profile.get("league") or "").strip()
+    # 3. Parse Team and League (Nested level)
+    team = (sport_profile.get("team") or "").strip()
+    league = (sport_profile.get("league") or "").strip()
     if team or league:
         env = " / ".join(p for p in (team, league) if p)
         lines.append(
@@ -153,9 +165,25 @@ def build_system_prompt(profile: dict | None) -> str:
             "when it's relevant to the question."
         )
 
-    focus = [_FOCUS_GUIDANCE[f] for f in (profile.get("focus") or []) if f in _FOCUS_GUIDANCE]
+    # 4. Parse Focus Options (Nested level)
+    focus = [
+        _FOCUS_GUIDANCE[f]
+        for f in (sport_profile.get("focus") or [])
+        if f in _FOCUS_GUIDANCE
+    ]
     if focus:
         lines.append(f"Put extra emphasis on: {', '.join(focus)}.")
+
+    # 5. Parse Preferences (Root level)
+    prefs = profile.get("preferences", {})
+    if prefs.get("measurement_system"):
+        lines.append(
+            f"Use the {prefs['measurement_system']} system for all measurements and stats."
+        )
+    if prefs.get("dietary_preference") and prefs["dietary_preference"] != "none":
+        lines.append(
+            f"The user's dietary preference is: {prefs['dietary_preference']}."
+        )
 
     if not lines:
         return ATHLETE_SYSTEM_PROMPT
@@ -194,7 +222,8 @@ async def _make_search_query(raw_prompt: str, intent: str = "general") -> str:
     stats_hint = (
         " The query must target pages with FULL standings tables listing ALL positions, "
         "not just top teams. Prefer sites like fbref, worldfootball, soccerway, soccerstats."
-        if intent == "stats" else ""
+        if intent == "stats"
+        else ""
     )
     prompt = (
         "Convert this user question into a concise English web search query. "
@@ -255,6 +284,7 @@ async def generate_stream(
             "If a [WEB SEARCH RESULTS] block exists anywhere in this conversation — NEVER append "
             "this tag, use those results directly. "
             "IMPORTANT: Always provide a substantive answer first; never output ONLY the tag alone.\n\n"
+            "STRICTLY FORBIDDEN: Do not output '🌐 Searching the web...' or similar status markers in your final response.\n\n"
             "=================================\n"
         )
         config = types.GenerateContentConfig(
@@ -327,7 +357,9 @@ async def generate_stream(
                 search_results = await smart_search(query, max_results=8, intent=intent)
                 search_block = format_search_results_for_prompt(search_results)
             except Exception as e:
-                logger.warning(f"[search] smart_search failed, proceeding without results: {e}")
+                logger.warning(
+                    f"[search] smart_search failed, proceeding without results: {e}"
+                )
 
         last = formatted_contents[-1]
         if search_block:

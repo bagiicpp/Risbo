@@ -3,11 +3,9 @@ import { useNavigate } from "react-router";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search,
-  Plus,
   UserPlus,
   Loader2,
   AlertCircle,
-  X,
   ChevronRight,
   Activity,
 } from "lucide-react";
@@ -97,133 +95,130 @@ export default function RosterManagement() {
   );
 
   return (
-    <SidebarProvider className="h-screen w-full overflow-hidden bg-background font-dmsans">
-      <AppSidebar />
-      <SidebarInset className="flex flex-col h-full relative overflow-hidden bg-background">
-        <main className="flex-1 overflow-y-auto p-6 md:p-10">
-          <div className="max-w-5xl mx-auto space-y-8">
-            {/* Header section */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-              <div>
-                <h1 className="text-3xl font-bricolage font-bold text-foreground tracking-tight">
-                  Manage Roster
-                </h1>
-                <p className="text-muted-foreground mt-1">
-                  Invite athletes to your team to monitor their telemetry.
-                </p>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <div className="relative">
-                  <Search
-                    className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-                    size={16}
-                  />
-                  <Input
-                    placeholder="Search athletes..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="pl-9 w-full md:w-64 bg-background border-border/50 focus:border-primary/50"
-                  />
-                </div>
-                <Button
-                  onClick={() => setIsInviteOpen(true)}
-                  className="font-semibold shadow-[0_0_15px_rgba(var(--primary),0.15)] transition-all cursor-pointer"
-                >
-                  <UserPlus size={16} className="mr-2" />
-                  Invite Athlete
-                </Button>
-              </div>
+    <>
+      <main className="flex-1 overflow-y-auto p-6 md:p-10">
+        <div className="max-w-5xl mx-auto space-y-8">
+          {/* Header section */}
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-bricolage font-bold text-foreground tracking-tight">
+                Manage Roster
+              </h1>
+              <p className="text-muted-foreground mt-1">
+                Invite athletes to your team to monitor their telemetry.
+              </p>
             </div>
 
-            {/* High-Density Data Table */}
-            <div className="rounded-xl border border-border/50 bg-card overflow-hidden shadow-sm">
-              {/* Table Header */}
-              <div className="grid grid-cols-12 gap-4 p-4 border-b border-border/50 bg-muted/20 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                <div className="col-span-5 pl-2">Athlete / Email</div>
-                <div className="col-span-3">Status</div>
-                <div className="col-span-3">System ID</div>
-                <div className="col-span-1 text-right pr-2">Action</div>
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <Search
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                  size={16}
+                />
+                <Input
+                  placeholder="Search athletes..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-9 w-full md:w-64 bg-background border-border/50 focus:border-primary/50"
+                />
               </div>
-
-              {/* Table Body */}
-              <div className="divide-y divide-border/30">
-                {loading ? (
-                  Array.from({ length: 4 }).map((_, i) => (
-                    <div
-                      key={i}
-                      className="grid grid-cols-12 gap-4 p-4 items-center animate-pulse"
-                    >
-                      <div className="col-span-5 flex flex-col gap-2 pl-2">
-                        <div className="h-4 bg-border/40 rounded w-1/2" />
-                        <div className="h-3 bg-border/40 rounded w-3/4" />
-                      </div>
-                      <div className="col-span-3 h-5 bg-border/40 rounded-full w-16" />
-                      <div className="col-span-3 h-4 bg-border/40 rounded w-full" />
-                      <div className="col-span-1 h-5 bg-border/40 rounded w-5 justify-self-end mr-2" />
-                    </div>
-                  ))
-                ) : filteredAthletes.length === 0 ? (
-                  <div className="p-12 flex flex-col items-center justify-center text-muted-foreground border-dashed border-2 border-border/50 m-4 rounded-xl bg-background/50">
-                    <Activity size={32} className="mb-3 opacity-50" />
-                    <span className="font-medium">No athletes found</span>
-                    <span className="text-sm mt-1 text-center max-w-sm">
-                      Your roster is currently empty. Click "Invite Athlete" to
-                      send an authorization request.
-                    </span>
-                  </div>
-                ) : (
-                  <AnimatePresence>
-                    {filteredAthletes.map((athlete, index) => (
-                      <motion.div
-                        key={athlete.id}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ delay: index * 0.05, duration: 0.2 }}
-                        onClick={() => navigate(`/coach/athlete/${athlete.id}`)}
-                        className="grid grid-cols-12 gap-4 p-4 items-center hover:bg-muted/10 cursor-pointer transition-colors group"
-                      >
-                        <div className="col-span-5 pl-2 flex flex-col truncate">
-                          <span className="font-semibold text-foreground truncate">
-                            {athlete.name}
-                          </span>
-                          <span className="text-xs text-muted-foreground truncate font-mono mt-0.5">
-                            {athlete.email}
-                          </span>
-                        </div>
-
-                        <div className="col-span-3 flex items-center">
-                          <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${
-                              athlete.status === "active"
-                                ? "bg-primary/10 text-primary border border-primary/20"
-                                : "bg-zinc-500/10 text-zinc-400 border border-zinc-500/20"
-                            }`}
-                          >
-                            {athlete.status}
-                          </span>
-                        </div>
-
-                        <div className="col-span-3 font-mono text-xs text-muted-foreground truncate">
-                          {athlete.id}
-                        </div>
-
-                        <div className="col-span-1 flex justify-end pr-2 opacity-50 group-hover:opacity-100 transition-all group-hover:text-primary">
-                          <ChevronRight
-                            size={18}
-                            className="group-hover:translate-x-1 transition-transform"
-                          />
-                        </div>
-                      </motion.div>
-                    ))}
-                  </AnimatePresence>
-                )}
-              </div>
+              <Button
+                onClick={() => setIsInviteOpen(true)}
+                className="font-semibold shadow-[0_0_15px_rgba(var(--primary),0.15)] transition-all cursor-pointer"
+              >
+                <UserPlus size={16} className="mr-2" />
+                Invite Athlete
+              </Button>
             </div>
           </div>
-        </main>
-      </SidebarInset>
+
+          {/* High-Density Data Table */}
+          <div className="rounded-xl border border-border/50 bg-card overflow-hidden shadow-sm">
+            {/* Table Header */}
+            <div className="grid grid-cols-12 gap-4 p-4 border-b border-border/50 bg-muted/20 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              <div className="col-span-5 pl-2">Athlete / Email</div>
+              <div className="col-span-3">Status</div>
+              <div className="col-span-3">System ID</div>
+              <div className="col-span-1 text-right pr-2">Action</div>
+            </div>
+
+            {/* Table Body */}
+            <div className="divide-y divide-border/30">
+              {loading ? (
+                Array.from({ length: 4 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="grid grid-cols-12 gap-4 p-4 items-center animate-pulse"
+                  >
+                    <div className="col-span-5 flex flex-col gap-2 pl-2">
+                      <div className="h-4 bg-border/40 rounded w-1/2" />
+                      <div className="h-3 bg-border/40 rounded w-3/4" />
+                    </div>
+                    <div className="col-span-3 h-5 bg-border/40 rounded-full w-16" />
+                    <div className="col-span-3 h-4 bg-border/40 rounded w-full" />
+                    <div className="col-span-1 h-5 bg-border/40 rounded w-5 justify-self-end mr-2" />
+                  </div>
+                ))
+              ) : filteredAthletes.length === 0 ? (
+                <div className="p-12 flex flex-col items-center justify-center text-muted-foreground border-dashed border-2 border-border/50 m-4 rounded-xl bg-background/50">
+                  <Activity size={32} className="mb-3 opacity-50" />
+                  <span className="font-medium">No athletes found</span>
+                  <span className="text-sm mt-1 text-center max-w-sm">
+                    Your roster is currently empty. Click "Invite Athlete" to
+                    send an authorization request.
+                  </span>
+                </div>
+              ) : (
+                <AnimatePresence>
+                  {filteredAthletes.map((athlete, index) => (
+                    <motion.div
+                      key={athlete.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ delay: index * 0.05, duration: 0.2 }}
+                      onClick={() => navigate(`/coach/athlete/${athlete.id}`)}
+                      className="grid grid-cols-12 gap-4 p-4 items-center hover:bg-muted/10 cursor-pointer transition-colors group"
+                    >
+                      <div className="col-span-5 pl-2 flex flex-col truncate">
+                        <span className="font-semibold text-foreground truncate">
+                          {athlete.name}
+                        </span>
+                        <span className="text-xs text-muted-foreground truncate font-mono mt-0.5">
+                          {athlete.email}
+                        </span>
+                      </div>
+
+                      <div className="col-span-3 flex items-center">
+                        <span
+                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${
+                            athlete.status === "active"
+                              ? "bg-primary/10 text-primary border border-primary/20"
+                              : "bg-zinc-500/10 text-zinc-400 border border-zinc-500/20"
+                          }`}
+                        >
+                          {athlete.status}
+                        </span>
+                      </div>
+
+                      <div className="col-span-3 font-mono text-xs text-muted-foreground truncate">
+                        {athlete.id}
+                      </div>
+
+                      <div className="col-span-1 flex justify-end pr-2 opacity-50 group-hover:opacity-100 transition-all group-hover:text-primary">
+                        <ChevronRight
+                          size={18}
+                          className="group-hover:translate-x-1 transition-transform"
+                        />
+                      </div>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              )}
+            </div>
+          </div>
+        </div>
+      </main>
 
       {/* Strict Industrial Invite Modal */}
       <Dialog open={isInviteOpen} onOpenChange={setIsInviteOpen}>
@@ -289,6 +284,6 @@ export default function RosterManagement() {
           </form>
         </DialogContent>
       </Dialog>
-    </SidebarProvider>
+    </>
   );
 }
