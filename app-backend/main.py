@@ -68,7 +68,8 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.pdfgen import canvas
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 from sse_starlette.sse import EventSourceResponse
-from utils import extract_text_from_file, trim_conversation_history
+from utils import extract_text_from_file, trim_conversation_history, encode_image_to_base64
+
 
 load_dotenv()
 
@@ -307,6 +308,83 @@ async def upload_document(
             "filename": file.filename,
             "conversation_id": conversation_id,
         }
+    
+ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
+
+@app.post("/upload-image/{conversation_id}")
+async def upload_image(
+    conversation_id: str,
+    file: UploadFile = File(...),
+    email: Optional[str] = Depends(get_optional_user_email),
+):
+    if not email:
+        raise HTTPException(status_code=401, detail="Must be logged in to upload images")
+
+    if file.content_type not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(status_code=400, detail="Unsupported image type. Use JPEG, PNG, GIF, or WebP.")
+
+    user = await db.users.find_one({"email": email})
+    user_id = str(user["_id"]) if user else None
+
+    content = await file.read()
+
+    # Cap at 5MB
+    if len(content) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Image too large. Max 5MB.")
+
+    image_b64 = encode_image_to_base64(content)
+
+    # Store as a multipart content message — the AI backend reads this format
+    sys_msg = {
+        "role": "user",
+        "content": [
+            {
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": file.content_type,
+                    "data": image_b64,
+                },
+            },
+            {
+                "type": "text",
+                "text": f"[USER UPLOADED IMAGE: {file.filename}]",
+            },
+        ],
+        "timestamp": datetime.now(timezone.utc),
+    }
+
+    ui_msg = {
+        "role": "assistant",
+        "content": f"🖼️ **Image Received:** `{file.filename}`\n\nI can see the image. What would you like to know about it?",
+        "timestamp": datetime.now(timezone.utc),
+    }
+
+    is_valid_id = ObjectId.is_valid(conversation_id)
+
+    if not is_valid_id:
+        new_db_id = ObjectId()
+        await db.conversations.insert_one({
+            "_id": new_db_id,
+            "user_id": user_id,
+            "title": f"Image: {file.filename[:20]}",
+            "messages": [sys_msg, ui_msg],
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc),
+        })
+        return {"message": "Image processed and chat created", "filename": file.filename, "conversation_id": str(new_db_id)}
+    else:
+        result = await db.conversations.update_one(
+            {"_id": ObjectId(conversation_id)},
+            {
+                "$push": {"messages": {"$each": [sys_msg, ui_msg]}},
+                "$set": {"updated_at": datetime.now(timezone.utc)},
+            },
+        )
+        if result.modified_count == 0:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+
+        return {"message": "Image processed", "filename": file.filename, "conversation_id": conversation_id}
 
 
 async def generate_smart_title(first_prompt: str, ai_backend_url: str) -> str:
@@ -719,12 +797,17 @@ async def chat(
                         if m_role == last_role:
                             continue
 
-                        content = m.get("content", "")
-                        if last_role is None and doc_preamble:
-                            content = f"{doc_preamble}{content}"
+                        raw_content = m.get("content", "")
 
-                        payload_messages.append({"role": m_role, "content": content})
-                        last_role = m_role
+                        # Image messages store content as a list — pass through untouched
+                        if isinstance(raw_content, list):
+                            payload_messages.append({"role": m_role, "content": raw_content})
+                        else:
+                            content = raw_content
+                            if last_role is None and doc_preamble:
+                                content = f"{doc_preamble}{content}"
+                            payload_messages.append({"role": m_role, "content": content})
+                            last_role = m_role
 
             except Exception as e:
                 print(f"Error loading history: {e}")

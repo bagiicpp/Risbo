@@ -13,6 +13,7 @@ from google import genai
 from google.genai import types
 from pydantic import BaseModel
 from football_data import get_football_context
+from typing import Union
 from intent import classify_intent
 from search import smart_search
 
@@ -54,7 +55,7 @@ client = genai.Client(api_key=os.getenv("AI_STUDIO_API"))
 
 class MessagePayload(BaseModel):
     role: str
-    content: str
+    content: Union[str, list]
 
 
 class ChatRequest(BaseModel):
@@ -265,18 +266,31 @@ async def generate_stream(
         # Build the structured types.Content array required by Google SDK
         formatted_contents = []
         for msg in messages:
-            # Ensure roles map exactly to what Google expects ("user" or "model")
             role = "model" if msg.role in ["assistant", "model"] else "user"
-            formatted_contents.append(
-                types.Content(role=role, parts=[types.Part.from_text(text=msg.content)])
-            )
+
+            if isinstance(msg.content, list):
+                # Multipart message — may contain image + text blocks
+                parts = []
+                for block in msg.content:
+                    if block.get("type") == "image":
+                        src = block["source"]
+                        img_bytes = base64.b64decode(src["data"])
+                        parts.append(types.Part.from_bytes(data=img_bytes, mime_type=src["media_type"]))
+                    elif block.get("type") == "text":
+                        parts.append(types.Part.from_text(text=block["text"]))
+                formatted_contents.append(types.Content(role=role, parts=parts))
+            else:
+                formatted_contents.append(
+                    types.Content(role=role, parts=[types.Part.from_text(text=msg.content)])
+                )
 
     # --- FOOTBALL DATA INJECTION (always active) ---
     # detect_league_code() is an instant string lookup — no HTTP cost unless a
     # supported league is found. Runs regardless of enable_search so users get
     # live standings/results without needing to toggle web search.
     if isinstance(formatted_contents, list) and formatted_contents:
-        raw = search_query or messages[-1].content
+        last_content = messages[-1].content
+        raw = search_query or (last_content if isinstance(last_content, str) else "")
         query = await _make_search_query(raw, intent=classify_intent(raw))
         football_ctx = None
         try:

@@ -2,6 +2,7 @@ import io
 from pypdf import PdfReader
 from docx import Document
 import openpyxl
+import base64
 
 async def extract_text_from_file(file_content: bytes, filename: str) -> str:
     text = ""
@@ -60,3 +61,6 @@ def trim_conversation_history(messages: list, max_words: int = 2000) -> list:
 
     # Reverse back to chronological order
     return list(reversed(trimmed_messages))
+
+def encode_image_to_base64(content: bytes) -> str:
+    return base64.b64encode(content).decode("utf-8")
