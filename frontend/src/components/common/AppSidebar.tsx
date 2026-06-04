@@ -59,6 +59,7 @@ import { useEffect, useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import api from "@/lib/api";
+import axios from "axios";
 
 export function AppSidebar({ onNewChat }: { onNewChat?: () => void } = {}) {
   const { logout, user, token } = useAuth();
@@ -67,13 +68,13 @@ export function AppSidebar({ onNewChat }: { onNewChat?: () => void } = {}) {
   const { state, toggleSidebar } = useSidebar();
   const isCollapsed = state === "collapsed";
 
-  // Add this right after the existing state declarations (around line 69):
   useEffect(() => {
     if (isCollapsed) {
       toggleSidebar();
     }
   }, [location.pathname]);
 
+  const displayName = user?.name || "User";
   const displayInitial = displayName
     ? displayName.charAt(0).toUpperCase()
     : "U";
@@ -145,10 +146,31 @@ export function AppSidebar({ onNewChat }: { onNewChat?: () => void } = {}) {
     let connectionTimeout: ReturnType<typeof setTimeout>;
 
     const fetchCoachData = async () => {
-      /* ... existing code ... */
+      try {
+        const res = await api.get("/roster/athletes", {
+          signal: abortController.signal,
+        });
+        setCoachRoster(res.data);
+        setAthleteCount(
+          res.data.filter((a: any) => a.status === "active").length,
+        );
+      } catch (err) {
+        if (!axios.isCancel(err)) console.error("Failed to fetch roster:", err);
+      }
     };
+
     const fetchAthleteData = async () => {
-      /* ... existing code ... */
+      try {
+        const [invitesRes, coachesRes] = await Promise.all([
+          api.get("/athlete/invites", { signal: abortController.signal }),
+          api.get("/athlete/coaches", { signal: abortController.signal }),
+        ]);
+        setPendingInvites(invitesRes.data);
+        setMyCoaches(coachesRes.data);
+      } catch (err) {
+        if (!axios.isCancel(err))
+          console.error("Failed to fetch athlete data:", err);
+      }
     };
 
     if (user.role === "coach") fetchCoachData();
@@ -551,7 +573,10 @@ export function AppSidebar({ onNewChat }: { onNewChat?: () => void } = {}) {
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <button
-                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                }}
                                 className="p-1.5 rounded-md hover:bg-background text-muted-foreground hover:text-foreground transition-colors mr-1 outline-none"
                               >
                                 <MoreVertical className="size-4 cursor-pointer" />
