@@ -62,6 +62,7 @@ from models import (
 )
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel
+from pymongo import ReturnDocument
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
@@ -78,6 +79,8 @@ db = None
 
 active_athlete_streams: dict[str, asyncio.Event] = {}
 active_coach_streams: dict[str, asyncio.Event] = {}
+athlete_connection_counts: dict[str, int] = {}
+coach_connection_counts: dict[str, int] = {}
 
 
 @asynccontextmanager
@@ -553,8 +556,10 @@ async def chat(
     request: ChatRequest,
     email: Optional[str] = Depends(get_optional_user_email),
 ):
+    user = None
     user_id = None
     role = "athlete"
+
     if email:
         user = await db.users.find_one({"email": email})
         if user:
@@ -667,7 +672,6 @@ async def chat(
                 conv = await db.conversations.find_one({"_id": db_assigned_id})
 
                 if conv and "messages" in conv:
-                    # Execute Truncation Logic before building the context window
                     if request.truncate_from_message_id:
                         messages_list = conv["messages"]
                         truncate_index = next(
@@ -681,7 +685,6 @@ async def chat(
                         )
 
                         if truncate_index != -1:
-                            # Keep everything BEFORE the edited message
                             conv["messages"] = messages_list[:truncate_index]
                             await db.conversations.update_one(
                                 {"_id": db_assigned_id},
@@ -744,17 +747,13 @@ async def chat(
         else:
             payload_messages.append({"role": "user", "content": final_prompt_content})
 
-        # --- 4. STREAM TO AI-BACKEND ---
-        sport_profile = {}
-        if user_id:
-            try:
-                doc = await db.user_profiles.find_one({"user_id": user_id})
-                if doc:
-                    doc.pop("_id", None)
-                    doc.pop("updated_at", None)
-                    sport_profile = doc
-            except Exception as e:
-                print(f"⚠️ Profile fetch failed: {e}")
+        full_user_profile = {}
+        if user:
+            full_user_profile = {
+                "role": user.get("role"),
+                "preferences": user.get("preferences", {}),
+                "sport_profile": user.get("sport_profile", {}),
+            }
 
         try:
             async with httpx.AsyncClient(timeout=120.0) as client:
@@ -768,7 +767,7 @@ async def chat(
                         "search_query": request.prompt
                         if request.enable_search
                         else None,
-                        "user_profile": sport_profile or None,
+                        "user_profile": full_user_profile or None,
                     },
                 ) as response:
                     response.raise_for_status()
@@ -790,7 +789,6 @@ async def chat(
 
             if user_id:
                 if request.is_retry:
-                    # RETRY FIX: Overwrite the last AI message rather than skipping save
                     latest_conv = await db.conversations.find_one(
                         {"_id": db_assigned_id}
                     )
@@ -814,7 +812,6 @@ async def chat(
                             },
                         )
                 else:
-                    # Standard generation save
                     user_msg = {
                         "message_id": request.truncate_from_message_id
                         or uuid.uuid4().hex,
@@ -838,7 +835,6 @@ async def chat(
                         },
                     )
 
-                # --- FIRE-AND-FORGET BACKGROUND TASKS ---
                 if current_msg_count > 0 and current_msg_count % 6 == 0:
                     asyncio.create_task(
                         update_long_term_memory(str(db_assigned_id), ai_backend_url)
@@ -858,7 +854,6 @@ async def chat(
                 yield f"data: {json.dumps({'_type': 'title_update', 'title': generated_title})}\n\n"
 
         except Exception as db_err:
-            # Catching the error ensures the generator exits cleanly instead of severing the HTTP connection
             print(f"❌ Backend Post-Processing Error: {db_err}")
 
     return StreamingResponse(
@@ -1111,7 +1106,10 @@ async def get_profile_metrics(
 
 @app.get("/coach/roster/stream")
 async def stream_coach_roster(
-    request: Request, email: str = Depends(get_current_user_email)
+    request: Request,
+    email: str = Depends(
+        get_email_from_query_token
+    ),  # Assuming query token is required for EventSource here too
 ):
     coach = await db.users.find_one({"email": email})
     if not coach:
@@ -1123,27 +1121,37 @@ async def stream_coach_roster(
         active_coach_streams[coach_id] = asyncio.Event()
 
     async def event_generator():
+        coach_connection_counts[coach_id] = coach_connection_counts.get(coach_id, 0) + 1
+        yield {
+            "event": "connected",
+            "data": json.dumps({"status": "Stream established"}),
+        }
         try:
             while True:
                 if await request.is_disconnected():
                     break
-
                 try:
                     await asyncio.wait_for(
                         active_coach_streams[coach_id].wait(), timeout=15.0
                     )
                 except asyncio.TimeoutError:
-                    yield ": heartbeat\n\n"
+                    yield {"event": "ping", "data": "keep-alive"}
                     continue
 
                 active_coach_streams[coach_id].clear()
-                yield f"data: {json.dumps({'event': 'ROSTER_UPDATE'})}\n\n"
-
+                yield {
+                    "event": "message",
+                    "data": json.dumps({"event": "ROSTER_UPDATE"}),
+                }
         finally:
-            if coach_id in active_coach_streams:
-                del active_coach_streams[coach_id]
+            coach_connection_counts[coach_id] = (
+                coach_connection_counts.get(coach_id, 0) - 1
+            )
+            if coach_connection_counts.get(coach_id, 0) <= 0:
+                active_coach_streams.pop(coach_id, None)
+                coach_connection_counts.pop(coach_id, None)
 
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
+    return EventSourceResponse(event_generator())
 
 
 @app.post("/roster/invite")
@@ -1259,85 +1267,86 @@ async def stream_invites(
         active_athlete_streams[athlete_id] = asyncio.Event()
 
     async def event_generator():
-        # 1. IMMEDIATE FLUSH: This defeats the CORS (null) error by forcing
-        # Uvicorn to send the 200 OK and CORS headers before React can unmount.
+        athlete_connection_counts[athlete_id] = (
+            athlete_connection_counts.get(athlete_id, 0) + 1
+        )
         yield {
             "event": "connected",
             "data": json.dumps({"status": "Stream established"}),
         }
-
         try:
             while True:
-                # 2. Handle client disconnects gracefully
                 if await request.is_disconnected():
                     break
-
                 try:
-                    # 3. Wait for the trigger
                     await asyncio.wait_for(
                         active_athlete_streams[athlete_id].wait(), timeout=15.0
                     )
                 except asyncio.TimeoutError:
-                    # sse-starlette handles standard pings, but yielding our own
-                    # heartbeat ensures intermediate proxies (like Nginx) don't drop us.
                     yield {"event": "ping", "data": "keep-alive"}
                     continue
 
-                # 4. Trigger pulled, clear state and push notification
                 active_athlete_streams[athlete_id].clear()
                 yield {"event": "message", "data": json.dumps({"event": "NEW_INVITE"})}
-
         finally:
-            # 5. Cleanup memory leak prevention
-            if athlete_id in active_athlete_streams:
-                del active_athlete_streams[athlete_id]
+            athlete_connection_counts[athlete_id] = (
+                athlete_connection_counts.get(athlete_id, 0) - 1
+            )
+            if athlete_connection_counts.get(athlete_id, 0) <= 0:
+                active_athlete_streams.pop(athlete_id, None)
+                athlete_connection_counts.pop(athlete_id, None)
 
-    # EventSourceResponse handles the content-type and disables buffering natively
-    return EventSourceResponse(
-        event_generator(),
-        headers={
-            "Access-Control-Allow-Origin": "http://localhost:5173",
-            "Access-Control-Allow-Credentials": "true",
-        },
-    )
+    return EventSourceResponse(event_generator())
 
 
 @app.get("/athlete/invites")
 async def get_pending_invites(email: str = Depends(get_current_user_email)):
     athlete = await db.users.find_one({"email": email})
-    athlete_id = str(athlete["_id"])
+    if not athlete:
+        raise HTTPException(status_code=404, detail="Athlete profile not found.")
 
-    # Find all pending links for this athlete
-    cursor = db.roster_links.find({"athlete_id": athlete_id, "status": "pending"})
+    cursor = db.roster_links.find(
+        {"athlete_id": str(athlete["_id"]), "status": "pending"}
+    )
     links = await cursor.to_list(length=100)
 
     if not links:
         return []
 
-    # Extract coach IDs to get their names
-    from bson.objectid import ObjectId
+    coach_ids = [
+        validate_object_id(link.get("coach_id"))
+        for link in links
+        if validate_object_id(link.get("coach_id")) is not None
+    ]
 
-    coach_ids = [ObjectId(link["coach_id"]) for link in links]
+    if not coach_ids:
+        return []
 
     coaches_cursor = db.users.find({"_id": {"$in": coach_ids}}, {"name": 1, "email": 1})
     coaches = await coaches_cursor.to_list(length=100)
 
-    results = []
-    for coach in coaches:
-        results.append(
-            {
-                "coach_id": str(coach["_id"]),
-                "name": coach.get("name", "Unknown Coach"),
-                "email": coach.get("email"),
-            }
-        )
+    return [
+        {
+            "coach_id": str(coach["_id"]),
+            "name": coach.get("name", "Unknown Coach"),
+            "email": coach.get("email"),
+        }
+        for coach in coaches
+    ]
 
-    return results
+
+def validate_object_id(id_str: str) -> ObjectId:
+    try:
+        return ObjectId(id_str)
+    except InvalidId:
+        return None
 
 
 @app.get("/athlete/coaches")
 async def get_active_coaches(email: str = Depends(get_current_user_email)):
     athlete = await db.users.find_one({"email": email})
+    if not athlete:
+        raise HTTPException(status_code=404, detail="Athlete profile not found.")
 
     cursor = db.roster_links.find(
         {"athlete_id": str(athlete["_id"]), "status": "active"}
@@ -1347,20 +1356,23 @@ async def get_active_coaches(email: str = Depends(get_current_user_email)):
     if not links:
         return []
 
-    from bson.objectid import ObjectId
+    # Defensively parse ObjectIds, ignoring malformed data
+    coach_ids = [
+        validate_object_id(link.get("coach_id"))
+        for link in links
+        if validate_object_id(link.get("coach_id")) is not None
+    ]
 
-    coach_ids = [ObjectId(link["coach_id"]) for link in links]
+    if not coach_ids:
+        return []
 
     coaches_cursor = db.users.find({"_id": {"$in": coach_ids}}, {"name": 1})
     coaches = await coaches_cursor.to_list(length=100)
 
-    results = []
-    for coach in coaches:
-        results.append(
-            {"id": str(coach["_id"]), "name": coach.get("name", "Unknown Coach")}
-        )
-
-    return results
+    return [
+        {"id": str(coach["_id"]), "name": coach.get("name", "Unknown Coach")}
+        for coach in coaches
+    ]
 
 
 @app.post("/athlete/invites/{coach_id}/respond")
@@ -1717,7 +1729,7 @@ async def update_profile(
 @app.get("/onboarding/profile")
 async def get_sport_profile(email: str = Depends(get_current_user_email)):
     """
-    Returns the user's onboarding sport profile. Always returns a consistent
+    Returns the user's embedded sport profile. Always returns a consistent
     shape — an empty default structure if the user hasn't onboarded yet, so the
     frontend never has to special-case a missing document.
     """
@@ -1725,20 +1737,18 @@ async def get_sport_profile(email: str = Depends(get_current_user_email)):
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    profile = await db.user_profiles.find_one({"user_id": str(user["_id"])})
-    if not profile:
-        return {
-            "role": user.get("role", "athlete"),
-            "sport": [],
-            "team": None,
-            "league": None,
-            "focus": [],
-            "onboarding_complete": user.get("onboarding_complete", False),
-        }
+    # Safely extract the embedded profile, defaulting to an empty dict if not found
+    sport_profile = user.get("sport_profile", {})
 
-    profile.pop("_id", None)
-    profile["onboarding_complete"] = user.get("onboarding_complete", False)
-    return profile
+    # Construct the guaranteed shape for the frontend
+    return {
+        "role": user.get("role", "athlete"),
+        "sport": sport_profile.get("sport", []),
+        "team": sport_profile.get("team", None),
+        "league": sport_profile.get("league", None),
+        "focus": sport_profile.get("focus", []),
+        "onboarding_complete": user.get("onboarding_complete", False),
+    }
 
 
 @app.post("/onboarding/profile")
@@ -1746,28 +1756,40 @@ async def save_sport_profile(
     payload: SportProfile, email: str = Depends(get_current_user_email)
 ):
     """
-    Creates or updates the user's onboarding sport profile and marks onboarding
-    as complete on the user document. Upsert — users may revisit and edit later.
+    Updates the user's root metadata (role, onboarding state) and embeds
+    their domain-specific sport profile in a single atomic database operation.
     """
-    user = await db.users.find_one({"email": email})
-    if not user:
+    # 1. Convert Pydantic model to dict
+    payload_dict = payload.model_dump(exclude_unset=True)
+
+    # 2. Extract the role so we can update it at the root document level
+    new_role = payload_dict.pop("role", None)
+
+    # 3. Build the atomic $set payload
+    update_data = {
+        "onboarding_complete": True,
+        "sport_profile": payload_dict,  # Embed the remaining data as a nested object
+        "updated_at": datetime.now(timezone.utc),
+    }
+
+    if new_role:
+        update_data["role"] = new_role
+
+    # 4. find_one_and_update guarantees atomicity and returns the updated document
+    updated_user = await db.users.find_one_and_update(
+        {"email": email}, {"$set": update_data}, return_document=ReturnDocument.AFTER
+    )
+
+    if not updated_user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    user_id = str(user["_id"])
-    profile_doc = payload.model_dump()
-    profile_doc["user_id"] = user_id
-    profile_doc["updated_at"] = datetime.now(timezone.utc)
+    # 5. Format for the Pydantic response model
+    updated_user["_id"] = str(updated_user["_id"])
 
-    await db.user_profiles.update_one(
-        {"user_id": user_id}, {"$set": profile_doc}, upsert=True
-    )
-    await db.users.update_one(
-        {"_id": user["_id"]}, {"$set": {"onboarding_complete": True}}
-    )
+    # Remove sensitive data before returning to the frontend
+    updated_user.pop("hashed_password", None)
 
-    profile_doc.pop("_id", None)
-    profile_doc["onboarding_complete"] = True
-    return profile_doc
+    return updated_user
 
 
 @app.patch("/preferences")

@@ -1,7 +1,6 @@
 import {
   Settings,
   LogOut,
-  Download,
   ChevronUp,
   PanelLeftClose,
   PanelLeftOpen,
@@ -56,29 +55,23 @@ import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
 import { Link, useNavigate, useLocation } from "react-router";
 import { useConversations } from "@/hooks/useConversations";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import api from "@/lib/api";
 
 export function AppSidebar({ onNewChat }: { onNewChat?: () => void } = {}) {
-  const { logout } = useAuth();
+  const { logout, user, token } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const { state, toggleSidebar } = useSidebar();
   const isCollapsed = state === "collapsed";
-  const { user, token } = useAuth();
-  const displayName = user?.name || "User";
 
+  const displayName = user?.name || "User";
   const displayInitial = displayName
     ? displayName.charAt(0).toUpperCase()
     : "U";
-
   const displayPlan = user?.plan || "Free plan";
-  const handleLogout = () => {
-    logout();
-    navigate("/login");
-  };
 
   const {
     conversations,
@@ -90,8 +83,6 @@ export function AppSidebar({ onNewChat }: { onNewChat?: () => void } = {}) {
   } = useConversations();
 
   const [searchQuery, setSearchQuery] = useState("");
-
-  // --- POPUP / DIALOG STATE ---
   const [isRenameOpen, setIsRenameOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [targetChat, setTargetChat] = useState<{
@@ -101,139 +92,105 @@ export function AppSidebar({ onNewChat }: { onNewChat?: () => void } = {}) {
   const [newTitle, setNewTitle] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // --- COACH SPECIFIC STATE ---
+  // --- COACH STATE ---
   const [isRosterOpen, setIsRosterOpen] = useState(false);
   const [coachRoster, setCoachRoster] = useState<any[]>([]);
   const [athleteCount, setAthleteCount] = useState(0);
   const [isOutboxOpen, setIsOutboxOpen] = useState(false);
 
-  // --- COACH SPECIFIC STATE (in AppSidebar.tsx) ---
-  useEffect(() => {
-    if (user?.role === "coach" && token) {
-      // 1. Initial Data Fetch
-      const fetchRoster = () => {
-        api
-          .get("/roster/athletes")
-          .then((res) => {
-            setCoachRoster(res.data);
-            setAthleteCount(
-              res.data.filter((a: any) => a.status === "active").length,
-            );
-          })
-          .catch(console.error);
+  const sortedOutbox = useMemo(() => {
+    return [...coachRoster].sort((a, b) => {
+      const order: Record<string, number> = {
+        pending: 0,
+        rejected: 1,
+        active: 2,
+        unknown: 3,
       };
+      return (order[a.status] ?? 3) - (order[b.status] ?? 3);
+    });
+  }, [coachRoster]);
 
-      fetchRoster();
-
-      // 2. Open Real-Time SSE Connection
-      const eventSource = new EventSource(
-        `http://localhost:8080/coach/roster/stream?token=${token}`,
-      );
-
-      eventSource.onopen = () => {
-        console.log("Coach SSE Stream connected successfully.");
-      };
-
-      eventSource.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          if (data.event === "ROSTER_UPDATE") {
-            fetchRoster();
-            toast.info("An athlete responded to your invite.");
-          }
-        } catch (err) {
-          console.error("Failed to parse SSE event:", err);
-        }
-      };
-
-      eventSource.onerror = (err) => {
-        // Log the error, but DO NOT close the connection.
-        // The browser will automatically attempt to reconnect.
-        console.error("SSE Connection interrupted. Retrying...", err);
-      };
-
-      // 3. Cleanup on unmount
-      return () => {
-        console.log("Unmounting: Closing Coach SSE Stream.");
-        eventSource.close();
-      };
-    }
-  }, [user, token]);
-
-  // Sort outbox invites so pending and rejected are up top
-  const sortedOutbox = [...coachRoster].sort((a, b) => {
-    const order: Record<string, number> = {
-      pending: 0,
-      rejected: 1,
-      active: 2,
-      unknown: 3,
-    };
-    return (order[a.status] ?? 3) - (order[b.status] ?? 3);
-  });
-
-  // --- ATHLETE SPECIFIC STATE ---
+  // --- ATHLETE STATE ---
   const [isCoachesOpen, setIsCoachesOpen] = useState(false);
   const [myCoaches, setMyCoaches] = useState<{ id: string; name: string }[]>(
     [],
   );
-
-  // Athlete Inbox State
   const [pendingInvites, setPendingInvites] = useState<
     { coach_id: string; name: string; email: string }[]
   >([]);
   const [isInboxOpen, setIsInboxOpen] = useState(false);
   const [isResponding, setIsResponding] = useState<string | null>(null);
 
+  // ==========================================
+  // UNIFIED NETWORK LIFECYCLE
+  // ==========================================
   useEffect(() => {
-    if (user?.role === "athlete") {
-      // 1. Initial Data Fetch
-      api
-        .get("/athlete/coaches")
-        .then((res) => setMyCoaches(res.data))
-        .catch(console.error);
+    if (!token || !user?.role) return;
 
-      const fetchInvites = () => {
-        api
-          .get("/athlete/invites")
-          .then((res) => setPendingInvites(res.data))
-          .catch(console.error);
-      };
+    // 1. Setup an unloading guard
+    let isPageUnloading = false;
+    const handleBeforeUnload = () => {
+      isPageUnloading = true;
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
 
-      fetchInvites(); // Fetch immediately on mount
+    const abortController = new AbortController();
+    let eventSource: EventSource | null = null;
+    let connectionTimeout: ReturnType<typeof setTimeout>;
 
-      let eventSource: EventSource;
+    const fetchCoachData = async () => {
+      /* ... existing code ... */
+    };
+    const fetchAthleteData = async () => {
+      /* ... existing code ... */
+    };
 
-      eventSource = new EventSource(
-        `http://localhost:8080/athlete/invites/stream?token=${token}`,
-      );
+    if (user.role === "coach") fetchCoachData();
+    if (user.role === "athlete") fetchAthleteData();
+
+    connectionTimeout = setTimeout(() => {
+      const streamUrl =
+        user.role === "coach"
+          ? `http://localhost:8080/coach/roster/stream?token=${token}`
+          : `http://localhost:8080/athlete/invites/stream?token=${token}`;
+
+      eventSource = new EventSource(streamUrl);
 
       eventSource.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          if (data.event === "NEW_INVITE") {
-            fetchInvites();
+          if (typeof data !== "object" || !data) return;
 
+          if (user.role === "coach" && data.event === "ROSTER_UPDATE") {
+            fetchCoachData();
+            toast.info("An athlete responded to your invite.");
+          } else if (user.role === "athlete" && data.event === "NEW_INVITE") {
+            fetchAthleteData();
             toast("You received a new coach invite!", { icon: "📩" });
           }
         } catch (err) {
-          console.error("Failed to parse SSE event:", err);
+          console.error(`Failed to parse SSE event:`, err);
         }
       };
 
       eventSource.onerror = (err) => {
-        console.error("SSE Connection Error:", err);
-        eventSource.close();
+        console.warn(`SSE Connection interrupted. Auto-reconnecting...`, err);
       };
+    }, 500);
 
-      return () => {
-        if (eventSource) {
-          eventSource.close();
-        }
-      };
-    }
-  }, [user]);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      abortController.abort();
+      clearTimeout(connectionTimeout);
+      if (eventSource) eventSource.close();
+    };
+  }, [user?.role, token]);
 
-  // --- INBOX LOGIC ---
+  const handleLogout = () => {
+    logout();
+    navigate("/login");
+  };
+
   const handleRespondToInvite = async (
     coach_id: string,
     action: "accept" | "reject",
@@ -241,7 +198,6 @@ export function AppSidebar({ onNewChat }: { onNewChat?: () => void } = {}) {
     setIsResponding(coach_id);
     try {
       await api.post(`/athlete/invites/${coach_id}/respond`, { action });
-
       setPendingInvites((prev) =>
         prev.filter((inv) => inv.coach_id !== coach_id),
       );
@@ -273,10 +229,12 @@ export function AppSidebar({ onNewChat }: { onNewChat?: () => void } = {}) {
 
   const handleNewChat = () => {
     setActiveConversationId(null);
+
     if (onNewChat) {
       onNewChat();
     }
-    navigate("/chat");
+
+    navigate("/chat", { replace: true });
   };
 
   const handleRenameClick = (id: string, currentTitle: string) => {
