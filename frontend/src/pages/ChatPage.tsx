@@ -1,10 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router";
-import { AppSidebar } from "@/components/common/AppSidebar";
 import ChatInput from "@/components/chat/ChatInput";
 import StreamWindow from "@/components/chat/StreamWindow";
 import type { Message } from "@/components/chat/StreamWindow";
-import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { useAuth } from "@/hooks/useAuth";
 import { useConversations } from "@/hooks/useConversations";
 import { motion, AnimatePresence } from "framer-motion";
@@ -188,11 +186,14 @@ export default function ChatPage() {
       try {
         if (stagedFile.type.startsWith("image/")) {
           const convId = activeConversationId || "new";
-          const uploadRes = await fetch(`http://localhost:8080/upload-image/${convId}`, {
-            method: "POST",
-            headers: { Authorization: `Bearer ${token}` },
-            body: formData,
-          });
+          const uploadRes = await fetch(
+            `http://localhost:8080/upload-image/${convId}`,
+            {
+              method: "POST",
+              headers: { Authorization: `Bearer ${token}` },
+              body: formData,
+            },
+          );
 
           if (!uploadRes.ok) throw new Error("Failed to upload image");
           const uploadData = await uploadRes.json();
@@ -201,12 +202,11 @@ export default function ChatPage() {
           if (!activeConversationId && uploadData.conversation_id) {
             setActiveConversationId(uploadData.conversation_id);
             overrideConversationId = uploadData.conversation_id;
-  }
+          }
 
-  finalUserMessage = finalUserMessage
-    ? `[ATTACHED IMAGE: ${stagedFile.name}]\n${finalUserMessage}`
-    : `[ATTACHED IMAGE: ${stagedFile.name}]`;
-
+          finalUserMessage = finalUserMessage
+            ? `[ATTACHED IMAGE: ${stagedFile.name}]\n${finalUserMessage}`
+            : `[ATTACHED IMAGE: ${stagedFile.name}]`;
         } else {
           // --- DOCUMENT: existing extract-text flow ---
           const extractRes = await fetch("http://localhost:8080/extract-text", {
@@ -215,7 +215,8 @@ export default function ChatPage() {
             body: formData,
           });
 
-          if (!extractRes.ok) throw new Error("Failed to extract text from document");
+          if (!extractRes.ok)
+            throw new Error("Failed to extract text from document");
           const extractData = await extractRes.json();
 
           finalUserMessage = `[ATTACHED DOCUMENT: ${stagedFile.name}]\n${extractData.text}\n\n${finalUserMessage}`;
@@ -225,8 +226,11 @@ export default function ChatPage() {
         setMessages((prev) => {
           let baseMessages = prev;
           if (truncateId) {
-            const truncateIndex = prev.findIndex((m) => m.message_id === truncateId);
-            if (truncateIndex !== -1) baseMessages = prev.slice(0, truncateIndex);
+            const truncateIndex = prev.findIndex(
+              (m) => m.message_id === truncateId,
+            );
+            if (truncateIndex !== -1)
+              baseMessages = prev.slice(0, truncateIndex);
           }
           return [
             ...baseMessages,
@@ -288,7 +292,9 @@ export default function ChatPage() {
         signal: streamAbortRef.current.signal,
         body: JSON.stringify({
           prompt: finalUserMessage,
-          conversation_id: isNewChat ? (overrideConversationId || null) : (overrideConversationId || activeConversationId),
+          conversation_id: isNewChat
+            ? overrideConversationId || null
+            : overrideConversationId || activeConversationId,
           model: selectedModel,
           enable_search: enableSearch,
           truncate_from_message_id: actualTruncateId || null,
