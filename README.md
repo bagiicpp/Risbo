@@ -4,7 +4,7 @@ RizzBo is a specialized AI assistant designed for athletes, coaches, and sports 
 
 ---
 
-## 🚀 Project Overview
+## Project Overview
 
 RizzBo is a full-stack web application that leverages Large Language Models (LLMs) to provide data-driven sports analytics. The system is designed to help users analyze player performance, scout emerging talents, and optimize training regimes based on biomechanics, nutrition, and recovery data.
 
@@ -17,7 +17,7 @@ RizzBo is a full-stack web application that leverages Large Language Models (LLM
 
 ---
 
-## ✨ Features
+## Features
 
 ### MVP Functionalities
 - [x] **Natural Language Interaction:** Intuitive chat interface for interacting with the AI.
@@ -29,7 +29,7 @@ RizzBo is a full-stack web application that leverages Large Language Models (LLM
 
 ---
 
-## 🛠 Tech Stack
+## Tech Stack
 
 ### Frontend
 - **Framework:** React + Vite
@@ -51,41 +51,7 @@ $\quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \text{MongoDB} \qua
 
 ---
 
-## 📂 Project Structure
-
-```text
-rizzbo/
-├── ai-backend/             # AI Orchestration Layer
-│   ├── main.py             # FastAPI entry point
-│   ├── intent.py           # Intent classification for sports domains
-│   ├── search.py           # Integration with SearxNG/Web search
-│   ├── football_data.py    # Specialized football data handlers
-│   ├── domains.py          # Domain-specific prompt engineering
-│   └── Dockerfile
-│
-├── app-backend/            # Core Application Logic
-│   ├── main.py             # API entry point
-│   ├── auth.py             # JWT Authentication & User management
-│   ├── models.py           # MongoDB schemas
-│   ├── utils.py            # File processing and helper functions
-│   └── tests/              # Comprehensive test suite
-│
-├── frontend/               # Modern User Interface
-│   ├── src/                # React components, hooks, and pages
-│   │   ├── components/     # UI components (shadcn/ui)
-│   │   ├── pages/          # Chat, Settings, and Analytics views
-│   │   └── hooks/          # Custom React hooks for API interaction
-│   ├── Dockerfile
-│   └── package.json
-│
-├── searxng/                # Self-hosted search engine configuration
-│
-└── docker-compose.yml      # Full-stack orchestration
-```
-
----
-
-## ⚙️ Local Setup (Docker)
+## Local Setup (Docker)
 
 The easiest way to run RizzBo is using Docker Compose.
 
@@ -126,7 +92,7 @@ docker compose up --build
 
 ---
 
-## 👥 Contributors
+## Contributors
 - **Frontend Development:** UI/UX, React integration.
 - **Backend Development:** FastAPI Architecture, Dockerization, LLM Integration.
 - **Project Management:** Prompt Engineering, Domain Specialization (Sports/Training).
