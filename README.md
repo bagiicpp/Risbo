@@ -1,5 +1,4 @@
 # RizzBo AI — Sports & Analytical Assistant
-
 RizzBo is a specialized AI assistant designed for athletes, coaches, and sports analysts. It provides deep expertise in football (soccer) and basketball, player statistics, and training optimization.
 
 ---
@@ -133,3 +132,4 @@ docker compose up --build
 
 ---
 *Last Updated: June 2026*
+
