@@ -58,7 +58,7 @@ export default function ChatPage() {
       const loadHistoryLog = async () => {
         try {
           const response = await fetch(
-            `http://localhost:8080/conversations/${conversationId}`,
+            `${import.meta.env.VITE_API_URL}/conversations/${conversationId}`,
             {
               headers: { Authorization: `Bearer ${token}` },
               signal: abortController.signal,
@@ -187,7 +187,7 @@ export default function ChatPage() {
         if (stagedFile.type.startsWith("image/")) {
           const convId = activeConversationId || "new";
           const uploadRes = await fetch(
-            `http://localhost:8080/upload-image/${convId}`,
+            `${import.meta.env.VITE_API_URL}/upload-image/${convId}`,
             {
               method: "POST",
               headers: { Authorization: `Bearer ${token}` },
@@ -209,7 +209,7 @@ export default function ChatPage() {
             : `[ATTACHED IMAGE: ${stagedFile.name}]`;
         } else {
           // --- DOCUMENT: existing extract-text flow ---
-          const extractRes = await fetch("http://localhost:8080/extract-text", {
+          const extractRes = await fetch(`${import.meta.env.VITE_API_URL}/extract-text`, {
             method: "POST",
             headers: { Authorization: `Bearer ${token}` },
             body: formData,
@@ -283,7 +283,7 @@ export default function ChatPage() {
 
     // --- PHASE 3: SEND TO LLM ---
     try {
-      const response = await fetch("http://localhost:8080/chat", {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/chat`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -387,7 +387,7 @@ export default function ChatPage() {
         });
 
         try {
-          const retryResponse = await fetch("http://localhost:8080/chat", {
+          const retryResponse = await fetch(`${import.meta.env.VITE_API_URL}/chat`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",

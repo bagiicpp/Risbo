@@ -23,7 +23,7 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({
     setLoading(true);
     try {
       const res = await fetch(
-        `http://localhost:8080/conversations?t=${Date.now()}`,
+        `${import.meta.env.VITE_API_URL}/conversations?t=${Date.now()}`,
         {
           method: "GET",
           headers: {
@@ -64,7 +64,7 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({
 
     const syncConversations = async () => {
       try {
-        const res = await fetch("http://localhost:8080/conversations", {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/conversations`, {
           headers: { Authorization: `Bearer ${token}` },
         });
 

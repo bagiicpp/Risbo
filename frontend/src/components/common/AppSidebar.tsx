@@ -179,8 +179,8 @@ export function AppSidebar({ onNewChat }: { onNewChat?: () => void } = {}) {
     connectionTimeout = setTimeout(() => {
       const streamUrl =
         user.role === "coach"
-          ? `http://localhost:8080/coach/roster/stream?token=${token}`
-          : `http://localhost:8080/athlete/invites/stream?token=${token}`;
+          ? `${import.meta.env.VITE_API_URL}/coach/roster/stream?token=${token}`
+          : `${import.meta.env.VITE_API_URL}/invites/stream?token=${token}`;
 
       eventSource = new EventSource(streamUrl);
 

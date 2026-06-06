@@ -12,7 +12,7 @@ from domains import TRUSTED_DOMAINS, LOW_QUALITY_DOMAINS, STATIC_STATS_DOMAINS
 
 logger = logging.getLogger(__name__)
 
-SEARXNG_URL = os.getenv("SEARXNG_URL", "http://localhost:8080")
+SEARXNG_URL = os.getenv("SEARX_URL", "http://localhost:8080")
 
 _FETCH_EXTRA = 4
 _MAX_RETRIES = 3

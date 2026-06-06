@@ -69,7 +69,7 @@ const RegisterPage: React.FC = () => {
     try {
       // Hardcoded base URL due to raw axios usage.
       // Ensure this aligns with your environment variables in production.
-      await axios.post("http://localhost:8080/register", {
+      await axios.post(`${import.meta.env.VITE_API_URL}/register`, {
         name,
         email,
         password,
@@ -99,7 +99,7 @@ const RegisterPage: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      await axios.post("http://localhost:8080/verify-email", {
+      await axios.post(`${import.meta.env.VITE_API_URL}/verify-email`, {
         email,
         code,
       });
