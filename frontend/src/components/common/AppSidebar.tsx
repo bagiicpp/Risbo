@@ -55,7 +55,7 @@ import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
 import { Link, useNavigate, useLocation } from "react-router";
 import { useConversations } from "@/hooks/useConversations";
-import { useEffect, useState, useMemo } from "react";
+import { useCallback, useEffect, useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import api from "@/lib/api";
@@ -127,6 +127,11 @@ export function AppSidebar({ onNewChat }: { onNewChat?: () => void } = {}) {
   >([]);
   const [isInboxOpen, setIsInboxOpen] = useState(false);
   const [isResponding, setIsResponding] = useState<string | null>(null);
+
+  const handleBeforeUnload = useCallback((event: BeforeUnloadEvent) => {
+    event.preventDefault();
+    event.returnValue = "";
+  }, []);
 
   useEffect(() => {
     if (!token || !user?.role) return;
