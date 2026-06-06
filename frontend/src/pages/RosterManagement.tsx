@@ -10,8 +10,6 @@ import {
   Activity,
 } from "lucide-react";
 import api from "@/lib/api";
-import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
-import { AppSidebar } from "@/components/common/AppSidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {

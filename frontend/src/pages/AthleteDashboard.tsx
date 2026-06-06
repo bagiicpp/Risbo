@@ -1,7 +1,5 @@
 import { useEffect, useState } from "react";
-import { AppSidebar } from "@/components/common/AppSidebar";
 import { getProfileSummary, getProfileMetrics } from "@/lib/api";
-import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import {
   LineChart,
   Line,

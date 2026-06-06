@@ -26,7 +26,6 @@ export default function ChatInput({
   loading,
   onUpload,
   isUploading,
-  activeConversationId,
   uploadedFile,
   onClearFile,
   selectedModel,

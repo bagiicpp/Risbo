@@ -116,12 +116,6 @@ export default function ChatPage() {
 
   const handleFileUpload = (file: File) => setStagedFile(file);
   const clearStagedFile = () => setStagedFile(null);
-
-  const handleDragEnter = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (activeConversationId) setDragActive(true);
-  };
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();

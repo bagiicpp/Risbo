@@ -5,6 +5,15 @@ import { SettingsCard } from "@/components/common/SettingsCard";
 import { toast } from "sonner";
 import api from "@/lib/api";
 
+type Theme = "light" | "dark" | "system";
+
+interface UserPrefs {
+  theme: Theme;
+  measurement_system: string;
+  dietary_preference: string;
+  workout_reminders: boolean;
+}
+
 export function PreferencesSettings() {
   const { theme, setTheme } = useTheme();
   const [isSaving, setIsSaving] = useState(false);
@@ -12,8 +21,9 @@ export function PreferencesSettings() {
 
   // 1. ADD THEME TO LOCAL DRAFT STATE
   // We initialize it with the global theme as a fallback before the DB loads
-  const [prefs, setPrefs] = useState({
-    theme: theme,
+  // Replace your existing useState line with this:
+  const [prefs, setPrefs] = useState<UserPrefs>({
+    theme: theme as Theme, // Cast the initial context value to your custom Theme type
     measurement_system: "metric",
     dietary_preference: "none",
     workout_reminders: true,
@@ -52,13 +62,12 @@ export function PreferencesSettings() {
     setPrefs((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
-  const handleToggle = (key: string) => {
-    setPrefs((prev) => ({ ...prev, [key]: !prev[key as keyof typeof prev] }));
-  };
 
-  // 3. NEW HANDLER FOR LOCAL THEME DRAFTING
   const handleThemeSelect = (selectedTheme: string) => {
-    setPrefs((prev) => ({ ...prev, theme: selectedTheme }));
+    setPrefs((prev) => ({
+      ...prev,
+      theme: selectedTheme as Theme, // Explicitly cast the string to the Theme type
+    }));
   };
 
   const handleSave = async () => {
@@ -161,8 +170,6 @@ export function PreferencesSettings() {
             <option value="imperial">Imperial (lbs, in, oz)</option>
           </select>
         </SettingsCard>
-
-
       </div>
     </div>
   );
@@ -179,11 +186,10 @@ const ThemeButton = ({
 }) => (
   <button
     onClick={onClick}
-    className={`px-4 py-1.5 text-sm rounded-md transition-all font-medium cursor-pointer ${
-      active
+    className={`px-4 py-1.5 text-sm rounded-md transition-all font-medium cursor-pointer ${active
         ? "bg-background shadow-sm text-foreground border border-border/50"
         : "text-muted-foreground hover:text-foreground"
-    }`}
+      }`}
   >
     {label}
   </button>

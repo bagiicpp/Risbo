@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
 import { Users, TrendingUp, Activity, AlertCircle } from "lucide-react";
 import api from "@/lib/api";
-import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
-import { AppSidebar } from "@/components/common/AppSidebar";
 
 interface KPIStats {
   totalAthletes: number;

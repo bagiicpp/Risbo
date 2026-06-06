@@ -128,18 +128,8 @@ export function AppSidebar({ onNewChat }: { onNewChat?: () => void } = {}) {
   const [isInboxOpen, setIsInboxOpen] = useState(false);
   const [isResponding, setIsResponding] = useState<string | null>(null);
 
-  // ==========================================
-  // UNIFIED NETWORK LIFECYCLE
-  // ==========================================
   useEffect(() => {
     if (!token || !user?.role) return;
-
-    // 1. Setup an unloading guard
-    let isPageUnloading = false;
-    const handleBeforeUnload = () => {
-      isPageUnloading = true;
-    };
-    window.addEventListener("beforeunload", handleBeforeUnload);
 
     const abortController = new AbortController();
     let eventSource: EventSource | null = null;
