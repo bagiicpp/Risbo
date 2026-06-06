@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Save, Loader2, Check } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
 import api from "@/lib/api";
 
 type Role = "coach" | "athlete" | "scout" | "analyst";
@@ -35,6 +36,8 @@ export function SportProfileSettings() {
   const [team, setTeam] = useState("");
   const [league, setLeague] = useState("");
   const [focus, setFocus] = useState<string[]>([]);
+  const { user, login } = useAuth();
+  const isAthlete = user?.role === "athlete";
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -67,6 +70,13 @@ export function SportProfileSettings() {
         league: league.trim() || null,
         focus,
       });
+      try {
+        const refreshRes = await api.post("/auth/refresh");
+        login(refreshRes.data.access_token);
+      } catch (e) {
+        console.error("Token refresh failed", e);
+      }
+
       toast.success("Profile Updated", {
         description: "Risbo will use this on your next message.",
       });
@@ -116,7 +126,7 @@ export function SportProfileSettings() {
       {/* Role */}
       <Section label="Role" hint="How Risbo frames its responses.">
         <div className="grid grid-cols-2 gap-2.5">
-          {ROLES.map((r) => (
+          {ROLES.filter((r) => isAthlete ? r.id === "athlete" : r.id !== "athlete").map((r) => (
             <button
               key={r.id}
               onClick={() => setRole(r.id)}

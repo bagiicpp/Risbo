@@ -67,7 +67,7 @@ const TOTAL_STEPS = 4;
 
 export default function OnboardingPage() {
   const navigate = useNavigate();
-  const { user, setOnboardingComplete } = useAuth();
+  const { user, setOnboardingComplete, login } = useAuth();
 
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [step, setStep] = useState(1);
@@ -115,6 +115,14 @@ export default function OnboardingPage() {
         focus,
       });
       setOnboardingComplete(true);
+      
+      try {
+        const refreshRes = await api.post("/auth/refresh");
+        login(refreshRes.data.access_token);
+      } catch (e) {
+        console.error("Token refresh failed", e);
+      }
+
       toast.success("You're all set!", {
         description: "Risbo is now tailored to your profile.",
       });
