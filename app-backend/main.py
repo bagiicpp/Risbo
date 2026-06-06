@@ -109,7 +109,7 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",
         "http://localhost:3000",
-        "https://your-app.vercel.app",  # update after Vercel deploy
+        "https://risbo.vercel.app",  # update after Vercel deploy
         os.getenv("FRONTEND_URL", ""),  # fallback from env var
     ],
     allow_credentials=True,
