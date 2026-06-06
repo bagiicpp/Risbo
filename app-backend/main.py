@@ -9,8 +9,8 @@ import smtplib
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
-from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from typing import Optional
 
 import httpx
@@ -70,8 +70,11 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.pdfgen import canvas
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 from sse_starlette.sse import EventSourceResponse
-from utils import extract_text_from_file, trim_conversation_history, encode_image_to_base64
-
+from utils import (
+    encode_image_to_base64,
+    extract_text_from_file,
+    trim_conversation_history,
+)
 
 load_dotenv()
 
@@ -106,12 +109,7 @@ app = FastAPI(title="RizzBo App Backend", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:3000",
-        "https://risbo.vercel.app",  # update after Vercel deploy
-        os.getenv("FRONTEND_URL", ""),  # fallback from env var
-    ],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -181,7 +179,7 @@ async def register_user(user: UserCreate):
                                     overflow:hidden;
                                     box-shadow:0 2px 10px rgba(0,0,0,0.08);
                                 ">
-                                
+
                                 <!-- Header -->
                                 <tr>
                                     <td
@@ -439,8 +437,10 @@ async def upload_document(
             "filename": file.filename,
             "conversation_id": conversation_id,
         }
-    
+
+
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
+
 
 @app.post("/upload-image/{conversation_id}")
 async def upload_image(
@@ -449,10 +449,15 @@ async def upload_image(
     email: Optional[str] = Depends(get_optional_user_email),
 ):
     if not email:
-        raise HTTPException(status_code=401, detail="Must be logged in to upload images")
+        raise HTTPException(
+            status_code=401, detail="Must be logged in to upload images"
+        )
 
     if file.content_type not in ALLOWED_IMAGE_TYPES:
-        raise HTTPException(status_code=400, detail="Unsupported image type. Use JPEG, PNG, GIF, or WebP.")
+        raise HTTPException(
+            status_code=400,
+            detail="Unsupported image type. Use JPEG, PNG, GIF, or WebP.",
+        )
 
     user = await db.users.find_one({"email": email})
     user_id = str(user["_id"]) if user else None
@@ -495,15 +500,21 @@ async def upload_image(
 
     if not is_valid_id:
         new_db_id = ObjectId()
-        await db.conversations.insert_one({
-            "_id": new_db_id,
-            "user_id": user_id,
-            "title": f"Image: {file.filename[:20]}",
-            "messages": [sys_msg, ui_msg],
-            "created_at": datetime.now(timezone.utc),
-            "updated_at": datetime.now(timezone.utc),
-        })
-        return {"message": "Image processed and chat created", "filename": file.filename, "conversation_id": str(new_db_id)}
+        await db.conversations.insert_one(
+            {
+                "_id": new_db_id,
+                "user_id": user_id,
+                "title": f"Image: {file.filename[:20]}",
+                "messages": [sys_msg, ui_msg],
+                "created_at": datetime.now(timezone.utc),
+                "updated_at": datetime.now(timezone.utc),
+            }
+        )
+        return {
+            "message": "Image processed and chat created",
+            "filename": file.filename,
+            "conversation_id": str(new_db_id),
+        }
     else:
         result = await db.conversations.update_one(
             {"_id": ObjectId(conversation_id)},
@@ -515,7 +526,11 @@ async def upload_image(
         if result.modified_count == 0:
             raise HTTPException(status_code=404, detail="Conversation not found")
 
-        return {"message": "Image processed", "filename": file.filename, "conversation_id": conversation_id}
+        return {
+            "message": "Image processed",
+            "filename": file.filename,
+            "conversation_id": conversation_id,
+        }
 
 
 async def generate_smart_title(first_prompt: str, ai_backend_url: str) -> str:
@@ -932,12 +947,16 @@ async def chat(
 
                         # Image messages store content as a list — pass through untouched
                         if isinstance(raw_content, list):
-                            payload_messages.append({"role": m_role, "content": raw_content})
+                            payload_messages.append(
+                                {"role": m_role, "content": raw_content}
+                            )
                         else:
                             content = raw_content
                             if last_role is None and doc_preamble:
                                 content = f"{doc_preamble}{content}"
-                            payload_messages.append({"role": m_role, "content": content})
+                            payload_messages.append(
+                                {"role": m_role, "content": content}
+                            )
                             last_role = m_role
 
             except Exception as e:
@@ -2338,16 +2357,19 @@ async def generate_pdf(request: PDFGenerateRequest):
         headers={"Content-Disposition": "attachment; filename=document.pdf"},
     )
 
+
 @app.post("/auth/refresh")
 async def refresh_token(email: str = Depends(get_current_user_email)):
     user = await db.users.find_one({"email": email})
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    new_token = create_access_token({
-        "sub": email,
-        "name": user.get("name", ""),
-        "role": user.get("role", "athlete"),
-        "plan": user.get("plan", "Free plan"),
-    })
+    new_token = create_access_token(
+        {
+            "sub": email,
+            "name": user.get("name", ""),
+            "role": user.get("role", "athlete"),
+            "plan": user.get("plan", "Free plan"),
+        }
+    )
     return {"access_token": new_token, "token_type": "bearer"}
