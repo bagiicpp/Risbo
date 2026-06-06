@@ -118,16 +118,6 @@ In this drill, the athlete does the same as in the previous one but in 'beast mo
 
 Throughout the entire length of the drill, the athlete needs to maintain a "table sheet" in their mind while simultaneously memorizing, moving, and reacting to the corresponding stimuli.
 
-Want to see more? Explore the full set of reactive agility drills with reaction lights __HERE!__
-
-## Use Reaction Lights to Practice These 17 Reactive Agility Drills
-
-Incorporating __reactive agility drills__ with reaction lights into your training routine can elevate your athletes' performance by sharpening their decision-making skills and improving their reaction times. Whether you're aiming to boost speed, agility, or cognitive responsiveness, these 17 drills offer dynamic and challenging ways to enhance overall athletic ability. Start implementing them today with __Sportreact__ and watch your athletes reach new levels of quickness and precision!
-
-Meet Anto: the CEO of Sportreact, a cutting-edge sports tech startup, and a dedicated WAKO kickboxing athlete. With a passion for exploring innovative sports performance training routines, Anto continuously seeks to push the boundaries of athletic development.
-
-Anto is featured in numerous local and international business accolades, including the "30 Under 30 Award" for the most successful young Croatian entrepreneurs, as well as in the "TOP 25 Croatian Startups."
-
 ---
 
 **Source:** https://www.nsca.com/education/articles/kinetic-select/5-reaction-drills-to-build-quickness/
@@ -161,7 +151,7 @@ The coach and athlete can use the following variations to make the drill more ch
 
 • The coach holds two balls and assigns a number to each (or uses different colored balls). Then, the coach drops both simultaneously while calling out a number (or color) to indicate which ball the athlete should attempt to catch.
 
-*From the National Strength and Conditioning Association (NSCA) comes this resource packed with more than 100 drills to help in the development of agility and quickness training programs. Applicable to almost every sport, Developing Agility and Quickness focuses on improving athletes’ fleetness of foot, change-of-direction speed, and reaction time. The book is available in bookstores everywhere, as well as online at the NSCA Store.*
+
 
 ---
 
@@ -762,40 +752,7 @@ Prioritize:
 
 If an athlete is constantly sore, their speed sessions will become slower sessions—and progress stalls.
 
-**Repurpose idea: social video montage (ready to film)** If you want high-engagement content, film these drills exactly as short clips.
 
-**Reel structure (7 clips, 6–10 seconds each)**
-
-- Wall Drives: “Fix your first step”
-- A-Skip: “Stop overstriding”
-- Falling Start: “Explode in 10 yards”
-- Snap-Down: “Learn to brake safely”
-- 5–10–5: “Cut faster, change direction cleaner”
-- Lateral Bound + Stick: “Own the landing”
-- Mirror Drill: “React like it’s a game”
-
-**Caption prompt** “Save this speed and agility session for your next workout. Quality reps. Full rest. Game-speed results.”
-
-**Putting it all together: a 20–30 minute session you can repeat** Here’s a plug-and-play session that works for most athletes.
-
-**Warm-up (8 min)****Mechanics (6 min)**
-
-- Wall Drives (2 sets)
-- A-Skip (2 x 15 yards)
-
-**Speed (8 min)**
-
-- Falling Start 10-yard sprints (6 reps, full rest)
-
-**Agility (8 min)**
-
-- Snap-Down to Stick (3 x 5)
-- 5–10–5 (4 reps, full rest)
-*OR*Mirror Drill (6 rounds) if you want reactive work Track one thing each week: faster times, cleaner landings, or better control.
-
-**Next step: turn drills into a plan that matches your sport** The difference between “doing drills” and “getting faster” is coaching, progression, and consistency. If you want an athlete-specific plan—based on mechanics, age, sport demands, and injury history—RPS can build it and coach it.
-
-**Ready for a structured speed and agility plan?** **Contact RPS Academies** to get started.
 
 **Frequently Asked Questions About “Speed and Agility Training: 7 Drills to Unleash Your Inner Athlete”** **1) How often should athletes train speed and agility each week?**
 

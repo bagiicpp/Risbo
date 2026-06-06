@@ -3,12 +3,6 @@
 
 # Defensive Close Out Fundamentals -- 5 Keys to Better Close Outs
 
-Free eBooks Free eBooks
-
-Coaching Resources Coaching Resources
-
-Player Resources Player Resources
-
 # Defensive Close Out Fundamentals -- 5 Keys to Better Close Outs
 
 By Joe Haefner Home>Coaching>Basketball Defensive Strategy>Man to Man>**Defensive Close Out Fundamentals**

@@ -632,7 +632,7 @@ Most coaches will drill one particular skill and then watch the skill deteriorat
 
 # Self-Toss Rebounding Drill - NBA.com: Jr. NBA
 
-[](https://jr.nba.com/video/self-toss-rebounding-drill/#)
+self-toss-rebounding-drill/#)
 
  Jr. NBA/Jr. WNBA Programs [](https://jr.nba.com/hertimetoplay/)
 
@@ -658,24 +658,16 @@ Sorry, we could not find any content that matches your search for this keyword. 
 
 Watch WNBA legend Rita Williams show the right way to grab a rebound by using the Self-Toss Rebounding Drill as an individual practice routine.
 
-Recent Videos [](https://jr.nba.com/video/up-in-the-air/)
+Recent Videos up-in-the-air/)
 
-[](https://jr.nba.com/video/ping-pong-passing/) [](https://jr.nba.com/video/pop-a-shot/)
+ping-pong-passing/) pop-a-shot/)
 
-[](https://jr.nba.com/video/gates-passing/) [](https://jr.nba.com/video/gates-dribbling/)
+gates-passing/) gates-dribbling/)
 
-[](https://jr.nba.com/video/shadow-dribbling-1/) [](https://jr.nba.com/video/criss-cross/)
+shadow-dribbling-1/) criss-cross/)
 
-[](https://jr.nba.com/video/scrimmage/) [](https://jr.nba.com/video/dynamic-warmup/)
+scrimmage/) dynamic-warmup/)
 
-[](https://jr.nba.com/video/name-game/) NBA Organization
-
-NBA Social Impact Across The League
-
-Shop Subscriptions
-
-If you are having difficulty accessing any content on this website, please visit ourAccessibility page.
-
-[](https://jr.nba.com/video/self-toss-rebounding-drill/) [](https://jr.nba.com/video/self-toss-rebounding-drill/)
+name-game/) self-toss-rebounding-drill/) self-toss-rebounding-drill/)
 
 ---

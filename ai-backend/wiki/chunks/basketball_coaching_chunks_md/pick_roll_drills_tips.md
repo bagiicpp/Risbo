@@ -50,6 +50,6 @@ As the player approaches the person they are picking, they need to position thei
 - Roll to the basket: The picker should keep the defender that switched onto them on the outside, and the picker should drive to the basket.
 - Hands ready: The ball handler can pass the picker the ball at any point, so they should be ready to catch and finish.
 
-By helping your players master the basics and practice different scenarios, you are setting them up to get high-quality shots. As your team runs these plays more and more, you will see how many different scenarios can be created. It’s difficult to picture a basketball play just from reading about it. Try incorporating film into your practices so players can visualize them and see how the pros use these skills. Check out more coach’s playbook Nike Basketball Camp tips and help your team get better this summer at a Nike Basketball Camp.
+By helping your players master the basics and practice different scenarios, you are setting them up to get high-quality shots. As your team runs these plays more and more, you will see how many different scenarios can be created. It’s difficult to picture a basketball play just from reading about it. Try incorporating film into your practices so players can visualize them and see how the pros use these skills. 
 
 ---

@@ -73,7 +73,7 @@ The key thing with “pre-event” nutrition is making sure that you’ve tested
 ---
 
 **Source:** https://conoroneillnutrition.com/articles/nutrition/athletemealplan
-**Title:** The Athlete Meal Plan Guide (GAA, Hurling, Football, Rugby, Golf, Running, Gym, Strength Training) — Conor O'Neill | Performance Nutrition - Conor O'Neill Nutrition Nutritionist GAA
+
 
 ## A Word on Meal Plans
 

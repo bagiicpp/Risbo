@@ -2,7 +2,7 @@
 
 pliability Athletes put their bodies through much stress, whether in training or competition. As a result, they often experience tightness and restrictions that can hamper performance. Mobility exercises improve athletes' flexibility and range of motion, helping to reduce pain and discomfort so athletes can perform better. This article will introduce you to ten mobility exercises for athletes so you can enhance athletic performance and get back to doing what you love.
 
-Pliability's mobility app is a valuable tool for learning and tracking mobility exercises for athletes. The app breaks down exercises into easy-to-follow steps and provides video demonstrations to help you grasp the movements. You can also customize routines to help you target specific areas of tightness and restriction.
+
 
 ## What is Mobility Training?
 
@@ -47,9 +47,7 @@ Apractical tip for developing strength and flexibility around joints is to combi
 **Source:** https://www.trainheroic.com/blog/mobility-for-athletes-more-important-than-ever/
 **Title:** Mobility For Athletes: More Important Than Ever | TrainHeroic
 
-## ABOUT THE AUTHOR
 
-Dr. Chris Holder Chris Holder comes to the TrainHeroic Blog with over thirty years as an athlete and coach. Chris is the Head Strength and Conditioning Coach at Cal Poly San Luis Obispo in California. Afootball player first and then spending his entire professional coaching career at the college level, Holder has been in love with everything weight lifting since he was a little boy.
 
 One of the hottest movements in the fitness/strength world right now is the mobility craze.
 

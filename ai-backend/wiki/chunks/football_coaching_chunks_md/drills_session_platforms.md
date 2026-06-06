@@ -1,13 +1,5 @@
 **Title:** Home
 
-## Explore Our
-
-Practices & Sessions Easily search through and filter over 1000 videos on the platform to find coaching resources from U5’s all the way through to senior football.
-
-## High Quality
-
-Video Content Watch, use & adapt hundreds of videos from our professional coaches to use with your players. Develop individuals, groups & teams with our extensive range of content covering all areas of the game. Each practice & session is in video format for you to watch & understand easily through coaching audio, graphic coaching points and HD footage.
-
 ## High Quality
 
 Video Content Watch, use & adapt hundreds of videos from our professional coaches to use with your players. Develop individuals, groups & teams with our extensive range of content covering all areas of the game. Each practice & session is in video format for you to watch & understand easily through coaching audio, graphic coaching points and HD footage.
@@ -439,14 +431,6 @@ Matt Joseph, regional FA youth coach developer, delivers a session focusing on t
 
 **Source:** https://elitesoccercoaching.net/session-plans
 **Title:** Session Plans
-
-Browse the world's leading library of professional coaching session plans written by Premier League and English Football League coaches.
-
-Find ideas and inspiration for your next session by using the search and filtering tool to enable you to explore the library by topic (passing, shooting, defending, etc), by coach (Pep Guardiola, Mikel Arteta, Nuno Espirito Santo), and by club (Arsenal, Chelsea, Manchester United).
-
-Try these sessions selected by our coaching team if you're not sure where to start. Or scroll down to browse all the sessions in this section Get Monthly Inspiration
-
-All the latest techniques and approaches Elite Soccer exclusively features sessions written by the coaches themselves. There are no observed sessions and no sessions “in the style of”, just first-hand advice delivered direct to you from the coach.
 
 ---
 

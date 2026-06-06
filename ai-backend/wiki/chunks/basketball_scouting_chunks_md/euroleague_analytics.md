@@ -330,11 +330,3 @@ All actions recorded at correct game clock time. In stopped-clock situations (tu
 **Multiple consecutive jump balls:** Same criteria applied; outcome of first jump ball prevails.
 
 **Ball retained by same team after jump ball:** No statistics recorded.
-
----
-
-## ═══════════════════════════════════
-## TEMA 4: FOOTBALL (SOCCER) — DATA-DRIVEN RECRUITMENT & SCOUTING
-## ═══════════════════════════════════
-
-**Source:** https://breakingthelines.com/investigation-piece/the-role-of-data-in-player-recruitment-and-scouting/

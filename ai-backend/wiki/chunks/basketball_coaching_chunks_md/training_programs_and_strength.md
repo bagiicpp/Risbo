@@ -725,6 +725,4 @@ Above, Igive you a weekly sample of what your typical training week would look l
 
 **#4: Agility** – proper agility training allows you to make cuts on the offense and also secure a lock-down defense.
 
-Give this week of training a try first, or jump right into the *Built 2 Ball training for the best season of your life. * I’m so confident in this basketball workout program, I’ll throw you the **90-day hooping’ guarantee.** If you don’t come out a better player, you pay nothing.
-
 ---

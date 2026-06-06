@@ -1,6 +1,6 @@
 **Title:** Pure wing play
 
-You are viewing 1 of your 1 free articles Pure wing play is about developing wingers’ ability to cross the ball, whilst promoting relationships and understanding with strikers and other attack-minded team mates.
+Pure wing play is about developing wingers’ ability to cross the ball, whilst promoting relationships and understanding with strikers and other attack-minded team mates.
 
 Area | 60x45 yards |
 Equipment | Balls, goals |

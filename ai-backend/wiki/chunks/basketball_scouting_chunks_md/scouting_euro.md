@@ -366,33 +366,4 @@ In conclusion, the Euroleague has emerged as a vital feeder league for the NBA, 
 
 ---
 
-**Source:** https://eliteurotalent.com/intel-%26-scouting
-**Title:** Elite Euro Talent
-
-We attend and follow all the best youth competitions in Europe; whether it's the Euroleague Adidas Next Generation, FIBA European Championships U16 & U18 or National League youth finals, our staff is there to scout the best prospects and gather the most relevant information on each player.
-
-We offer in depth consulting for professional clubs on import player signings, as well as opportunities for college programs to discover not just the top international players, but some more hidden gems as well.
-
-Our Scouting Director is part of the organization of the biggest and most important youth league in Europe, the European Youth Basketball League (EYBL), with the Central Europe division.
-
-More than 300 clubs and academies from more than 30 European countries, and consisting of more than 4500 young players, from the age group of U14, are competing each season.
-
-Furthermore, as we cooperate with the best European clubs, in order to support them to recruit the top prospects, we have direct access to the best players from a very early age and deep relationships.
-
-For all the above reasons, our intel service is particularly appreciated by NBA team executives and a very helpful resource when looking for deeper information on NBA prospects.
-
-Europe, various locations Winter 2024-25
-
-Europe, various locations Europe
-
-Europe Szekesfeherevar, Hungary
-
-Szekesfeherevar, Hungary Italy, various locations
-
-Italy, various locations Skopje - North Macedonia
-
-Skopje - North Macedonia
-
----
-
 **Source:** https://lastwordonsports.com/basketball/2024/05/05/mastering-the-draft-a-comprehensive-scouting-template/

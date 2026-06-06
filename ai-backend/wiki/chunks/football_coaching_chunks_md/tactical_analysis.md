@@ -517,8 +517,6 @@ England wins the U21 European Championship final against Germany 3-2. After just
 
 Over the last years, one of the main concepts regularly mentioned on this website – but so far rarely explained – is the one about Diagonality. Whether in the theory articles about the blind side, the discussion about relational football or 2014’s classic about The Half-Spaces, diagonality either played an implicit or a very explicit role. Yet, there hasn’t been a real deep dive into this topic – until now. The Fools of Spielverlagerung proudly present: An Article about an angle. Diagonality is here.
 
-Collaborative article by Addis Worku, Martin Rafelt, René Marić, George Jones & Judah Davies
-
 ---
 
 **Source:** https://learning.coachesvoice.com/cv/defensive-transitions-football-tactics-explained-chelsea-barcelona/

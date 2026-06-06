@@ -1,13 +1,5 @@
 **Title:** Search by Age & Category from Top Coaches and Directors
 
-[](https://www.soccerdrive.com/soccer-drills)
-
-# Soccer Drills
-
-Drop down will go here.
-
-Category drop down will go here.
-
  Search by Drill Name Apply
 
 Reset
@@ -429,12 +421,6 @@ D/Hfinish with a pass to Position A/E.
 
 **Coaching Points:** Effective passing and receiving, with a focus on control and accuracy. Timing of movements to receive and correct body shape to play is key, as well as the weight of pass (B/F) for the overlapping player (D/H).
 
-Once base fitness is built, layer in tactical identity. See how Xabi Alonso's positional possession turns patterns like these into match play.★★★★★ "Excellent - Very useful for better understanding in periodization of warm ups and training sessions"
-
-**Stani** 🔁 Start Building Smarter Sessions Today
-
-Explore football coaching books on all different coaching topic from grassroots to the elite level, by world leading professional coaches
-
----
+Once base fitness is built, layer in tactical identity. See how Xabi Alonso's positional possession turns patterns like these into match play.---
 
 **Source:** https://www.soccercoachingpro.com/soccer-passing-drills/

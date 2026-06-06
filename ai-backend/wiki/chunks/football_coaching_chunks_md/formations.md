@@ -794,18 +794,6 @@ When a player is sent off (i.e. after being shown a red card) or leaves the fiel
 - "Analisi Tattica: l'Inter di Simone Inzaghi 2022-2023". 23 February 2023.
 - "Il capolavoro tattico di Inzaghi: Come ha normalizzato il City". 11 June 2023.
 - "Pep Guardiola's Premier League Triumph: Mastering the 3–2–4–1 Formation" (Press release). Breaking the Lines. Retrieved 21 June 2023.
-- "Inside PTFC" (Press release). Portland Timbers. 23 May 2018. Archived from the original on 12 May 2023. Retrieved 12 May 2023.
-- Murray, Caitlin (23 August 2018). "Midge Purce realizes a dream in Portland after enduring the nightmare of the Breakers' demise".
-*The Athletic*. Retrieved 12 May 2023.At the dispersal draft, we knew we were going to do the 3-4-1-2 with wing backs and (Margaret Purce) was the perfect fit. ... we had one that was almost crafted for her—as a wing back, she gets to be a winger and a fullback.
-
-- Marić, René. "The 3-6-1: Alogical step".
-*Spielverlagerung.com*(in German). Retrieved 29 September 2022. - Wilson, Jonathan (25 May 2012). "The Question: How best for Manchester United to combat Barcelona?".
-*The Guardian*. London. - "5-2-2-1 Formation". Retrieved 20 October 2024.
-- "Formations: 3–5–2".
-*BBC News*. 1 September 2005. Retrieved 2 May 2010. - Helenio Herrera: The Architect Of La Grande Inter *Sempreinter.com*, Retrieved 29 November 2019 - "Abrief history of Brazilian full-backs". 12 October 2017. Retrieved 10 August 2018.
-- Daniel, Jacob (11 April 2024).
-*The Complete Guide to Coaching Soccer Systems and Tactics*. Reedswain Inc. ISBN 978-1-59164-136-0.
-
 ---
 
 **Source:** https://www.keeperstop.com/blogs/goalkeeper_drills

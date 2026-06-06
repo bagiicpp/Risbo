@@ -160,8 +160,6 @@ This puts the ball in the hands of the 5 at the high post with two great opportu
 
 However, there are teams at the higher levels who are very well-schooled in their zones, so we are ready with a package of other concepts to make sure we are prepared to vary our attack for any situation.
 
-Ihope the ideas Ihave given here are found to be useful. Anyone who would like to discuss these ideas further or talk about the other concepts we use against the zone – or anything else basketball – please visit my site at www.coachmattkramer.com where all content is 100% free.
-
 ---
 
 **Source:** https://coachingtoolbox.net/basketball-zone-offense-philosophy

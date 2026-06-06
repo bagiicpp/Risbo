@@ -451,8 +451,6 @@ Your training session is automatically saved to your browser's local storage. It
 
 Below is a sampling of free drills from the UltimateplayerHQ Drill Library of thousands of high quality animated drills. Whether you’re a beginning coach who needs help getting started or someone who wants to add some variety to their training sessions, UltimateplayerHQ offers a wide variety of drills to choose from.
 
-UltimateplayerHQ is Designed to Help Coaches Reach Their Full Potential. Manage all aspects of your squads training and matchday preparations. Create and save your own football training sessions and much more. See all the benefits of our membership today.
-
 ---
 
 **Source:** https://elitesoccercoaching.net/attacking/pure-wing-play

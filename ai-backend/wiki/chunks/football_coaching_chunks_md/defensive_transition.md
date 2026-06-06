@@ -420,12 +420,6 @@ By consistently applying these principles and exercises, you'll equip your playe
 
 Related Topics:
 
-## Get Personalised Advice
-
-Have a specific question? Ask FootballGPT for tailored coaching advice based on your situation.
-
-Try FootballGPT Free
-
 ---
 
 **Source:** https://learning.coachesvoice.com/cv/the-4-2-3-1-football-tactics-pochettino-guardiola-flick-southgate/

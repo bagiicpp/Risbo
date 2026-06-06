@@ -28,94 +28,14 @@ The metric itself is displayed as a rating for the session on a scale of 1 - 10,
 
 This scale is calculated through a combination of intensity and volume metrics such as distance, metres per minute, sprint distance, high intensity running, accelerations and decelerations. We take how the athlete has performed under each intensity and volume for a session and put it against the baseline. Their baseline is defined as their average performance under each variable across the last 28 days. Moreover, their performance for that session is compared to the baseline, this score is then scaled from 1 - 10 and this presents itself as the athletes Workload value for that session.
 
-Join our Insiders Group for early access and help provide feedback on the latest product developments from PlayerData.
+
 
 References *Jiang, Z., Hao, Y., Jin, N., & Li, Y. (2022). A Systematic Review of the Relationship between Workload and Injury Risk of Professional Male Soccer Players. International journal of environmental research and public health, 19(20), 13237. https://doi.org/10.3390/ijerph192013237*
 
 ---
 
 **Source:** https://statsports.com/teams
-**Title:** STATSports
 
-# Performance insights that deliver results
-
-Trusted by the world’s best teams, STATSports delivers gold-standard accuracy, user-friendly technology, and contextual insights that drive performance.
-
-## Asolution for every budget
-
-STATSports offers a flexible, tiered solution that can be tailored to meet your team’s needs — no matter the size or budget.
-
-## Why teams choose STATSports
-
-We empower teams to make informed decisions to maximize athlete performance, reduce injury risk and improve recovery.
-
-#### Maximize performance using precision technology
-
-Push the boundaries of athletic potential with technology that delivers centimeter-level accuracy.
-
-#### Reduce injury risk with smart load monitoring
-
-Use smart load monitoring tools to quantify loads, apply thresholds, and increase athlete availability.
-
-#### Improve recovery using data-driven insights
-
-Support every step of recovery with accurate, reliable data that informs safer, faster return-to-play protocols.
-
-## Powering the sport's world
-
-#### Soccer
-
-#### American Football
-
-#### Rugby
-
-#### Baseball
-
-#### Hockey
-
-#### Lacrosse
-
-#### GAA Football
-
-#### GAA Hurling & Camogie
-
-#### Australian Football
-
-#### Basketball
-
-#### Tennis
-
-#### Cricket
-
-## The gold standard in athlete monitoring
-
-STATSports is committed to cutting-edge innovation, maximizing athletic performance, and providing clients with unmatched support.
-
-#### Teams Globally
-
-#### Years as Industry Leaders
-
-#### Sports Globally
-
-#### Industry's Most Accurate Data
-
-#### FIFA & World Rugby Approved
-
-#### Expert Training & Support
-
-## Get started today
-
-#### Book your demo
-
-Arrange a demo with a STATSports Sports Scientist to discuss your team's needs.
-
-#### Get onboarded
-
-Set up your team with the STATSports' kit and connect to Sonra software for performance analysis.
-
-#### Start optimizing performance
-
-Start tracking, optimizing, and winning with elite-level data accuracy.
 
 ---
 

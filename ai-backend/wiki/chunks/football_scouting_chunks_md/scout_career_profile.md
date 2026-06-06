@@ -1,13 +1,3 @@
-**Title:** Just a moment...
-
-## Security check required
-
-We've detected unusual activity from your network. To continue, complete the security check below.
-
-Ray ID: a067dd916ef4d600 Client IP: 2600:1900:0:2100::1601
-
----
-
 **Source:** https://uefaacademy.com/courses/esp/
 **Title:** UEFA Elite Scout Programme (UEFA ESP) - UEFA Academy
 

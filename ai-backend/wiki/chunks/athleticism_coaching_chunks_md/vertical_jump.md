@@ -4,8 +4,6 @@ The vertical jump is an integral part of a lot of sports. Volleyball, Track and 
 
 And the good news: everybody can improve their vertical jump with the right training!
 
-Imyself had great results with the Vert Shock program, an intense 8-week training program that focuses on plyometrics and bodyweight exercises. You can see a time-lapse video of my result below:
-
 But Iknow that a lot of people can't afford to pay for training programs like that and unfortunately, there are a lot of unscientific, outdated, (or just plain bad) programs out there. Maybe you can remember training programs like Air Alert or Jump Soles that were really popular in the 90's?
 
 In this article, you will learn how to jump higher with a free 10-week vertical jump training program that is well-suited for beginner and intermediate athletes.
@@ -267,13 +265,7 @@ The user has sent too many requests in a given amount of time.
 
 By: __Brian Schulte, CSCS, FAFS, FIT Coordinator__ In sports, your vertical jump can be the deciding factor between a win and a loss. It can differentiate whether or not you secure that rebound, block that volleyball spike, or come down with that last second hail-mary. Furthermore, having a good vertical jump is often correlated with several other aspects of athletic ability such as acceleration, change of direction, and overall power. There’s a reason why the NFL combine tests draft prospects on their vertical. They’re not just measuring how high you can jump, they’re measuring your athleticism.
 
-In order to find out the best ways to improve our vertical jump and gain that competitive edge, we reached out to Brian at __Spooner Scottsdale__.
 
-“When you look at a lot of the traditional vertical jump testing and training, you’ll notice that everything is facing the same direction, forwards. However, look at most athletes when they are jumping in-game. They are rotating their hips, jumping sideways, and going through various types of movements pre and post jumping. Our athletes should be training in ways that are functional to their sport and incorporates movement in all 3 planes,” Brian explains.
-
-Brian helps lay out an exercise regime designed to step up our jumping ability while maintaining that element of functionality so the workouts we do are reflecting the kinds of movements we’ll be performing in our sport(s).
-
-Lace up, put on your game face, and let’s jump to it!
 
 ---
 

@@ -770,7 +770,7 @@ Delayed onset muscle soreness is a key indicator of a good muscle hypertrophy se
 
 If at any point during or after a training session you have joint pain and/or discomfort, which is different from sore muscles, this is an indicator that you are causing too much stress and damage to bones, ligaments, and tendons. This can be caused by many things, however the most common is (1) improper training techniques, (2) too heavy of loads, (3) lack of control in a movement..slow down, and/or (4) injury. If you are injured or feel injured, it is best to back off from the movement that causes pain, rest, and determine if you need to see a medical profession. If pain goes away, try performing other exercises for the same muscle group as sometimes a movement might not work well for you, despite it doing well for someone else.
 
-Looking for a workout program? Try using the Fitbod App, which will design your program based on your logged training data and goals. The workouts will adapt automatically to your levels of recovery and rate of progress. With over 600 movements and exercises videos, you can be sure to perform the movements correctly for optimal results. Take the guesswork out of your workouts. Try Fitbod for free.
+
 
 ## Add Hypertrophy Training Into A Strength Program
 
@@ -820,9 +820,7 @@ Your hypertrophy training should support your strength goals. If you find that y
 
 When training for muscle hypertrophy, be sure to always monitor overall training volume so that you can maximize muscle growth, allow for recovery, and still train strength. Adding too much can certainly be counterproductive, but by following the tips above you should be able to navigate those waters. Lastly, it is also important to note that you can dedicate certain training phases (6-12 weeks in length) to more hypertrophy-focused training, with the strength movements being there to maintain while you push harder on gaining muscle mass. This is often done, and then transitioned into a more strength-focused period.
 
-Mike Dewar _Mike holds a Master’s in Exercise Physiology and a Bachelor’s in Exercise Science. He’s a Certified Strength and Conditioning Specialist (CSCS), USA Weightlifting Advanced Coach, and has over 10+ years of experience working with collegiate athletes, national level lifters, and beginners alike.Mike is Founder of__J2FIT__Strength and Conditioning, a growing global training company with gyms in New York City, Cincinnati, and online offering personal training, online custom coaching programs._
 
-_Mike has published over 500+ articles on premiere online media outlets like BarBend, BreakingMuscle, Men’s Health, and FitBob, covering his expertise of strength and conditioning, Olympic weightlifting, strength development, fitness, and sports nutrition.In Mike’s spare time, he enjoys the outdoors, traveling the world, coaching, whiskey and craft beer, and spending time with his family and friends._
 
 ---
 

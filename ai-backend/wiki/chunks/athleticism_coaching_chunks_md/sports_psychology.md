@@ -906,9 +906,7 @@ To become a sports psychologist for professional athletes and Olympians, follow 
 
 **Undergraduate Degree:**Obtain a bachelor’s degree in psychology, sports performance, sports psychology, or sports science.**Graduate Degree**: Complete your master’s and doctoral degrees in sports psychology.**Practical Experience:**Complete hands-on experience that requires working with athletes and sports teams through internships, practicums, and research.**Licensure and Certification:**Obtain the required licensure and certifications from the Association for Applied Sport Psychology (AASP), such as the Certified Mental Performance Consultant (CMPC).**Professional Development**involves attending workshops, conferences, and professional development courses and joining professional organizations such as the American Psychological Association (APA) for networking opportunities.
 
-Saybrook University offers an online master’s degree in sports psychology, teaching graduates to empower athletes and performers to achieve their highest potential despite the high intensity and competition. This graduate sports psychology program combines traditional sports psychology with the mind-body sciences of psychophysiology for a comprehensive understanding of how the brain and body can influence an athlete’s performance.
 
-Saybrook University’s M.S. in Sport and Performance program has a foundation in psychophysiology for a comprehensive understanding of how the mind and body work together to influence human behavior and how those interactions can affect the athlete’s performance and recovery. Join now to work toward your career goal of working with famous athletes as a sports psychologist.
 
 ---
 

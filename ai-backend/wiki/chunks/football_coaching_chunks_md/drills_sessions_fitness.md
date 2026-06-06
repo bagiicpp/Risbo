@@ -2,12 +2,6 @@
 
 # Drills
 
-Features Club Management
-
-Sports Development Sports
-
-Resources en
-
 Our drills
 
 # 100 soccer drills to create amazing training sessions

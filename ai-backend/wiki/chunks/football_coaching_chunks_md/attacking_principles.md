@@ -664,14 +664,6 @@ striker.
 
 4.  Use a full sized goal and a goalkeeper but change to a 5 v 3 outfield situation for the build-up.
 
-5.  You can adjust the amount of players to suit your training e.g. add a central midfielder. Available in Full Colour Print and eBook!
-
-PC | Mac | iPhone | iPad | Android Phone/Tablet | Kobo | Kindle Fire
-
-## Worldwide Shop BUY NOW
-
-Football Coaching Specialists Since 2001 www.SoccerTutor.com info@soccertutor.com
-
----
+5.  You can adjust the amount of players to suit your training e.g. add a central midfielder. ---
 
 **Source:** https://jobsinfootball.com/blog/what-are-patterns-of-play/

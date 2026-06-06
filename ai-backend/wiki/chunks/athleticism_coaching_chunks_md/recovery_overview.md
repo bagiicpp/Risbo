@@ -1,11 +1,7 @@
 **Source:** https://blog.nasm.org/recovery-techniques-for-athletes
 **Title:** Athlete Recovery Techniques to Achieve Peak Performance
 
-Newton had it right all along: For every action, there is indeed a reaction. In 2021 this means that however hard we work towards our fitness goals, wellness goals, and professional goals, we must work that hard or harder towards recovery.Ihave spent the last 15 years of my career focused on the latest and greatest recovery techniques steeped in the latest and greatest physiological and psychological discoveries and technologies. Most, if not all, of these recovery strategies, have been adopted by pro athletes. There is indeed a best muscle recovery, a best brain recovery, and a best overall holistic recovery and most are relatively inexpensive.
 
-Further, money does not have to drive quality recovery. Many recovery strategies simply require a foundational understanding of human biology and exploiting the natural recovery strategies we as humans have evolved to have.
-
-*Aspects of this subject - hydration, supplementation, and more - are explored even further within the NASM Sports Nutrition Program. *
 
 ## Sleep On It
 

@@ -3,12 +3,6 @@
 
 Level Up Your Scoring Efficiency
 
-#### **100+ Workouts & 90+ Drill Progressions For Guards & Posts**
-
-#### **Learn How A College Coach Developed 5 Players That Shot Above 60% In One Season**
-
-#### For Ages 11 and Up
-
 ## **Stop Spinning Your Wheels With Random Finishing Moves and Drills**
 
 Let’s face it—there’s no shortage of finishing moves out there. But piling on more options doesn’t always translate to **better results**.
@@ -386,7 +380,5 @@ _According to Duke associate head coach_**_Chris Collins_**_, it’s critical th
 **Drill in Action** By implementing this drill consistently, players get a feel for where the basket is. You also learn how to make layups and other shots form a variety of different angles. In short, it’s a **very realistic, practical drill**.
 
 Finally, look to make a competition out of it. This will help with getting your players to work at game speed/game intensity. Remember, it’s not about quantity, it’s about quality.
-
-_The previous clips can be seen on Championship Productions’ DVD “Duke Basketball: Competitive Shooting Drills.” To check our latest videos focusing on shooting drills, click here._
 
 ---

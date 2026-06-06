@@ -84,7 +84,7 @@ Incorporating these strategies, coaches can use GPS data to optimise training lo
 
 **Conclusion** By integrating GPS technology into the training regime, coaches can make informed decisions that enhance player performance and reduce injury risks. Monitoring and adjusting training loads based on GPS data allows for a scientific approach to training, ensuring each player is optimally prepared for the demands of team sport. With consistent application and careful analysis, GPS monitoring can be a game-changer for coaches aiming to bring out the best in their teams.
 
-Would you like to find out how you can maximise the use of GPS in training? Learn more about our new short course, the Certificate in Applied GPS in Sport here.
+
 
 ---
 
@@ -95,35 +95,9 @@ In elite sport, performance isn’t built on Match Day (or “Game Day,” depen
 
 *What’s actually happening across MD– and MD+ *(or GD– and GD+)*?* For many teams, GPS data is accessible—but it’s difficult to segment by match day, position group, or individual athlete. Most systems lack the flexibility to compare load trends over time or to quickly validate whether the week aligned with the plan.
 
-With the **Performance Optimization **Solution in iP: Intelligence Platform, sports science teams can automatically segment and visualize GPS metrics by match day phase—no spreadsheets, no custom queries, no delays.
 
-## The Challenge
 
-You’re collecting GPS load data daily. But without the ability to break it down by training day context (e.g., MD–1, MD+2), it’s hard to:
 
-- Verify if load distributions match the intended training model
-- Identify load spikes or inconsistencies across the week
-- Compare team/squad-level vs. positional trends
-- Monitor longitudinal load patterns without exporting data
-
-**The result? **Planned periodization may not match actual load, and small imbalances can lead to poor readiness, elevated injury risk, or performance drop-offs.
-
-## What We Hear from Sports Science Teams
-
-- “We can see total load, but we can’t easily segment it by match day phase.”
-- “Every week we’re exporting GPS data to Excel just to validate the plan.”
-- “We need to see MD–1 and MD–2 trends across positions, not just individual snapshots.”
-- “There’s no easy way to align session intent with actual output—at scale.”
-
-**The reality is:** most platforms are good at capturing data. But not at putting it in the right context.
-
-## The Solution: From Raw Metrics to Performance Insight
-
-With the **Performance Optimization **Solution in iP, GPS load data becomes dynamic and contextualized—so you can validate periodization week by week, across squads and seasons.
-
-With *Self-Service Reporting* in iP: Intelligence Platform, performance staff can segment metrics like total distance, high-speed running, accelerations, or player load by Match Day Phase—then analyze trends, flag anomalies, and adjust sessions in minutes.
-
-## What You Can Do in Performance Optimization
 
 **Visualize Weekly Load Patterns by MD+/–**
 

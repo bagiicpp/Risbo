@@ -682,10 +682,6 @@ All small-sided games that require fast decisions under a lot of pressure from t
 
 coaching zone Never miss any news again!
 
-Thank you! Your submission has been received!
-
-Oops! Something went wrong while submitting the form.
-
 coaching zone Germany's Triumph at the U17 World Cup 2023: A Lesson in Tactics and Team Spirit
 
 Explore the remarkable journey of the German U17 national team in the FIFA U17 World Cup 2023. This blog post delves into the key moments, strategic insights, and the profound team spirit that led Germany to its first-ever victory in this tournament.

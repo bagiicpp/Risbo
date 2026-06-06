@@ -1,10 +1,5 @@
 **Title:** The Complete Guide to Basketball Player Development
 
-- Home
-- Blog
-- Player Development
-- The Complete Guide to Basketball Player Development
-
 # The Complete Guide to Basketball Player Development
 
 Astructured basketball player development plan is crucial for aspiring players aiming to advance their careers.

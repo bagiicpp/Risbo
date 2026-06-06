@@ -409,7 +409,7 @@ Active recovery involves low-intensity movement that keeps blood flowing and hel
 
 Passive recovery includes complete rest and interventions like sleep, massage, or icing.
 
-Both approaches are valuable. Choosing the right one at the right time is key. At Rock Valley PT, we help athletes create recovery schedules that balance movement and rest.
+
 
 Not every trend is worth your time, but the following methods have real science and real results behind them:
 

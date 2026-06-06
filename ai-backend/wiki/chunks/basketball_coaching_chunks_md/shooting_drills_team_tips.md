@@ -133,10 +133,4 @@ There are five perimeter 3-point arc spots - right corner, right wing, point (to
 
 Next, the shooter again starts at the free-throw line, cuts outside, back-cuts, receives the pass and dribbles in for the lay-up. After completing this rotation, we will move the passing line to the left wing and repeat all the same shots with the pass coming from the left wing.
 
-There are **6 more drills in**the complete article in the members section.
-
-SIGN UP NOW FOR MEMBERSHIP! The complete article also includes:
-
-**Rayder Shooting**- This is probably our favorite shooting drill. Players love this drill.**3-Man, 2-Ball Shooting Drill**- three variations of this drill (Wing-to-Wing Motion, Baseline to Free Throw Circle Motion, and Corner-to-Corner Motion).**Close-out Shooting Drill**- this drill gets your players to practice shooting contested shots, which is more game-like.**Ball-Screen and Flare Shooting Drill**- This drills uses a ball-screen, followed by a pass to the screener, who makes a flare cut to the perimeter.**Cutter Shooting Drill**- this is both a shooting and a passing drill.**Endline Cutter Shooting Drill**- this drill stresses shooting, passing and catching, and footwork. This could also be a good pre-game warm-up drill.
-
 ---

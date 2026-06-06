@@ -578,7 +578,7 @@ Your pace/speed or power at your VO2Max will change as you age, so it's importan
 
 Training at your VO2Max can help you maintain and progress your fitness, give you confidence and keep you competitive with other masters athletes (and maybe even some younger athletes). Afew well placed high quality workouts will have a massive fitness benefit across all your training zones keeping you fit and fast for longer.
 
-If you are not sure how to plan your training and include some harder workouts why not book a free 20 minute consultation with no commitment to see how we can help you?
+
 
 ---
 

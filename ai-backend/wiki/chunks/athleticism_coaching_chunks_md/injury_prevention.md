@@ -83,36 +83,10 @@ Incorporating these nutritional strategies into a comprehensive injury preventio
 
 The prevention of sports injuries, particularly recurrent injuries, requires a comprehensive, multifactorial approach that integrates physical, psychological, and nutritional strategies. This article highlights the critical interplay between biomechanical insights, workload management, psychological resilience, and optimal nutrition in mitigating injury risks and enhancing athletic performance. Biomechanical assessments remain a cornerstone of injury prevention, enabling the identification and correction of movement inefficiencies that predispose athletes to harm. When combined with tailored strength and conditioning programs, these interventions strengthen musculoskeletal resilience and enhance functional performance. Concurrently, effective workload management, facilitated by wearable technologies and structured training plans, ensures that athletes maintain a balance between training intensity and recovery, reducing the risk of both acute and overuse injuries. The psychological dimension of injury prevention is equally vital. Reinjury anxiety, fear-avoidance behaviors, and mental disengagement can all compromise recovery and increase susceptibility to new injuries. Psychological interventions, such as mindfulness, goal setting, and cognitive restructuring, help athletes overcome these barriers, fostering confidence and readiness to perform at their best. Nutrition, too, plays a pivotal role in sustaining an athlete's resilience and recovery. Balanced macronutrient intake supports energy availability and tissue repair, while micronutrients like calcium, vitamin D, and antioxidants contribute to bone health and reduce inflammation. The timing and personalization of nutrient intake further amplify these benefits, ensuring athletes meet the specific demands of their sport. Ultimately, injury prevention is not about addressing isolated factors but about adopting an integrated, individualized approach that considers the unique needs of each athlete. By bridging physical, psychological, and nutritional dimensions, this holistic framework not only reduces injury risks but also empowers athletes to sustain peak performance and prolong their careers, ensuring they remain competitive and resilient in the demanding world of sports.
 
-### Disclosures
-
-**Conflicts of interest:** In compliance with the ICMJE uniform disclosure form, all authors declare the following:
-
-**Payment/services info:** All authors have declared that no financial support was received from any organization for the submitted work.
-
-**Financial relationships:** All authors have declared that they have no financial relationships at present or within the previous three years with any organizations that might have an interest in the submitted work.
-
-**Other relationships:** All authors have declared that there are no other relationships or activities that could appear to have influenced the submitted work.
-
-### Author Contributions
-
-**Concept and design:** Ayrton Moiroux-Sahraoui, Florian Forelli, Mathias Nielsen-Le Roux, Nicholas Miraglia, Maxime Gaspar, Maria Stergiou, Andreas Bjerregaard, Jean Mazeas, Maurice Douryang **Critical review of the manuscript for important intellectual content:** Ayrton Moiroux-Sahraoui, Florian Forelli, Nicholas Miraglia, Maxime Gaspar, Maria Stergiou, Andreas Bjerregaard, Jean Mazeas, Maurice Douryang
-
-**Drafting of the manuscript:** Florian Forelli, Mathias Nielsen-Le Roux **Supervision:** Florian Forelli, Maurice Douryang
-
 ---
 
 **Source:** https://proactiveptsr.com/injury-prevention-for-athletes-a-complete-guide-to-staying-healthy-strong-competition-ready/
 **Title:** INJURY PREVENTION FOR ATHLETES: A COMPLETE GUIDE TO STAYING HEALTHY, STRONG & COMPETITION-READY | ProActive Physical Therapy & Sports Rehabilitation Athlete Injury Prevention Programs for Strength, Mobility & Performance | ProActive Physical Therapy & Sports Rehabilitation
-
-*ProActive Physical Therapy & Sports Rehabilitation — Valhalla, NY* *ProActive Physical Therapy & Sports Rehabilitation — Valhalla, NY*
-
-Athletes push their bodies to the limit — training hard, performing under pressure, and repeating high-intensity movements day after day. While commitment and hard work are essential for success, they also increase the risk of injury. From muscle strains to ligament tears, overuse injuries to sudden impact trauma, the physical demands of sport can sideline even the most conditioned athletes.
-
-But here’s the good news: **most sports injuries are preventable** with the right training, movement strategies, and physical preparation.
-
-At **ProActive Physical Therapy & Sports Rehabilitation**, we specialize in individualized injury prevention programs designed to help athletes stay healthy, maximize performance, and avoid setbacks. Whether you’re an elite competitor or a weekend warrior, a strong injury prevention plan can make the difference between a successful season and time spent on the sidelines.
-
-This comprehensive guide covers everything athletes, parents, and coaches need to know about preventing injuries, optimizing performance, and building resilient bodies.
 
 **1. Why Injury Prevention Matters** Injury prevention is not just about avoiding pain — it’s about maintaining performance, longevity, and confidence.
 

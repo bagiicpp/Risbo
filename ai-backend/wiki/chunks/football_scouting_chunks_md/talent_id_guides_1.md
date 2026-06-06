@@ -70,17 +70,6 @@ Youth talent identification requires patience, expertise, and a long-term perspe
 
 ---
 
-**Source:** https://www.researchgate.net/publication/344771317_Talent_Identification_in_Youth_Football_A_Systematic_Review
-**Title:** Just a moment...
-
-## Security check required
-
-We've detected unusual activity from your network. To continue, complete the security check below.
-
-Ray ID: a067e42349115df7 Client IP: 2600:1900:0:2102::100
-
----
-
 **Source:** https://www.fifatrainingcentre.com/en/environment/guide/high-performance/find/talent-identification-guide-module-1.php
 **Title:** Talent Identification Guide: Module 1
 
@@ -240,15 +229,6 @@ In summary, Talent Identification and Scouting are essential aspects of Youth Fo
 And now, the Big Data is just starting… so make sure you know what you are doing, to whom and to have clear objectives!
 
 Get ready!
-
----
-
-**Source:** https://thepfsa.co.uk/5-key-points-to-talent-id/
-**Title:** Robot Challenge Screen
-
-## thepfsa.co.uk
-
-Checking the site connection security
 
 ---
 

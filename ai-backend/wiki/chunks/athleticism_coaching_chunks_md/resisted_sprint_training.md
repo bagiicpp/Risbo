@@ -217,7 +217,7 @@ These exercises work by forcing the entire body to operate as a single unit, eng
 
 Coaches should focus on keeping programs simple and explaining the rationale behind each exercise. When athletes understand why they’re doing what they’re doing, they’re more likely to buy into the program and stay committed to long-term improvement.
 
-### Dive deeper into these concepts (and more) in the Anatomy of Speed Online Certification Course.
+
 
 ---
 

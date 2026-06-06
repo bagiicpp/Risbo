@@ -256,20 +256,7 @@ Apply Reset
 **Source:** https://www.adidas.com.au/blog/878508-5-soccer-goalie-drills-for-a-complete-practice
 **Title:** URL Source: https://www.adidas.com.au/blog/878508-5-soccer-goalie-drills-for-a-complete-practice
 
-Powered and protected by
-
 ---
-
-**Source:** https://mypersonalfootballcoach.com/position-specific-courses/
-**Title:** No 1 online soccer training program for soccer players
-
-1on1 Technical Soccer Coaching, Elite football training programme The My Personal Football Coach App
-
-The #1 individual online soccer training program Designed for graduates of the My Personal Football Coach Dynamic Ball Mastery Programmes who want to learn more in-depth and precise detail about specific soccer positions.
-
-Pick your position Striker Course
-
-Ideal for Strikers who want to learn the skills every striker needs in their locker.
 
 ---
 
