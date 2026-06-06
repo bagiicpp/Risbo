@@ -22,11 +22,8 @@ async def test_register_user_success(async_client, mocker):
     main.db.users.find_one = mocker.AsyncMock(return_value=None)
     main.db.users.insert_one = mocker.AsyncMock()
     main.db.pending_users.find_one = mocker.AsyncMock(return_value=None)
-    
-    # Mock update_one instead of insert_one
     main.db.pending_users.update_one = mocker.AsyncMock()
-    
-    mocker.patch("main.smtplib.SMTP_SSL") 
+    mocker.patch("main.resend.Emails.send")
 
     response = await async_client.post("/register", json={
         "email": "newathlete@test.com",
@@ -36,11 +33,7 @@ async def test_register_user_success(async_client, mocker):
     })
 
     assert response.status_code == 201
-    
-    # Updated to match main.py return payload
-    assert response.json()["message"] == "Verification code generated" 
-    
-    # Assert on update_one
+    assert response.json()["message"] == "Verification code generated"
     main.db.pending_users.update_one.assert_called_once()
 
 @pytest.mark.asyncio
