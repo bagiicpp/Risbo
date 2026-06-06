@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { ConversationContext } from "./ConversationContext";
 import type { ConversationMeta } from "./ConversationContext";
 import { useAuth } from "@/hooks/useAuth";
+import { API_URL } from "@/lib/api";
 
 export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
@@ -23,7 +24,7 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({
     setLoading(true);
     try {
       const res = await fetch(
-        `${import.meta.env.VITE_API_URL}/conversations?t=${Date.now()}`,
+        `${API_URL}/conversations?t=${Date.now()}`,
         {
           method: "GET",
           headers: {
@@ -64,7 +65,7 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({
 
     const syncConversations = async () => {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/conversations`, {
+        const res = await fetch(`${API_URL}/conversations`, {
           headers: { Authorization: `Bearer ${token}` },
         });
 

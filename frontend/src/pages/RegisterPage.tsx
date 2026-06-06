@@ -1,5 +1,6 @@
 import React, { useState, useRef } from "react";
 import axios, { AxiosError } from "axios";
+import { API_URL } from "@/lib/api";
 import { useNavigate, Link } from "react-router";
 import { Loader2, AlertCircle, ShieldCheck } from "lucide-react";
 import { motion, AnimatePresence, type Variants } from "framer-motion";
@@ -69,7 +70,7 @@ const RegisterPage: React.FC = () => {
     try {
       // Hardcoded base URL due to raw axios usage.
       // Ensure this aligns with your environment variables in production.
-      await axios.post(`${import.meta.env.VITE_API_URL}/register`, {
+      await axios.post(`${API_URL}/register`, {
         name,
         email,
         password,
@@ -99,7 +100,7 @@ const RegisterPage: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      await axios.post(`${import.meta.env.VITE_API_URL}/verify-email`, {
+      await axios.post(`${API_URL}/verify-email`, {
         email,
         code,
       });

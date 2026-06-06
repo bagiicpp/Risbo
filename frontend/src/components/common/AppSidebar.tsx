@@ -58,7 +58,7 @@ import { useConversations } from "@/hooks/useConversations";
 import { useCallback, useEffect, useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
-import api from "@/lib/api";
+import api, { API_URL } from "@/lib/api";
 import axios from "axios";
 
 export function AppSidebar({ onNewChat }: { onNewChat?: () => void } = {}) {
@@ -174,8 +174,8 @@ export function AppSidebar({ onNewChat }: { onNewChat?: () => void } = {}) {
     connectionTimeout = setTimeout(() => {
       const streamUrl =
         user.role === "coach"
-          ? `${import.meta.env.VITE_API_URL}/coach/roster/stream?token=${token}`
-          : `${import.meta.env.VITE_API_URL}/invites/stream?token=${token}`;
+          ? `${API_URL}/coach/roster/stream?token=${token}`
+          : `${API_URL}/invites/stream?token=${token}`;
 
       eventSource = new EventSource(streamUrl);
 

@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useConversations } from "@/hooks/useConversations";
 import { motion, AnimatePresence } from "framer-motion";
 import { Upload } from "lucide-react";
+import { API_URL } from "@/lib/api";
 
 export default function ChatPage() {
   const { token, user, isAuthenticated } = useAuth();
@@ -58,7 +59,7 @@ export default function ChatPage() {
       const loadHistoryLog = async () => {
         try {
           const response = await fetch(
-            `${import.meta.env.VITE_API_URL}/conversations/${conversationId}`,
+            `${API_URL}/conversations/${conversationId}`,
             {
               headers: { Authorization: `Bearer ${token}` },
               signal: abortController.signal,
@@ -181,7 +182,7 @@ export default function ChatPage() {
         if (stagedFile.type.startsWith("image/")) {
           const convId = activeConversationId || "new";
           const uploadRes = await fetch(
-            `${import.meta.env.VITE_API_URL}/upload-image/${convId}`,
+            `${API_URL}/upload-image/${convId}`,
             {
               method: "POST",
               headers: { Authorization: `Bearer ${token}` },
@@ -203,7 +204,7 @@ export default function ChatPage() {
             : `[ATTACHED IMAGE: ${stagedFile.name}]`;
         } else {
           // --- DOCUMENT: existing extract-text flow ---
-          const extractRes = await fetch(`${import.meta.env.VITE_API_URL}/extract-text`, {
+          const extractRes = await fetch(`${API_URL}/extract-text`, {
             method: "POST",
             headers: { Authorization: `Bearer ${token}` },
             body: formData,
@@ -277,7 +278,7 @@ export default function ChatPage() {
 
     // --- PHASE 3: SEND TO LLM ---
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/chat`, {
+      const response = await fetch(`${API_URL}/chat`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -381,7 +382,7 @@ export default function ChatPage() {
         });
 
         try {
-          const retryResponse = await fetch(`${import.meta.env.VITE_API_URL}/chat`, {
+          const retryResponse = await fetch(`${API_URL}/chat`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",

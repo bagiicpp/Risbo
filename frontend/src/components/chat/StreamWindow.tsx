@@ -12,6 +12,7 @@ import {
   ThumbsUp,
   ThumbsDown,
 } from "lucide-react";
+import { API_URL } from "@/lib/api";
 
 export interface Message {
   message_id?: string;
@@ -337,7 +338,7 @@ const StreamWindow: React.FC<StreamWindowProps> = ({
 
   const handleDownloadPDF = async (text: string) => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/generate-pdf`, {
+      const response = await fetch(`${API_URL}/generate-pdf`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: text }),
