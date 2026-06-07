@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import axios, { AxiosError } from "axios";
-import { API_URL } from "@/lib/api";
 import { useNavigate, Link } from "react-router";
 import { Loader2, AlertCircle } from "lucide-react";
 import { motion, type Variants } from "framer-motion";
