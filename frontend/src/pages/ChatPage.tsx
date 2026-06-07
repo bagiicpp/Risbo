@@ -340,6 +340,23 @@ export default function ChatPage() {
                 continue;
               }
 
+              if (rawData && Array.isArray(rawData.__sources)) {
+                const labels: Record<string, string> = {
+                  football: "Football Data API",
+                  wiki: "Risbo Wiki (BM25)",
+                  web: "Web Search",
+                };
+                const sources = rawData.__sources as string[];
+                if (sources.length === 0) {
+                  console.log("[Risbo] Sources: LLM knowledge only");
+                } else {
+                  console.log(
+                    `[Risbo] Sources used: ${sources.map((s) => labels[s] ?? s).join(", ")}`
+                  );
+                }
+                continue;
+              }
+
               // 2. Defend Against Object Coercion in Text Streams
               const textChunk =
                 typeof rawData === "string"
@@ -430,6 +447,22 @@ export default function ChatPage() {
                   try {
                     const rawData = JSON.parse(line.replace("data: ", ""));
                     if (rawData?._type === "title_update") continue;
+                    if (rawData && Array.isArray(rawData.__sources)) {
+                      const labels: Record<string, string> = {
+                        football: "Football Data API",
+                        wiki: "Risbo Wiki (BM25)",
+                        web: "Web Search",
+                      };
+                      const sources = rawData.__sources as string[];
+                      if (sources.length === 0) {
+                        console.log("[Risbo] Sources: LLM knowledge only");
+                      } else {
+                        console.log(
+                          `[Risbo] Sources used: ${sources.map((s) => labels[s] ?? s).join(", ")}`
+                        );
+                      }
+                      continue;
+                    }
 
                     const textChunk =
                       typeof rawData === "string"

@@ -339,6 +339,11 @@ async def generate_stream(
                     types.Content(role=role, parts=[types.Part.from_text(text=msg.content)])
                 )
 
+    # Track which data sources were actually used this turn (sent to client for debugging).
+    football_ctx = None
+    wiki_ctx = None
+    search_block = ""
+
     # --- FOOTBALL DATA INJECTION (always active) ---
     # detect_league_code() is an instant string lookup — no HTTP cost unless a
     # supported league is found. Runs regardless of enable_search so users get
@@ -350,7 +355,6 @@ async def generate_stream(
         # Single English reformulation, reused by football, wiki and web below
         # (one Gemini call per turn — keeps token usage down).
         query = await _make_search_query(raw, intent=intent)
-        football_ctx = None
         try:
             football_ctx = await get_football_context(query)
         except Exception as e:
@@ -432,6 +436,16 @@ async def generate_stream(
             role=last.role,
             parts=[types.Part.from_text(text=prefix + last.parts[0].text)],
         )
+
+    # Emit source metadata so the browser console can show what grounded this turn.
+    used_sources = []
+    if football_ctx:
+        used_sources.append("football")
+    if wiki_ctx:
+        used_sources.append("wiki")
+    if search_block:
+        used_sources.append("web")
+    yield f"data: {json.dumps({'__sources': used_sources}, ensure_ascii=False)}\n\n"
 
     max_retries = 3
     base_wait = 2
