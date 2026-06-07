@@ -3,6 +3,7 @@ import base64
 import json
 import logging
 import os
+from contextlib import asynccontextmanager
 from datetime import datetime
 
 from dotenv import load_dotenv
@@ -17,7 +18,8 @@ from football_data import get_football_context
 from typing import Union
 from intent import classify_intent
 from pydantic import BaseModel
-from search import smart_search
+from search import bilingual_search
+from wiki_search import WikiSearcher, build_wiki_context
 
 # --- Tenacity for robust API retries ---
 from tenacity import (
@@ -34,7 +36,24 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Risbo AI - Athlete Specialization")
+# Built once at startup (BM25 index over the curated wiki) and reused for every request.
+wiki_searcher: WikiSearcher | None = None
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global wiki_searcher
+    try:
+        wiki_searcher = WikiSearcher()
+    except Exception as e:
+        # Never let a wiki indexing failure take the whole AI backend down —
+        # the LLM can still answer from its own knowledge / web search.
+        logger.error(f"[WikiSearcher] failed to build index: {e}")
+        wiki_searcher = None
+    yield
+
+
+app = FastAPI(title="Risbo AI - Athlete Specialization", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -285,6 +304,12 @@ async def generate_stream(
             "this tag, use those results directly. "
             "IMPORTANT: Always provide a substantive answer first; never output ONLY the tag alone.\n\n"
             "STRICTLY FORBIDDEN: Do not output '🌐 Searching the web...' or similar status markers in your final response.\n\n"
+            "KNOWLEDGE DIRECTIVE: A [RISBO KNOWLEDGE BASE] block may be injected with curated "
+            "sports reference — treat it as primary grounding and supplement it with your own "
+            "expertise. When neither the knowledge base nor web results fully cover the question, "
+            "answer confidently from your own expert sports knowledge. You are a sports expert: "
+            "NEVER reply that you lack information, don't know, or cannot help on a sports topic — "
+            "always give a substantive, useful answer.\n\n"
             "=================================\n"
         )
         config = types.GenerateContentConfig(
@@ -321,7 +346,10 @@ async def generate_stream(
     if isinstance(formatted_contents, list) and formatted_contents:
         last_content = messages[-1].content
         raw = search_query or (last_content if isinstance(last_content, str) else "")
-        query = await _make_search_query(raw, intent=classify_intent(raw))
+        intent = classify_intent(raw)
+        # Single English reformulation, reused by football, wiki and web below
+        # (one Gemini call per turn — keeps token usage down).
+        query = await _make_search_query(raw, intent=intent)
         football_ctx = None
         try:
             football_ctx = await get_football_context(query)
@@ -341,24 +369,49 @@ async def generate_stream(
             )
             logger.info("[football-data] injected structured data")
 
+        # --- WIKI KNOWLEDGE BASE INJECTION (curated local RAG, always active) ---
+        # Local BM25 over wiki/chunks. Reuses the English `query` above — no extra
+        # LLM call. Skipped when football-data already injected live structured data.
+        if not football_ctx and wiki_searcher:
+            try:
+                wiki_ctx = build_wiki_context(wiki_searcher, query, user_profile)
+            except Exception as e:
+                wiki_ctx = None
+                logger.warning(f"[wiki] search failed: {e}")
+            if wiki_ctx:
+                last = formatted_contents[-1]
+                prefix = (
+                    f"{wiki_ctx}\n\n"
+                    "[SYSTEM: The knowledge base above is curated Risbo reference. "
+                    "Use it as primary grounding, but SUPPLEMENT freely with your own "
+                    "expert knowledge. ALWAYS give a confident, substantive answer. "
+                    "NEVER say you lack information or cannot help.]\n\n"
+                )
+                formatted_contents[-1] = types.Content(
+                    role=last.role,
+                    parts=[types.Part.from_text(text=prefix + last.parts[0].text)],
+                )
+                logger.info("[wiki] injected curated context")
+
     # --- WEB SEARCH INJECTION ---
     # Runs BEFORE the LLM call so results are baked into the prompt.
     # Skipped if football-data already handled the query.
     if enable_search and isinstance(formatted_contents, list) and formatted_contents:
-        raw = search_query or messages[-1].content
-        intent = classify_intent(raw)
-        query = await _make_search_query(raw, intent=intent)
+        # Reuse raw/intent/query computed above — no second Gemini call.
         logger.info(f"[search] intent={intent!r} query={query[:80]!r}")
         search_block = ""
 
-        # Only run SearXNG if football-data didn't already inject data
+        # Only run web search if football-data didn't already inject data
         if not football_ctx:
             try:
-                search_results = await smart_search(query, max_results=8, intent=intent)
+                # Original language first, then English, best of both combined.
+                search_results = await bilingual_search(
+                    raw, query, max_results=8, intent=intent
+                )
                 search_block = format_search_results_for_prompt(search_results)
             except Exception as e:
                 logger.warning(
-                    f"[search] smart_search failed, proceeding without results: {e}"
+                    f"[search] bilingual_search failed, proceeding without results: {e}"
                 )
 
         last = formatted_contents[-1]

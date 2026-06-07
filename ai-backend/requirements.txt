@@ -10,3 +10,4 @@ lxml
 tabulate
 requests
 ddgs
+rank-bm25

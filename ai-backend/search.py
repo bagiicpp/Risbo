@@ -222,3 +222,46 @@ async def smart_search(query: str, max_results: int = 8, intent: str = "general"
         logger.warning(f"[search] SearXNG failed ({e}), falling back to DDGS")
 
     return await _search_ddgs(query, max_results, intent)
+
+
+async def bilingual_search(
+    original_query: str,
+    english_query: str,
+    max_results: int = 8,
+    intent: str = "general",
+) -> list[dict]:
+    """
+    Search the user's ORIGINAL language first, then English, and combine the best of both.
+
+    Original-language queries can surface local/regional sources; English broadens
+    coverage. Both runs go through smart_search() (SearXNG → DDGS) concurrently, then
+    results are merged and de-duplicated by host+path so the strongest unique hits win.
+    No LLM call — english_query is reused from main._make_search_query().
+    """
+    original_query = (original_query or "").strip()
+    english_query = (english_query or "").strip()
+
+    # If they're effectively the same (query already English), one search is enough.
+    queries = [q for q in {original_query, english_query} if q] or [english_query]
+
+    settled = await asyncio.gather(
+        *[smart_search(q, max_results=max_results, intent=intent) for q in queries],
+        return_exceptions=True,
+    )
+
+    merged: list[dict] = []
+    seen: set[str] = set()
+    for res in settled:
+        if isinstance(res, Exception):
+            logger.warning(f"[search] bilingual leg failed: {res}")
+            continue
+        for r in res:
+            url = r.get("url") or ""
+            key = get_host(url) + urlparse(url).path.rstrip("/")
+            if key in seen:
+                continue
+            seen.add(key)
+            merged.append(r)
+
+    merged.sort(key=lambda r: score_result(r, intent), reverse=True)
+    return merged[:max_results]
