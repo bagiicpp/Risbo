@@ -46,7 +46,6 @@ const RegisterPage: React.FC = () => {
 
   const navigate = useNavigate();
 
-  console.log("VITE_API_URL is:", import.meta.env.VITE_API_URL);
 
   const handleRegister = async (e: React.BaseSyntheticEvent) => {
     e.preventDefault();
