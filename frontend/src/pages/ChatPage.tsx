@@ -642,7 +642,7 @@ export default function ChatPage() {
               className="text-center mb-4 shrink-0"
             >
               <h2 className="text-2xl md:text-4xl font-bricolage font-black tracking-tight mb-2 text-foreground">
-                How can I help you today?
+                I am Risbo, your personal Sports AI assistant.
               </h2>
             </motion.div>
             <motion.div
