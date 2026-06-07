@@ -4,7 +4,7 @@ import io
 import json
 import os
 import random
-import resend
+from mailersend import emails
 import re
 import uuid
 from contextlib import asynccontextmanager
@@ -145,12 +145,12 @@ async def register_user(user: UserCreate):
 
     if env == "production":
         try:
-            resend.api_key = os.getenv("RESEND_API_KEY")
-            resend.Emails.send({
-                "from": "Risbo <onboarding@resend.dev>",
-                "to": user.email,
-                "subject": "Verify Your Account",
-                "html": f"""
+            mailer = emails.NewEmail(os.getenv("MAILERSEND_API_KEY"))
+            mail_body = {}
+            mailer.set_mail_from({"email": os.getenv("MAILERSEND_FROM_EMAIL"), "name": "Risbo"}, mail_body)
+            mailer.set_mail_to([{"email": user.email, "name": user.name}], mail_body)
+            mailer.set_subject("Verify Your Account", mail_body)
+            mailer.set_html_content(f"""
                 <!DOCTYPE html>
                 <html>
                 <head><meta charset="utf-8"></head>
@@ -191,10 +191,10 @@ async def register_user(user: UserCreate):
                     </table>
                 </body>
                 </html>
-                """,
-            })
+            """, mail_body)
+            mailer.send(mail_body)
         except Exception as e:
-            print(f"Resend Error: {e}")
+            print(f"Mailersend Error: {e}")
             raise HTTPException(
                 status_code=500,
                 detail="Failed to send verification email.",
