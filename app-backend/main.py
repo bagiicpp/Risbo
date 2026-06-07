@@ -916,7 +916,8 @@ async def chat(
                         if line.startswith("data: "):
                             try:
                                 clean_text = json.loads(line.replace("data: ", ""))
-                                ai_content += clean_text
+                                if isinstance(clean_text, str):
+                                    ai_content += clean_text
                             except json.JSONDecodeError:
                                 pass
                         yield line + "\n"
