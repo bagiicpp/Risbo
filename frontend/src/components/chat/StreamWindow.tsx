@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
+import "katex/dist/katex.min.css";
 import {
   Download,
   FileText,
@@ -12,6 +15,7 @@ import {
   ThumbsUp,
   ThumbsDown,
 } from "lucide-react";
+import { API_URL } from "@/lib/api";
 
 export interface Message {
   message_id?: string;
@@ -212,7 +216,8 @@ const MessageBubble = React.memo(
                 {displayContent ? (
                   <div className="prose prose-sm md:prose-base dark:prose-invert max-w-none break-words leading-relaxed">
                     <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
+                      remarkPlugins={[remarkGfm, remarkMath]}
+                      rehypePlugins={[rehypeKatex]}
                       components={{
                         table: ({ node, ...props }) => (
                           // Reduced outer margin (my-3 instead of my-6) and forced zero padding
@@ -337,7 +342,7 @@ const StreamWindow: React.FC<StreamWindowProps> = ({
 
   const handleDownloadPDF = async (text: string) => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/generate-pdf`, {
+      const response = await fetch(`${API_URL}/generate-pdf`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: text }),

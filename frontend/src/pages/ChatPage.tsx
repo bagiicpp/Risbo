@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useConversations } from "@/hooks/useConversations";
 import { motion, AnimatePresence } from "framer-motion";
 import { Upload } from "lucide-react";
+import { API_URL } from "@/lib/api";
 
 export default function ChatPage() {
   const { token, user, isAuthenticated } = useAuth();
@@ -58,7 +59,7 @@ export default function ChatPage() {
       const loadHistoryLog = async () => {
         try {
           const response = await fetch(
-            `${import.meta.env.VITE_API_URL}/conversations/${conversationId}`,
+            `${API_URL}/conversations/${conversationId}`,
             {
               headers: { Authorization: `Bearer ${token}` },
               signal: abortController.signal,
@@ -181,7 +182,7 @@ export default function ChatPage() {
         if (stagedFile.type.startsWith("image/")) {
           const convId = activeConversationId || "new";
           const uploadRes = await fetch(
-            `${import.meta.env.VITE_API_URL}/upload-image/${convId}`,
+            `${API_URL}/upload-image/${convId}`,
             {
               method: "POST",
               headers: { Authorization: `Bearer ${token}` },
@@ -203,7 +204,7 @@ export default function ChatPage() {
             : `[ATTACHED IMAGE: ${stagedFile.name}]`;
         } else {
           // --- DOCUMENT: existing extract-text flow ---
-          const extractRes = await fetch(`${import.meta.env.VITE_API_URL}/extract-text`, {
+          const extractRes = await fetch(`${API_URL}/extract-text`, {
             method: "POST",
             headers: { Authorization: `Bearer ${token}` },
             body: formData,
@@ -277,7 +278,7 @@ export default function ChatPage() {
 
     // --- PHASE 3: SEND TO LLM ---
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/chat`, {
+      const response = await fetch(`${API_URL}/chat`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -339,6 +340,23 @@ export default function ChatPage() {
                 continue;
               }
 
+              if (rawData && Array.isArray(rawData.__sources)) {
+                const labels: Record<string, string> = {
+                  football: "Football Data API",
+                  wiki: "Risbo Wiki (BM25)",
+                  web: "Web Search",
+                };
+                const sources = rawData.__sources as string[];
+                if (sources.length === 0) {
+                  console.log("[Risbo] Sources: LLM knowledge only");
+                } else {
+                  console.log(
+                    `[Risbo] Sources used: ${sources.map((s) => labels[s] ?? s).join(", ")}`
+                  );
+                }
+                continue;
+              }
+
               // 2. Defend Against Object Coercion in Text Streams
               const textChunk =
                 typeof rawData === "string"
@@ -381,7 +399,7 @@ export default function ChatPage() {
         });
 
         try {
-          const retryResponse = await fetch(`${import.meta.env.VITE_API_URL}/chat`, {
+          const retryResponse = await fetch(`${API_URL}/chat`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -429,6 +447,22 @@ export default function ChatPage() {
                   try {
                     const rawData = JSON.parse(line.replace("data: ", ""));
                     if (rawData?._type === "title_update") continue;
+                    if (rawData && Array.isArray(rawData.__sources)) {
+                      const labels: Record<string, string> = {
+                        football: "Football Data API",
+                        wiki: "Risbo Wiki (BM25)",
+                        web: "Web Search",
+                      };
+                      const sources = rawData.__sources as string[];
+                      if (sources.length === 0) {
+                        console.log("[Risbo] Sources: LLM knowledge only");
+                      } else {
+                        console.log(
+                          `[Risbo] Sources used: ${sources.map((s) => labels[s] ?? s).join(", ")}`
+                        );
+                      }
+                      continue;
+                    }
 
                     const textChunk =
                       typeof rawData === "string"
@@ -608,7 +642,7 @@ export default function ChatPage() {
               className="text-center mb-4 shrink-0"
             >
               <h2 className="text-2xl md:text-4xl font-bricolage font-black tracking-tight mb-2 text-foreground">
-                How can I help you today?
+                I am Risbo, your personal Sports AI assistant. How can I help?
               </h2>
             </motion.div>
             <motion.div

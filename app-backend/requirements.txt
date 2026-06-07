@@ -23,6 +23,8 @@ python-docx
 openpyxl
 reportlab
 
+mailersend
+
 # Testing
 pytest
 pytest-asyncio
