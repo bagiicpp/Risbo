@@ -4,7 +4,7 @@ import io
 import json
 import os
 import random
-from mailersend import emails
+from mailersend import Email
 import re
 import uuid
 from contextlib import asynccontextmanager
@@ -145,7 +145,7 @@ async def register_user(user: UserCreate):
 
     if env == "production":
         try:
-            mailer = emails.NewEmail(os.getenv("MAILERSEND_API_KEY"))
+            mailer = Email.NewEmail(os.getenv("MAILERSEND_API_KEY"))
             mail_body = {}
             mailer.set_mail_from({"email": os.getenv("MAILERSEND_FROM_EMAIL"), "name": "Risbo"}, mail_body)
             mailer.set_mail_to([{"email": user.email, "name": user.name}], mail_body)
