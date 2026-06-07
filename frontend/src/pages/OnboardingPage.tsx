@@ -115,7 +115,7 @@ export default function OnboardingPage() {
         focus,
       });
       setOnboardingComplete(true);
-      
+
       try {
         const refreshRes = await api.post("/auth/refresh");
         login(refreshRes.data.access_token);
@@ -157,13 +157,6 @@ export default function OnboardingPage() {
             <span className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
               Step {step} of {TOTAL_STEPS}
             </span>
-            <button
-              onClick={submit}
-              disabled={isSaving}
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer disabled:opacity-50"
-            >
-              Skip for now
-            </button>
           </div>
           <div className="h-1.5 w-full rounded-full bg-accent overflow-hidden">
             <div
