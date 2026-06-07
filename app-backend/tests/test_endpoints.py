@@ -23,7 +23,7 @@ async def test_register_user_success(async_client, mocker):
     main.db.users.insert_one = mocker.AsyncMock()
     main.db.pending_users.find_one = mocker.AsyncMock(return_value=None)
     main.db.pending_users.update_one = mocker.AsyncMock()
-    mocker.patch("main.Email.MailerSendClient")
+    mocker.patch("main.MailerSendClient")
 
     response = await async_client.post("/register", json={
         "email": "newathlete@test.com",
