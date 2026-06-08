@@ -101,9 +101,9 @@ export function ProfileSettings() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
-      <div className="border-b border-border/50 pb-4 flex justify-between items-end">
+      <div className="border-b border-border/50 pb-4 flex flex-col sm:flex-row gap-4 sm:justify-between sm:items-end">
         <div>
-          <h3 className="text-xl font-semibold text-foreground font-bricolage">
+          <h3 className="text-lg sm:text-xl font-semibold text-foreground font-bricolage">
             User Profile
           </h3>
 
@@ -115,7 +115,7 @@ export function ProfileSettings() {
         <button
           onClick={handleSave}
           disabled={isSaving}
-          className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer"
+          className="flex items-center justify-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer w-full sm:w-auto"
         >
           {isSaving ? (
             <Loader2 size={16} className="animate-spin" />

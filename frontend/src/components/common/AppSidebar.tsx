@@ -55,7 +55,7 @@ import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
 import { Link, useNavigate, useLocation } from "react-router";
 import { useConversations } from "@/hooks/useConversations";
-import { useCallback, useEffect, useState, useMemo } from "react";
+import { useCallback, useEffect, useState, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import api, { API_URL } from "@/lib/api";
@@ -65,14 +65,21 @@ export function AppSidebar({ onNewChat }: { onNewChat?: () => void } = {}) {
   const { logout, user, token } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const { state, toggleSidebar } = useSidebar();
+  const { state, toggleSidebar, isMobile, setOpenMobile } = useSidebar();
   const isCollapsed = state === "collapsed";
 
+  const prevPathname = useRef(location.pathname);
   useEffect(() => {
-    if (isCollapsed) {
-      toggleSidebar();
+    if (location.pathname !== prevPathname.current) {
+      prevPathname.current = location.pathname;
+
+      if (isMobile) {
+        setOpenMobile(false);
+      } else if (state === "collapsed") {
+        toggleSidebar();
+      }
     }
-  }, [location.pathname]);
+  }, [location.pathname, isMobile, state, setOpenMobile, toggleSidebar]);
 
   const displayName = user?.name || "User";
   const displayInitial = displayName
@@ -135,6 +142,7 @@ export function AppSidebar({ onNewChat }: { onNewChat?: () => void } = {}) {
 
   useEffect(() => {
     if (!token || !user?.role) return;
+    if (user.role === "analyst" || user.role === "scout") return;
 
     const abortController = new AbortController();
     let eventSource: EventSource | null = null;
@@ -172,10 +180,14 @@ export function AppSidebar({ onNewChat }: { onNewChat?: () => void } = {}) {
     if (user.role === "athlete") fetchAthleteData();
 
     connectionTimeout = setTimeout(() => {
+      console.log(user.role);
+
       const streamUrl =
         user.role === "coach"
           ? `${API_URL}/coach/roster/stream?token=${token}`
-          : `${API_URL}/invites/stream?token=${token}`;
+          : user.role === "athlete"
+            ? `${API_URL}/invites/stream?token=${token}`
+            : null;
 
       eventSource = new EventSource(streamUrl);
 
@@ -307,11 +319,14 @@ export function AppSidebar({ onNewChat }: { onNewChat?: () => void } = {}) {
     <>
       <Sidebar variant="inset" collapsible="icon">
         <SidebarHeader className="py-4 px-4 group-data-[collapsible=icon]:px-2">
-          {/* Header Block */}
           <div className="relative flex items-center w-full h-8 mb-2 overflow-visible group/header">
             <div
-              onClick={() => isCollapsed && toggleSidebar()}
-              className={`relative w-8 h-8 flex items-center justify-center shrink-0 transition-all duration-300 ${isCollapsed ? "cursor-pointer" : "cursor-default"}`}
+              onClick={() => {
+                if (!isMobile && isCollapsed) toggleSidebar();
+              }}
+              className={`relative w-8 h-8 flex items-center justify-center shrink-0 transition-all duration-300 ${
+                !isMobile && isCollapsed ? "cursor-pointer" : "cursor-default"
+              }`}
             >
               <div className="absolute inset-0 bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center rounded-xl shadow-sm shadow-primary/20 transition-opacity duration-200 group-data-[collapsible=icon]:group-hover/header:opacity-0 pointer-events-none">
                 <span className="text-primary-foreground font-bricolage font-extrabold italic text-lg leading-none">
@@ -332,7 +347,7 @@ export function AppSidebar({ onNewChat }: { onNewChat?: () => void } = {}) {
 
             <button
               onClick={toggleSidebar}
-              className="ml-auto p-1.5 hover:bg-accent rounded-lg text-muted-foreground hover:text-foreground transition-all duration-300 cursor-pointer shrink-0 flex items-center justify-center w-8 h-8 group-data-[collapsible=icon]:w-0 group-data-[collapsible=icon]:opacity-0 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:pointer-events-none overflow-hidden"
+              className="hidden md:flex ml-auto p-1.5 hover:bg-accent rounded-lg text-muted-foreground hover:text-foreground transition-all duration-300 cursor-pointer shrink-0 items-center justify-center w-8 h-8 group-data-[collapsible=icon]:w-0 group-data-[collapsible=icon]:opacity-0 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:pointer-events-none overflow-hidden"
             >
               <PanelLeftClose size={18} className="shrink-0" />
             </button>

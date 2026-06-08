@@ -135,9 +135,9 @@ export function PreferencesSettings() {
     <div className="space-y-8 animate-in fade-in duration-300">
       {/* Header */}
 
-      <div className="border-b border-border/50 pb-5 flex justify-between items-end">
+      <div className="border-b border-border/50 pb-5 flex flex-col sm:flex-row gap-4 sm:justify-between sm:items-end">
         <div>
-          <h3 className="text-2xl font-semibold text-foreground font-bricolage tracking-tight">
+          <h3 className="text-xl sm:text-2xl font-semibold text-foreground font-bricolage tracking-tight">
             App Preferences
           </h3>
 
@@ -149,7 +149,7 @@ export function PreferencesSettings() {
         <button
           onClick={handleSave}
           disabled={isSaving}
-          className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer shrink-0"
+          className="flex items-center justify-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer shrink-0 w-full sm:w-auto"
         >
           {isSaving ? (
             <Loader2 size={16} className="animate-spin" />
@@ -168,7 +168,7 @@ export function PreferencesSettings() {
           title="Interface Theme"
           description="Select or customize your UI theme."
         >
-          <div className="flex bg-accent/30 p-1 rounded-lg w-fit border border-border/50 shadow-sm">
+          <div className="flex flex-col sm:grid sm:grid-cols-3 gap-2 w-full">
             <ThemeButton
               active={prefs.theme === "light"}
               onClick={() => handleThemeSelect("light")}
@@ -197,10 +197,9 @@ export function PreferencesSettings() {
             name="measurement_system"
             value={prefs.measurement_system}
             onChange={handleChange}
-            className="bg-background border border-border/60 text-sm rounded-lg px-3 py-2 outline-none focus:border-primary focus:ring-1 focus:ring-primary/50 transition-all shadow-sm w-48 text-foreground hover:border-border cursor-pointer"
+            className="bg-background border border-border/60 text-sm rounded-lg px-3 py-2 outline-none focus:border-primary focus:ring-1 focus:ring-primary/50 transition-all shadow-sm w-full sm:w-48 text-foreground hover:border-border cursor-pointer"
           >
             <option value="metric">Metric (kg, cm, ml)</option>
-
             <option value="imperial">Imperial (lbs, in, oz)</option>
           </select>
         </SettingsCard>
@@ -211,23 +210,19 @@ export function PreferencesSettings() {
 
 const ThemeButton = ({
   active,
-
   onClick,
-
   label,
 }: {
   active: boolean;
-
   onClick: () => void;
-
   label: string;
 }) => (
   <button
     onClick={onClick}
-    className={`px-4 py-1.5 text-sm rounded-md transition-all font-medium cursor-pointer ${
+    className={`h-11 rounded-lg text-sm font-medium transition-all cursor-pointer border ${
       active
-        ? "bg-background shadow-sm text-foreground border border-border/50"
-        : "text-muted-foreground hover:text-foreground"
+        ? "border-primary bg-primary text-primary-foreground shadow-sm"
+        : "border-border/60 bg-background hover:bg-accent text-muted-foreground hover:text-foreground"
     }`}
   >
     {label}

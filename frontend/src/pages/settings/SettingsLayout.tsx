@@ -8,44 +8,36 @@ export function SettingsLayout() {
   const navigate = useNavigate();
 
   return (
-    // FIX 1: Changed h-full to h-screen to guarantee the container has a strict boundary
+    <div className="flex flex-col md:flex-row h-screen w-full bg-background text-foreground font-dmsans pt-10">
+      <aside className="w-full md:w-64 border-b md:border-b-0 md:border-r border-border/50 bg-background/50 shrink-0">
+        <div className="p-4 md:p-6">
+          <h2 className="hidden md:block text-[11px] font-bold text-muted-foreground uppercase tracking-widest mb-4">
+            Configuration
+          </h2>
 
-    <div className="flex h-screen w-full bg-background text-foreground font-dmsans">
-      {/* Navigation Sidebar */}
+          <div className="flex md:flex-col gap-2 overflow-x-auto pb-1">
+            <NavButton
+              to="/settings/profile"
+              active={location.pathname.includes("/profile")}
+              icon={<User size={16} />}
+              label="Profile"
+            />
 
-      <aside className="w-64 border-r border-border/50 bg-background/50 p-6 flex flex-col gap-2 shrink-0">
-        <button
-          onClick={() => navigate("/chat")}
-          className="flex items-center cursor-pointer gap-2 text-sm text-muted-foreground hover:text-foreground hover:bg-accent/50 px-2 py-1.5 -ml-2 rounded-md transition-colors w-fit mb-6 outline-none focus-visible:ring-2 focus-visible:ring-primary"
-        >
-          <ArrowLeft size={16} />
-          Home
-        </button>
+            <NavButton
+              to="/settings/sport"
+              active={location.pathname.includes("/sport")}
+              icon={<Trophy size={16} />}
+              label="Sport"
+            />
 
-        <h2 className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest mb-4">
-          Configuration
-        </h2>
-
-        <NavButton
-          to="/settings/profile"
-          active={location.pathname.includes("/profile")}
-          icon={<User size={16} />}
-          label="User Profile"
-        />
-
-        <NavButton
-          to="/settings/sport"
-          active={location.pathname.includes("/sport")}
-          icon={<Trophy size={16} />}
-          label="Sport Profile"
-        />
-
-        <NavButton
-          to="/settings/preferences"
-          active={location.pathname.includes("/preferences")}
-          icon={<Sliders size={16} />}
-          label="Preferences"
-        />
+            <NavButton
+              to="/settings/preferences"
+              active={location.pathname.includes("/preferences")}
+              icon={<Sliders size={16} />}
+              label="Preferences"
+            />
+          </div>
+        </div>
       </aside>
 
       <main className="flex-1 overflow-y-auto bg-background/50">
@@ -76,7 +68,7 @@ const NavButton = ({
 }) => (
   <Link
     to={to}
-    className={`w-full flex items-center gap-3 px-3 py-2 text-sm transition-all duration-200 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+    className={`flex items-center justify-center md:justify-start gap-2 md:gap-3 px-3 py-2 text-sm transition-all duration-200 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-primary whitespace-nowrap ${
       active
         ? "bg-primary/10 text-primary font-medium"
         : "text-muted-foreground hover:bg-accent hover:text-foreground"

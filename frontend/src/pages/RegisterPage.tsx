@@ -205,7 +205,7 @@ const RegisterPage: React.FC = () => {
                 <Button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full sm:w-2/3 h-11 sm:h-12 rounded-full font-bold text-sm sm:text-md shadow-[0_0_20px_rgba(var(--primary),0.2)] hover:shadow-[0_0_25px_rgba(var(--primary),0.4)] transition-all hover:-translate-y-0.5"
+                  className="w-full sm:w-2/3 h-11 sm:h-12 rounded-full mb-4 font-bold text-sm sm:text-md shadow-[0_0_20px_rgba(var(--primary),0.2)] hover:shadow-[0_0_25px_rgba(var(--primary),0.4)] transition-all hover:-translate-y-0.5"
                 >
                   {isSubmitting ? (
                     <>

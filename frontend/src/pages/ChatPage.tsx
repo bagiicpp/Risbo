@@ -15,6 +15,7 @@ export default function ChatPage() {
   const { conversationId } = useParams<{ conversationId?: string }>();
 
   const {
+    conversations,
     activeConversationId,
     setActiveConversationId,
     addProvisionalConversation,
@@ -23,6 +24,14 @@ export default function ChatPage() {
     setGeneratingTitleId,
     updateConversationTitle,
   } = useConversations();
+
+  const activeConversation = conversations.find(
+    (c) => c._id === activeConversationId,
+  );
+
+  const chatTitle = activeConversationId
+    ? activeConversation?.title || "Loading..."
+    : "New Chat";
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -628,8 +637,13 @@ export default function ChatPage() {
         )}
       </AnimatePresence>
       {!isChatActive ? (
-        <main className="flex-1 flex flex-col items-center justify-center p-4 w-full h-full overflow-hidden">
-          <div className="flex flex-col items-center w-full max-w-3xl space-y-6">
+        <main className="flex-1 flex flex-col items-center justify-center p-4 w-full h-full overflow-hidden relative">
+          {/* Even when no chat is active, we add a padding top on mobile
+            so the background toggle button doesn't hit the content elements.
+          */}
+          <div className="md:hidden h-14 w-full shrink-0" />
+
+          <div className="flex flex-col items-center w-full max-w-3xl space-y-6 m-auto">
             <motion.div
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -646,15 +660,14 @@ export default function ChatPage() {
               transition={{ duration: 0.5, delay: 0.1, ease: "easeOut" }}
               className="text-center mb-4 shrink-0"
             >
-              <h2 className="text-xl sm:text-2xl md:text-4xl font-bricolage font-black tracking-tight mb-2 text-foreground">
-                {" "}
+              <h2 className="text-xl sm:text-2xl md:text-4xl font-bricolage font-black tracking-tight mb-2 text-foreground px-4">
                 I am Risbo, your personal Sports AI assistant. How can I help?
               </h2>
             </motion.div>
             <motion.div
               layoutId="chat-console-wrapper"
               layout="position"
-              className="relative w-full mt-4 shrink-0 z-10"
+              className="relative w-full mt-4 shrink-0 z-10 px-4"
               transition={{ type: "spring", bounce: 0.15, duration: 0.6 }}
             >
               <motion.div
@@ -682,8 +695,21 @@ export default function ChatPage() {
         </main>
       ) : (
         <main className="flex-1 flex flex-col w-full h-full overflow-hidden relative">
+          {/* UNIFIED CHAT HEADER */}
+          <header className="shrink-0 flex items-center px-4 h-14 border-b border-border/40 bg-background/95 backdrop-blur z-40 w-full">
+            {/* This empty spacer pushes the title to the right on mobile layouts
+              to leave perfect structural room for the absolute-positioned sidebar trigger button.
+            */}
+            <div className="w-10 md:hidden shrink-0" />
+
+            <h1 className="text-xs sm:text-sm md:text-base font-semibold text-foreground truncate max-w-[180px] sm:max-w-md md:max-w-2xl select-none font-bricolage tracking-tight">
+              {chatTitle}
+            </h1>
+          </header>
+
+          {/* MESSAGES SCROLL AREA */}
           <div
-            className="flex-1 w-full overflow-y-auto px-4 pt-8"
+            className="flex-1 w-full overflow-y-auto px-4 pt-4"
             ref={scrollContainerRef}
             onScroll={handleScroll}
           >
@@ -698,8 +724,9 @@ export default function ChatPage() {
               />
             </div>
           </div>
+
+          {/* INPUT AREA */}
           <div className="w-full shrink-0 p-2 sm:p-4 bg-gradient-to-t from-background via-background/95 to-transparent z-10 pointer-events-none">
-            {" "}
             <motion.div
               layoutId="chat-console-wrapper"
               layout="position"

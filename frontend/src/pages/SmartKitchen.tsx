@@ -13,17 +13,9 @@ export default function SmartKitchen() {
   return (
     // Removed h-screen, w-full, font-dmsans, and bg-background.
     // Uses flex-1 and min-h-0 to safely inherit space from the MainLayout grid.
-    <div className="flex-1 flex flex-col p-4 sm:p-6 lg:p-8 min-h-0 tracking-normal">
+    <div className="flex-1 flex flex-col p-4 sm:p-6 lg:p-8 min-h-0 tracking-normal pt-16">
       {/* Navigation & Header Controls */}
       <div className="shrink-0 mb-6">
-        <button
-          onClick={() => navigate("/chat")}
-          className="flex items-center cursor-pointer gap-2 text-sm text-muted-foreground hover:text-foreground hover:bg-accent/50 px-2 py-1.5 -ml-2 rounded-md transition-colors w-fit mb-4 outline-none focus-visible:ring-2 focus-visible:ring-primary"
-        >
-          <ArrowLeft size={16} />
-          Home
-        </button>
-
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold font-bricolage tracking-tight">

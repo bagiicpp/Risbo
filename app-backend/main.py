@@ -4,7 +4,6 @@ import io
 import json
 import os
 import random
-from mailersend import MailerSendClient, EmailBuilder
 import re
 import uuid
 from contextlib import asynccontextmanager
@@ -42,6 +41,7 @@ from fastapi import (
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.security import OAuth2PasswordRequestForm
+from mailersend import EmailBuilder, MailerSendClient
 from models import (
     ChatRequest,
     Conversation,
