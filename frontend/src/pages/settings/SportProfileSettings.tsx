@@ -1,52 +1,77 @@
 import { useState, useEffect } from "react";
+
 import { Save, Loader2, Check } from "lucide-react";
+
 import { toast } from "sonner";
+
 import { useAuth } from "@/hooks/useAuth";
+
 import api from "@/lib/api";
 
 type Role = "coach" | "athlete" | "scout" | "analyst";
+
 type Sport = "football" | "basketball";
 
 const ROLES: { id: Role; label: string }[] = [
   { id: "coach", label: "Coach" },
+
   { id: "athlete", label: "Athlete" },
+
   { id: "scout", label: "Scout" },
+
   { id: "analyst", label: "Analyst" },
 ];
 
 const SPORTS: { id: Sport; label: string }[] = [
   { id: "football", label: "Football" },
+
   { id: "basketball", label: "Basketball" },
 ];
 
 const FOCUS_OPTIONS: { id: string; label: string }[] = [
   { id: "tactics", label: "Tactics" },
+
   { id: "player_analysis", label: "Player analysis" },
+
   { id: "training", label: "Training" },
+
   { id: "scouting", label: "Scouting" },
+
   { id: "nutrition", label: "Nutrition & recovery" },
 ];
 
 export function SportProfileSettings() {
   const [isLoading, setIsLoading] = useState(true);
+
   const [isSaving, setIsSaving] = useState(false);
 
   const [role, setRole] = useState<Role>("athlete");
+
   const [sport, setSport] = useState<Sport[]>([]);
+
   const [team, setTeam] = useState("");
+
   const [league, setLeague] = useState("");
+
   const [focus, setFocus] = useState<string[]>([]);
+
   const { user, login } = useAuth();
+
   const isAthlete = user?.role === "athlete";
 
   useEffect(() => {
     const fetchProfile = async () => {
       try {
         const { data } = await api.get("/onboarding/profile");
+
         setRole((data.role as Role) || "athlete");
+
         setSport(Array.isArray(data.sport) ? data.sport : []);
+
         setTeam(data.team || "");
+
         setLeague(data.league || "");
+
         setFocus(Array.isArray(data.focus) ? data.focus : []);
       } catch (error) {
         console.error("Failed to fetch sport profile:", error);
@@ -54,6 +79,7 @@ export function SportProfileSettings() {
         setIsLoading(false);
       }
     };
+
     fetchProfile();
   }, []);
 
@@ -62,16 +88,23 @@ export function SportProfileSettings() {
 
   const handleSave = async () => {
     setIsSaving(true);
+
     try {
       await api.post("/onboarding/profile", {
         role,
+
         sport,
+
         team: team.trim() || null,
+
         league: league.trim() || null,
+
         focus,
       });
+
       try {
         const refreshRes = await api.post("/auth/refresh");
+
         login(refreshRes.data.access_token);
       } catch (e) {
         console.error("Token refresh failed", e);
@@ -105,10 +138,12 @@ export function SportProfileSettings() {
           <h3 className="text-xl font-semibold text-foreground font-bricolage">
             Sport Profile
           </h3>
+
           <p className="text-sm text-muted-foreground mt-1">
             Personalizes how Risbo analyzes and answers for you.
           </p>
         </div>
+
         <button
           onClick={handleSave}
           disabled={isSaving}
@@ -119,14 +154,18 @@ export function SportProfileSettings() {
           ) : (
             <Save size={16} />
           )}
+
           {isSaving ? "Saving..." : "Save Changes"}
         </button>
       </div>
 
       {/* Role */}
+
       <Section label="Role" hint="How Risbo frames its responses.">
         <div className="grid grid-cols-2 gap-2.5">
-          {ROLES.filter((r) => isAthlete ? r.id === "athlete" : r.id !== "athlete").map((r) => (
+          {ROLES.filter((r) =>
+            isAthlete ? r.id === "athlete" : r.id !== "athlete",
+          ).map((r) => (
             <button
               key={r.id}
               onClick={() => setRole(r.id)}
@@ -143,10 +182,12 @@ export function SportProfileSettings() {
       </Section>
 
       {/* Sport */}
+
       <Section label="Sports" hint="Which sports to prioritize.">
         <div className="grid grid-cols-2 gap-2.5">
           {SPORTS.map((s) => {
             const active = sport.includes(s.id);
+
             return (
               <button
                 key={s.id}
@@ -158,6 +199,7 @@ export function SportProfileSettings() {
                 }`}
               >
                 {s.label}
+
                 {active && <Check size={15} />}
               </button>
             );
@@ -166,6 +208,7 @@ export function SportProfileSettings() {
       </Section>
 
       {/* League & Team */}
+
       <Section label="Environment" hint="Your specific league and team.">
         <div className="flex flex-col gap-3">
           <input
@@ -174,6 +217,7 @@ export function SportProfileSettings() {
             placeholder="League (e.g. Premier League)"
             className="w-full px-4 py-2.5 rounded-lg bg-accent/30 border border-border/60 text-sm outline-none focus-visible:ring-2 focus-visible:ring-primary transition-all"
           />
+
           <input
             value={team}
             onChange={(e) => setTeam(e.target.value)}
@@ -184,10 +228,12 @@ export function SportProfileSettings() {
       </Section>
 
       {/* Focus */}
+
       <Section label="Focus areas" hint="Topics to emphasize.">
         <div className="flex flex-wrap gap-2.5">
           {FOCUS_OPTIONS.map((f) => {
             const active = focus.includes(f.id);
+
             return (
               <button
                 key={f.id}
@@ -199,6 +245,7 @@ export function SportProfileSettings() {
                 }`}
               >
                 {active && <Check size={14} />}
+
                 {f.label}
               </button>
             );
@@ -211,18 +258,24 @@ export function SportProfileSettings() {
 
 const Section = ({
   label,
+
   hint,
+
   children,
 }: {
   label: string;
+
   hint: string;
+
   children: React.ReactNode;
 }) => (
   <div className="flex flex-col gap-3">
     <div>
       <span className="text-sm font-semibold text-foreground">{label}</span>
+
       <span className="text-xs text-muted-foreground ml-2">{hint}</span>
     </div>
+
     {children}
   </div>
 );

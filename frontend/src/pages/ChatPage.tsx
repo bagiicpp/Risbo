@@ -181,14 +181,11 @@ export default function ChatPage() {
       try {
         if (stagedFile.type.startsWith("image/")) {
           const convId = activeConversationId || "new";
-          const uploadRes = await fetch(
-            `${API_URL}/upload-image/${convId}`,
-            {
-              method: "POST",
-              headers: { Authorization: `Bearer ${token}` },
-              body: formData,
-            },
-          );
+          const uploadRes = await fetch(`${API_URL}/upload-image/${convId}`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}` },
+            body: formData,
+          });
 
           if (!uploadRes.ok) throw new Error("Failed to upload image");
           const uploadData = await uploadRes.json();
@@ -351,7 +348,7 @@ export default function ChatPage() {
                   console.log("[Risbo] Sources: LLM knowledge only");
                 } else {
                   console.log(
-                    `[Risbo] Sources used: ${sources.map((s) => labels[s] ?? s).join(", ")}`
+                    `[Risbo] Sources used: ${sources.map((s) => labels[s] ?? s).join(", ")}`,
                   );
                 }
                 continue;
@@ -458,7 +455,7 @@ export default function ChatPage() {
                         console.log("[Risbo] Sources: LLM knowledge only");
                       } else {
                         console.log(
-                          `[Risbo] Sources used: ${sources.map((s) => labels[s] ?? s).join(", ")}`
+                          `[Risbo] Sources used: ${sources.map((s) => labels[s] ?? s).join(", ")}`,
                         );
                       }
                       continue;
@@ -579,21 +576,29 @@ export default function ChatPage() {
   return (
     <>
       {!isAuthenticated && (
-        <div className="flex items-center justify-center gap-2 px-4 py-2 bg-muted/50 border-b border-border text-sm text-muted-foreground shrink-0">
-          Guest mode — conversations won't be saved.{" "}
-          <Link
-            to="/login"
-            className="text-primary hover:underline font-medium"
-          >
-            Sign in
-          </Link>{" "}
-          or{" "}
-          <Link
-            to="/register"
-            className="text-primary hover:underline font-medium"
-          >
-            Create account
-          </Link>
+        <div className="w-full bg-muted/50 border-b border-border px-4 py-2 text-xs sm:text-sm text-muted-foreground shrink-0 text-center sm:flex sm:items-center sm:justify-center sm:gap-1.5">
+          <p className="leading-relaxed sm:leading-none">
+            Guest mode active.{" "}
+            <span className="block sm:inline mt-1 sm:mt-0">
+              <Link
+                to="/login"
+                className="text-primary hover:underline font-medium inline-flex items-center"
+              >
+                Sign in
+              </Link>
+              <span className="mx-1 text-muted-foreground/70">or</span>
+              <Link
+                to="/register"
+                className="text-primary hover:underline font-medium inline-flex items-center"
+              >
+                create an account
+              </Link>
+              <span className="text-muted-foreground/70">
+                {" "}
+                to save your conversations.
+              </span>
+            </span>
+          </p>
         </div>
       )}
       <AnimatePresence>
@@ -606,13 +611,13 @@ export default function ChatPage() {
             onDragLeave={handleDragLeave}
             onDragOver={handleDragOver}
             onDrop={handleDrop}
-            className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm border-2 border-dashed border-primary/50 m-4 rounded-3xl"
+            className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm border-2 border-dashed border-primary/50 m-2 sm:m-4 rounded-2xl sm:rounded-3xl"
           >
             <div className="flex flex-col items-center justify-center pointer-events-none space-y-4">
               <div className="w-20 h-20 bg-primary/20 rounded-full flex items-center justify-center animate-bounce shadow-[0_0_30px_rgba(34,197,94,0.3)]">
                 <Upload className="w-10 h-10 text-primary" />
               </div>
-              <h2 className="text-2xl font-bricolage font-bold text-foreground">
+              <h2 className="text-lg sm:text-2xl font-bricolage font-bold text-foreground">
                 Drop document to upload
               </h2>
               <p className="text-muted-foreground font-dmsans">
@@ -641,7 +646,8 @@ export default function ChatPage() {
               transition={{ duration: 0.5, delay: 0.1, ease: "easeOut" }}
               className="text-center mb-4 shrink-0"
             >
-              <h2 className="text-2xl md:text-4xl font-bricolage font-black tracking-tight mb-2 text-foreground">
+              <h2 className="text-xl sm:text-2xl md:text-4xl font-bricolage font-black tracking-tight mb-2 text-foreground">
+                {" "}
                 I am Risbo, your personal Sports AI assistant. How can I help?
               </h2>
             </motion.div>
@@ -692,7 +698,8 @@ export default function ChatPage() {
               />
             </div>
           </div>
-          <div className="w-full shrink-0 p-4 bg-gradient-to-t from-background via-background/95 to-transparent z-10 pointer-events-none">
+          <div className="w-full shrink-0 p-2 sm:p-4 bg-gradient-to-t from-background via-background/95 to-transparent z-10 pointer-events-none">
+            {" "}
             <motion.div
               layoutId="chat-console-wrapper"
               layout="position"

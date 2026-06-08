@@ -1,14 +1,18 @@
 import { User, Sliders, ArrowLeft, Trophy } from "lucide-react";
+
 import { Link, Outlet, useLocation, useNavigate } from "react-router";
 
 export function SettingsLayout() {
   const location = useLocation();
+
   const navigate = useNavigate();
 
   return (
     // FIX 1: Changed h-full to h-screen to guarantee the container has a strict boundary
+
     <div className="flex h-screen w-full bg-background text-foreground font-dmsans">
       {/* Navigation Sidebar */}
+
       <aside className="w-64 border-r border-border/50 bg-background/50 p-6 flex flex-col gap-2 shrink-0">
         <button
           onClick={() => navigate("/chat")}
@@ -28,12 +32,14 @@ export function SettingsLayout() {
           icon={<User size={16} />}
           label="User Profile"
         />
+
         <NavButton
           to="/settings/sport"
           active={location.pathname.includes("/sport")}
           icon={<Trophy size={16} />}
           label="Sport Profile"
         />
+
         <NavButton
           to="/settings/preferences"
           active={location.pathname.includes("/preferences")}
@@ -53,13 +59,19 @@ export function SettingsLayout() {
 
 const NavButton = ({
   to,
+
   active,
+
   icon,
+
   label,
 }: {
   to: string;
+
   active: boolean;
+
   icon: React.ReactNode;
+
   label: string;
 }) => (
   <Link
@@ -71,6 +83,7 @@ const NavButton = ({
     }`}
   >
     {icon}
+
     {label}
   </Link>
 );
