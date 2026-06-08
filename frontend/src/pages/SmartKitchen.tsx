@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Zap, Archive } from "lucide-react";
-import { useNavigate } from "react-router";
 import GeneratorView from "@/components/kitchen/GeneratorView";
 import VaultView from "@/components/kitchen/VaultView";
 

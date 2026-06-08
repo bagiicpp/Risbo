@@ -1,6 +1,6 @@
 import { User, Sliders, Trophy } from "lucide-react";
 
-import { Link, Outlet, useLocation, useNavigate } from "react-router";
+import { Link, Outlet, useLocation } from "react-router";
 
 export function SettingsLayout() {
   const location = useLocation();

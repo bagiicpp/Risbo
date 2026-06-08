@@ -3,7 +3,7 @@ import { Navigate, Outlet, useLocation } from "react-router";
 import { useAuth } from "../../hooks/useAuth";
 
 interface ProtectedRouteProps {
-  allowedRoles?: ("athlete" | "coach")[];
+  allowedRoles?: ("athlete" | "coach" | "scout" | "analyst")[];
   children?: React.ReactNode;
 }
 
@@ -29,10 +29,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   // Onboarding gate: send users who haven't completed onboarding through the
   // flow before anything else. `null` means still loading from /users/me — wait.
   // The /onboarding route itself is exempt to avoid a redirect loop.
-  if (
-    onboardingComplete === false &&
-    location.pathname !== "/onboarding"
-  ) {
+  if (onboardingComplete === false && location.pathname !== "/onboarding") {
     return <Navigate to="/onboarding" replace />;
   }
 
