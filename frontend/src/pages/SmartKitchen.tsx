@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowLeft, Zap, Archive } from "lucide-react";
+import { Zap, Archive } from "lucide-react";
 import { useNavigate } from "react-router";
 import GeneratorView from "@/components/kitchen/GeneratorView";
 import VaultView from "@/components/kitchen/VaultView";
@@ -7,7 +7,6 @@ import VaultView from "@/components/kitchen/VaultView";
 type TabView = "generator" | "vault";
 
 export default function SmartKitchen() {
-  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<TabView>("generator");
 
   return (

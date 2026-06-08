@@ -1,11 +1,9 @@
-import { User, Sliders, ArrowLeft, Trophy } from "lucide-react";
+import { User, Sliders, Trophy } from "lucide-react";
 
 import { Link, Outlet, useLocation, useNavigate } from "react-router";
 
 export function SettingsLayout() {
   const location = useLocation();
-
-  const navigate = useNavigate();
 
   return (
     <div className="flex flex-col md:flex-row h-screen w-full bg-background text-foreground font-dmsans pt-10">

@@ -189,6 +189,8 @@ export function AppSidebar({ onNewChat }: { onNewChat?: () => void } = {}) {
             ? `${API_URL}/invites/stream?token=${token}`
             : null;
 
+      if (!streamUrl) return;
+
       eventSource = new EventSource(streamUrl);
 
       eventSource.onmessage = (event) => {

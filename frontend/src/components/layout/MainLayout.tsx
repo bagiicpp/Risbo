@@ -1,4 +1,4 @@
-import { Outlet, useLocation } from "react-router";
+import { Outlet } from "react-router";
 import { AppSidebar } from "@/components/common/AppSidebar";
 import {
   SidebarProvider,
@@ -9,8 +9,6 @@ import { useAuth } from "@/hooks/useAuth";
 
 export function MainLayout() {
   const { isAuthenticated } = useAuth();
-  const location = useLocation();
-  const isSettings = location.pathname.startsWith("/settings");
   return (
     <SidebarProvider className="h-screen w-full overflow-hidden font-dmsans">
       {isAuthenticated && <AppSidebar />}
