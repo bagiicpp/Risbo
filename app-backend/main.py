@@ -431,6 +431,8 @@ async def extract_metrics_background(
                 if line.startswith("data: "):
                     try:
                         clean_chunk = json.loads(line.replace("data: ", ""))
+                        if isinstance(clean_chunk, dict):  # skip __sources and any other metadata
+                            continue
                         raw_json += clean_chunk
                     except json.JSONDecodeError:
                         pass
