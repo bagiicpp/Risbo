@@ -102,15 +102,18 @@ cd Risbo
 
 Create an `.env` file in `ai-backend/`:
 ```env
-AI_STUDIO_API=your_google_gemini_api_key
-AI_STUDIO_MODEL=gemma-4-26b-a4b-it # Or your preferred model
+AI_STUDIO_API=google_studio_api_key
+AI_STUDIO_MODEL=baseline_model
+FOOTBALL_DATA_API_KEY=football_data_api_key
+SEARX_URL=https://searx.be
 ```
 
 Create an `.env` file in `app-backend/`:
 ```env
 AI_BACKEND_URL=http://ai-backend:8000
 MONGODB_URI=mongodb://mongodb:27017/rizzbo
-JWT_SECRET_KEY=your_super_secret_jwt_key
+JWT_SECRET_KEY=your_secret_jwt_key
+APP_ENV=development
 ```
 
 ### 3. Launch the Application
@@ -131,5 +134,11 @@ docker compose up --build
 - **Project Management:** Prompt Engineering, Domain Specialization (Sports/Training).
 
 ---
+
+## Deployment
+Access to deployed version: [risbo.vercel.app](https://risbo.vercel.app)
+
+---
+
 *Last Updated: June 2026*
 
