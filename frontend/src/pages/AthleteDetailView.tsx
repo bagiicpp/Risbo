@@ -22,9 +22,6 @@ import {
 import { format, parseISO } from "date-fns";
 import api from "@/lib/api";
 
-import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
-import { AppSidebar } from "@/components/common/AppSidebar";
-
 // Map backend categories to specific Lucide icons
 const categoryIcons: Record<string, any> = {
   body_stats: Scale,
@@ -151,9 +148,6 @@ export default function AthleteDetailView() {
   }
 
   return (
-    <SidebarProvider className="h-screen w-full overflow-hidden bg-background font-dmsans">
-      <AppSidebar />
-      <SidebarInset className="flex flex-col h-full relative overflow-hidden bg-background">
         <main className="flex-1 overflow-y-auto p-6 md:p-10">
           <div className="max-w-5xl mx-auto space-y-8">
             {/* Navigation & Header */}
@@ -332,7 +326,7 @@ export default function AthleteDetailView() {
                               dataKey="value"
                               stroke="hsl(var(--primary))"
                               strokeWidth={3}
-                              dot={{ r: 4, fill: "hsl(var(--background))" }}
+                              dot={{ r: chartData.length === 1 ? 6 : 4, fill: "hsl(var(--background))" }}
                               activeDot={{ r: 6, strokeWidth: 0 }}
                             />
                           </LineChart>
@@ -340,7 +334,7 @@ export default function AthleteDetailView() {
                       </motion.div>
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-muted-foreground text-sm border border-dashed border-border/50 rounded-xl">
-                        Not enough numeric data points to render a chart.
+                        No data logged for this metric yet.
                       </div>
                     )}
                   </AnimatePresence>
@@ -349,7 +343,6 @@ export default function AthleteDetailView() {
             )}
           </div>
         </main>
-      </SidebarInset>
-    </SidebarProvider>
+
   );
 }
