@@ -57,7 +57,10 @@ app = FastAPI(title="Risbo AI - Athlete Specialization", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:3000",
+                   "http://localhost:8080",
+                   "https://risbo-app.onrender.com",
+                   "https://risbo.vercel.app"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
