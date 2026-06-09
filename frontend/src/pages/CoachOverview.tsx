@@ -59,56 +59,61 @@ export default function CoachOverview() {
 
   return (
     <>
-      <main className="flex-1 overflow-y-auto p-6 md:p-10">
+      <main className="flex-1 overflow-y-auto p-6 pt-16 md:p-10">
         <div className="max-w-6xl mx-auto space-y-8">
           <div>
-            <h1 className="text-3xl font-bricolage font-bold text-foreground tracking-tight">
+            <h1 className="text-2xl md:text-3xl font-bricolage font-bold text-foreground tracking-tight">
               Command Center
             </h1>
-            <p className="text-muted-foreground mt-1">
+
+            <p className="text-sm md:text-base text-muted-foreground mt-1">
               Aggregate performance analytics across all your rosters.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
+            {" "}
             {/* Headcount Card */}
-            <div className="p-6 rounded-2xl border border-border/50 bg-card shadow-sm">
+            <div className="p-4 md:p-6 rounded-2xl border border-border/50 bg-card shadow-sm">
+              {" "}
               <div className="flex justify-between items-start mb-4">
-                <div className="p-3 rounded-xl bg-primary/10 text-primary">
-                  <Users size={24} />
+                <div className="p-2.5 md:p-3 rounded-xl bg-primary/10 text-primary">
+                  {" "}
+                  <Users size={22} />
                 </div>
               </div>
-              <h3 className="text-3xl font-bold text-foreground">
+              <h3 className="text-2xl md:text-3xl font-bold text-foreground">
+                {" "}
                 {loading ? "--" : stats.totalAthletes}
               </h3>
               <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider mt-1">
                 Total Athletes
               </p>
             </div>
-
             {/* Engagement Card */}
             <div className="p-6 rounded-2xl border border-border/50 bg-card shadow-sm">
               <div className="flex justify-between items-start mb-4">
                 <div className="p-3 rounded-xl bg-blue-500/10 text-blue-500">
-                  <Activity size={24} />
+                  <Activity size={22} />
                 </div>
               </div>
-              <h3 className="text-3xl font-bold text-foreground">
+              <h3 className="text-2xl md:text-3xl font-bold text-foreground">
+                {" "}
                 {loading ? "--" : stats.activeThisWeek}
               </h3>
               <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider mt-1">
                 Active This Week
               </p>
             </div>
-
             {/* Progress Card */}
             <div className="p-6 rounded-2xl border border-border/50 bg-card shadow-sm">
               <div className="flex justify-between items-start mb-4">
                 <div className="p-3 rounded-xl bg-green-500/10 text-green-500">
-                  <TrendingUp size={24} />
+                  <TrendingUp size={22} />
                 </div>
               </div>
-              <h3 className="text-3xl font-bold text-foreground">
+              <h3 className="text-2xl md:text-3xl font-bold text-foreground">
+                {" "}
                 {loading ? "--" : stats.goalsAchieved}
               </h3>
               <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider mt-1">
@@ -118,10 +123,12 @@ export default function CoachOverview() {
           </div>
 
           {/* Placeholder for future cross-team charts */}
-          <div className="w-full h-96 rounded-2xl border border-border/50 bg-card flex flex-col items-center justify-center text-muted-foreground border-dashed">
+          <div className="w-full h-64 md:h-96 rounded-2xl border border-border/50 bg-card flex flex-col items-center justify-center text-muted-foreground border-dashed px-4 text-center">
+            {" "}
             <AlertCircle size={32} className="mb-2 opacity-50" />
             <p>Cross-team performance visualizations will populate here.</p>
-            <p className="text-sm mt-1">
+            <p className="text-sm md:text-base">
+              {" "}
               Requires backend aggregation pipeline deployment.
             </p>
           </div>

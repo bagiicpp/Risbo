@@ -132,28 +132,26 @@ export default function ChatInput({
   };
 
   return (
-    <div className="w-full max-w-4xl mx-auto">
-      <div className="flex gap-2 mb-3 px-2 overflow-x-auto pb-1 no-scrollbar"></div>
-
+    <div className="w-full max-w-4xl mx-auto px-2 sm:px-0">
       <div
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        className="relative w-full bg-card border border-border/50 rounded-2xl shadow-lg transition-all duration-300 flex flex-col"
+        className="relative w-full bg-card border border-border/50 rounded-2xl shadow-lg transition-all duration-300 flex flex-col focus-within:border-border"
       >
         <input
           type="file"
           className="hidden"
           ref={fileInputRef}
           onChange={handleFileChange}
-          accept=".txt,.pdf,.docx,.md,.csv, ,image/jpeg,image/png,image/gif,image/webp"
+          accept=".txt,.pdf,.docx,.md,.csv,image/jpeg,image/png,image/gif,image/webp"
         />
 
-        <div className="p-4 pb-2">
+        <div className="p-3 sm:p-4 pb-1">
           {isDragging ? (
             <div className="h-24 flex flex-col items-center justify-center text-primary font-dmsans border-2 border-dashed border-primary/30 rounded-xl bg-primary/10">
               <FileText size={24} className="mb-2 opacity-80" />
-              <span className="font-medium">Drop file to analyze</span>
+              <span className="font-medium text-sm">Drop file to analyze</span>
             </div>
           ) : (
             <textarea
@@ -166,20 +164,20 @@ export default function ChatInput({
               }}
               onKeyDown={handleKeyDown}
               placeholder="Query the system or detail your workout parameters..."
-              className="w-full bg-transparent border-0 resize-none outline-none text-foreground placeholder:text-muted-foreground font-dmsans text-base leading-relaxed min-h-[60px]"
+              className="w-full bg-transparent border-0 resize-none outline-none text-foreground placeholder:text-muted-foreground font-dmsans text-base leading-relaxed min-h-[44px] sm:min-h-[56px]"
               rows={1}
             />
           )}
         </div>
 
         {uploadedFile && !isDragging && (
-          <div className="px-4 pb-2">
+          <div className="px-3 sm:px-4 pb-2">
             {uploadedFile.type.startsWith("image/") ? (
               <div className="relative inline-block">
                 <img
                   src={URL.createObjectURL(uploadedFile)}
                   alt={uploadedFile.name}
-                  className="h-20 w-20 object-cover rounded-lg border border-border/50"
+                  className="h-16 w-16 sm:h-20 sm:w-20 object-cover rounded-lg border border-border/50"
                 />
                 {onClearFile && (
                   <button
@@ -191,12 +189,17 @@ export default function ChatInput({
                 )}
               </div>
             ) : (
-              <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 text-primary rounded-lg px-3 py-1.5 text-sm font-dmsans">
-                <FileText size={14} />
-                <span className="truncate max-w-[200px]">{uploadedFile.name}</span>
+              <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 text-primary rounded-lg px-2.5 py-1.5 text-sm font-dmsans">
+                <FileText size={14} className="shrink-0" />
+                <span className="truncate max-w-[120px] sm:max-w-[200px]">
+                  {uploadedFile.name}
+                </span>
                 {onClearFile && (
-                  <button onClick={onClearFile} className="hover:text-primary-foreground hover:bg-primary rounded-full p-0.5 transition-colors ml-1 cursor-pointer">
-                    <X size={14} />
+                  <button
+                    onClick={onClearFile}
+                    className="hover:text-primary-foreground hover:bg-primary rounded-full p-0.5 transition-colors ml-1 cursor-pointer"
+                  >
+                    <X size={12} />
                   </button>
                 )}
               </div>
@@ -204,16 +207,18 @@ export default function ChatInput({
           </div>
         )}
 
-        <div className="flex items-center justify-between p-2 pl-3">
-          <div className="flex items-center gap-1">
+        {/* Lower Toolbar Tray Layout */}
+        <div className="flex items-center justify-between gap-2 p-1.5 sm:p-2 bg-muted/10 border-t border-border/30 rounded-b-2xl">
+          {/* Actions Left Side */}
+          <div className="flex items-center gap-1 min-w-0">
             <button
               type="button"
               disabled={isUploading}
               onClick={() => fileInputRef.current?.click()}
-              className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
               title="Upload File"
             >
-              <Plus size={20} />
+              <Plus size={18} />
             </button>
 
             <ModelSelector
@@ -224,54 +229,50 @@ export default function ChatInput({
             <button
               type="button"
               onClick={() => setEnableSearch(!enableSearch)}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 cursor-pointer ${
+              className={`flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 cursor-pointer shrink-0 ${
                 enableSearch
-                  ? "bg-primary/15 text-primary border border-primary/30 shadow-[0_0_8px_rgba(34,197,94,0.15)]"
+                  ? "bg-primary/15 text-primary border border-primary/20 shadow-[0_0_8px_rgba(34,197,94,0.1)]"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted"
               }`}
-              title={
-                enableSearch
-                  ? "Web search on — click to disable"
-                  : "Enable web search"
-              }
+              title={enableSearch ? "Web search enabled" : "Enable web search"}
             >
-              <Globe size={14} />
-              <span>Web</span>
+              <Globe size={13} />
+              <span className="hidden xs:inline">Web</span>
             </button>
           </div>
 
-          <div className="flex items-center gap-1">
+          {/* Execution Controls Right Side */}
+          <div className="flex items-center gap-1 shrink-0">
             <button
               type="button"
               onClick={toggleRecording}
-              className={`p-2.5 rounded-xl transition-all duration-300 cursor-pointer flex items-center justify-center shrink-0 outline-none ${
+              className={`p-1.5 sm:p-2 rounded-lg transition-all duration-300 cursor-pointer flex items-center justify-center shrink-0 outline-none ${
                 isRecording
-                  ? "bg-primary/20 text-primary shadow-[0_0_15px_rgba(34,197,94,0.2)] animate-pulse"
+                  ? "bg-primary/20 text-primary shadow-[0_0_12px_rgba(34,197,94,0.15)] animate-pulse"
                   : "bg-transparent text-muted-foreground hover:text-foreground hover:bg-muted"
               }`}
               title="Voice Typing"
             >
-              <Mic size={18} />
+              <Mic size={16} />
             </button>
 
-            {/* --- SLEEK GREEN OUTLINE (Stop Button) --- */}
             <button
               type="button"
               onClick={loading ? stopStream : onSend}
               disabled={!loading && !input.trim() && !uploadedFile}
-              className={`p-2.5 rounded-xl transition-all duration-300 flex items-center justify-center shrink-0 cursor-pointer ${
+              className={`p-1.5 sm:p-2 rounded-lg transition-all duration-300 flex items-center justify-center shrink-0 cursor-pointer ${
                 loading
                   ? "bg-transparent text-emerald-600 dark:text-emerald-500 border border-emerald-500/30 hover:bg-emerald-500/10 hover:border-emerald-500/60"
                   : input.trim() || uploadedFile
-                    ? "bg-primary text-primary-foreground shadow-[0_0_15px_rgba(var(--primary),0.3)] hover:scale-105"
-                    : "bg-transparent text-muted-foreground/50 cursor-not-allowed border border-transparent"
+                    ? "bg-primary text-primary-foreground shadow-[0_0_12px_rgba(var(--primary),0.25)] hover:scale-[1.02]"
+                    : "bg-transparent text-muted-foreground/40 cursor-not-allowed border border-transparent"
               }`}
               title={loading ? "Stop generating" : "Send message"}
             >
               {loading ? (
-                <Square size={16} className="fill-current opacity-80" />
+                <Square size={14} className="fill-current opacity-90" />
               ) : (
-                <Send size={18} />
+                <Send size={15} />
               )}
             </button>
           </div>

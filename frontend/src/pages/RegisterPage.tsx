@@ -22,13 +22,17 @@ const containerVariants: Variants = {
   visible: {
     opacity: 1,
     scale: 1,
-    transition: { duration: 0.5, ease: "easeOut", staggerChildren: 0.1 },
+    transition: { duration: 0.5, ease: "easeOut", staggerChildren: 0.08 },
   },
 };
 
 const itemVariants: Variants = {
-  hidden: { opacity: 0, y: 15 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: "easeOut" } },
+  hidden: { opacity: 0, y: 10 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.35, ease: "easeOut" },
+  },
 };
 
 interface ApiErrorResponse {
@@ -46,7 +50,6 @@ const RegisterPage: React.FC = () => {
 
   const navigate = useNavigate();
 
-
   const handleRegister = async (e: React.BaseSyntheticEvent) => {
     e.preventDefault();
     setError(null);
@@ -63,7 +66,6 @@ const RegisterPage: React.FC = () => {
         email,
         password,
       });
-      // Redirect to login upon successful registration
       navigate("/login", { replace: true });
     } catch (err) {
       const axiosError = err as AxiosError<ApiErrorResponse>;
@@ -77,9 +79,10 @@ const RegisterPage: React.FC = () => {
   };
 
   return (
-    <div className="relative flex flex-col items-center justify-center min-h-screen bg-background font-dmsans p-4 overflow-hidden">
-      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/20 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-primary/10 rounded-full blur-[100px] pointer-events-none" />
+    <div className="relative flex flex-col items-center justify-center min-h-screen bg-background font-dmsans p-4 overflow-x-hidden">
+      {/* Optimized background glow sizes to prevent mobile layout overflows */}
+      <div className="absolute top-[-5%] left-[-5%] w-[60%] sm:w-[40%] h-[30%] bg-primary/15 rounded-full blur-[100px] pointer-events-none" />
+      <div className="absolute bottom-[-5%] right-[-5%] w-[60%] sm:w-[40%] h-[30%] bg-primary/10 rounded-full blur-[100px] pointer-events-none" />
 
       <motion.div
         variants={containerVariants}
@@ -87,37 +90,43 @@ const RegisterPage: React.FC = () => {
         animate="visible"
         className="w-full max-w-md z-10"
       >
-        <Card className="border-border/40 shadow-2xl bg-card/80 backdrop-blur-xl rounded-2xl">
-          <CardHeader className="space-y-2 text-center pt-8 pb-4">
+        <Card className="border-border/40 shadow-2xl bg-card/80 backdrop-blur-xl rounded-2xl border">
+          <CardHeader className="space-y-1.5 text-center pt-6 sm:pt-8 pb-3 sm:pb-4 px-5 sm:px-8">
             <motion.div variants={itemVariants}>
-              <CardTitle className="text-3xl font-bricolage font-black tracking-tight bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text text-transparent">
+              <CardTitle className="text-2xl sm:text-3xl font-bricolage font-black tracking-tight bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text text-transparent">
                 Create Account
               </CardTitle>
             </motion.div>
             <motion.div variants={itemVariants}>
-              <CardDescription className="text-base">
+              <CardDescription className="text-sm sm:text-base text-muted-foreground/90">
                 Join RizzBo and elevate your experience
               </CardDescription>
             </motion.div>
           </CardHeader>
 
           <form onSubmit={handleRegister}>
-            <CardContent className="space-y-6 px-8">
+            {/* Fluid padding: px-5 on mobile, scaling to px-8 on tablet/desktop */}
+            <CardContent className="space-y-4 sm:space-y-5 px-5 sm:px-8">
               {error && (
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: "auto" }}
                 >
                   <Alert variant="destructive" className="py-2.5">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertDescription>{error}</AlertDescription>
+                    <AlertCircle className="h-4 w-4 shrink-0" />
+                    <AlertDescription className="text-xs sm:text-sm">
+                      {error}
+                    </AlertDescription>
                   </Alert>
                 </motion.div>
               )}
 
-              <div className="space-y-5">
-                <motion.div variants={itemVariants} className="space-y-2">
-                  <Label htmlFor="name" className="text-muted-foreground ml-1">
+              <div className="space-y-4">
+                <motion.div variants={itemVariants} className="space-y-1.5">
+                  <Label
+                    htmlFor="name"
+                    className="text-muted-foreground text-xs sm:text-sm ml-1"
+                  >
                     Display Name
                   </Label>
                   <Input
@@ -129,12 +138,15 @@ const RegisterPage: React.FC = () => {
                     required
                     minLength={2}
                     maxLength={50}
-                    className="bg-background/50 h-12 rounded-xl border-border/50 focus:bg-background transition-colors"
+                    className="bg-background/50 h-11 sm:h-12 rounded-xl border-border/50 focus:bg-background transition-colors text-sm sm:text-base"
                   />
                 </motion.div>
 
-                <motion.div variants={itemVariants} className="space-y-2">
-                  <Label htmlFor="email" className="text-muted-foreground ml-1">
+                <motion.div variants={itemVariants} className="space-y-1.5">
+                  <Label
+                    htmlFor="email"
+                    className="text-muted-foreground text-xs sm:text-sm ml-1"
+                  >
                     Email Address
                   </Label>
                   <Input
@@ -144,14 +156,14 @@ const RegisterPage: React.FC = () => {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
-                    className="bg-background/50 h-12 rounded-xl border-border/50 focus:bg-background transition-colors"
+                    className="bg-background/50 h-11 sm:h-12 rounded-xl border-border/50 focus:bg-background transition-colors text-sm sm:text-base"
                   />
                 </motion.div>
 
-                <motion.div variants={itemVariants} className="space-y-2">
+                <motion.div variants={itemVariants} className="space-y-1.5">
                   <Label
                     htmlFor="password"
-                    className="text-muted-foreground ml-1"
+                    className="text-muted-foreground text-xs sm:text-sm ml-1"
                   >
                     Password
                   </Label>
@@ -162,14 +174,14 @@ const RegisterPage: React.FC = () => {
                     onChange={(e) => setPassword(e.target.value)}
                     required
                     minLength={8}
-                    className="bg-background/50 h-12 rounded-xl border-border/50 focus:bg-background transition-colors"
+                    className="bg-background/50 h-11 sm:h-12 rounded-xl border-border/50 focus:bg-background transition-colors text-sm sm:text-base"
                   />
                 </motion.div>
 
-                <motion.div variants={itemVariants} className="space-y-2">
+                <motion.div variants={itemVariants} className="space-y-1.5">
                   <Label
                     htmlFor="confirmPassword"
-                    className="text-muted-foreground ml-1"
+                    className="text-muted-foreground text-xs sm:text-sm ml-1"
                   >
                     Confirm Password
                   </Label>
@@ -180,23 +192,24 @@ const RegisterPage: React.FC = () => {
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     required
                     minLength={8}
-                    className="bg-background/50 h-12 rounded-xl border-border/50 focus:bg-background transition-colors"
+                    className="bg-background/50 h-11 sm:h-12 rounded-xl border-border/50 focus:bg-background transition-colors text-sm sm:text-base"
                   />
                 </motion.div>
               </div>
 
+              {/* Adaptive width button: full width on mobile, 2/3 width on desktop */}
               <motion.div
                 variants={itemVariants}
-                className="flex justify-center pt-8 pb-4"
+                className="flex justify-center pt-4 sm:pt-6 pb-2"
               >
                 <Button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-2/3 h-12 rounded-full font-bold text-md shadow-[0_0_20px_rgba(var(--primary),0.2)] hover:shadow-[0_0_25px_rgba(var(--primary),0.4)] transition-all hover:-translate-y-0.5"
+                  className="w-full sm:w-2/3 h-11 sm:h-12 rounded-full mb-4 font-bold text-sm sm:text-md shadow-[0_0_20px_rgba(var(--primary),0.2)] hover:shadow-[0_0_25px_rgba(var(--primary),0.4)] transition-all hover:-translate-y-0.5"
                 >
                   {isSubmitting ? (
                     <>
-                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin shrink-0" />
                       Creating...
                     </>
                   ) : (
@@ -206,10 +219,10 @@ const RegisterPage: React.FC = () => {
               </motion.div>
             </CardContent>
 
-            <CardFooter className="flex flex-col pb-8">
+            <CardFooter className="flex flex-col pb-6 sm:pb-8 px-5 sm:px-8">
               <motion.p
                 variants={itemVariants}
-                className="text-center text-sm text-muted-foreground w-full mt-2"
+                className="text-center text-xs sm:text-sm text-muted-foreground w-full mt-1"
               >
                 Already have an account?{" "}
                 <Link

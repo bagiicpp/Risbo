@@ -223,9 +223,13 @@ export default function OnboardingPage() {
                         : "border-border/60 hover:border-border hover:bg-accent/40"
                     }`}
                   >
-                    <Trophy size={18} />
-                    {s.label}
-                    {active && <Check size={16} />}
+                    <span className="flex items-center justify-center w-5 h-5 shrink-0">
+                      <Trophy size={18} />
+                    </span>
+
+                    <span className="truncate">{s.label}</span>
+
+                    {active && <Check size={16} className="shrink-0" />}
                   </button>
                 );
               })}

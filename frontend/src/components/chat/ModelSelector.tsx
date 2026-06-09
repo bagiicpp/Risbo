@@ -7,10 +7,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
 
 interface ModelSelectorProps {
   selectedModelId: string;
   onModelSelect: (modelId: string) => void;
+  className?: string;
 }
 
 export const AVAILABLE_MODELS = [
@@ -22,6 +24,7 @@ export const AVAILABLE_MODELS = [
 export function ModelSelector({
   selectedModelId,
   onModelSelect,
+  className,
 }: ModelSelectorProps) {
   const currentModel =
     AVAILABLE_MODELS.find((m) => m.id === selectedModelId) ||
@@ -30,37 +33,40 @@ export function ModelSelector({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        {/* Replaced fixed zinc colors with semantic foreground/accent classes */}
-        <button className="flex items-center gap-2 px-3 py-1.5 ml-1 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors text-sm font-mono cursor-pointer focus:outline-none focus:ring-0">
-          <Sparkles size={16} className="text-primary/70 shrink-0" />
-          <span className="font-bricolage truncate">{currentModel.name}</span>
+        <button
+          className={cn(
+            "flex items-center gap-1.5 px-2.5 py-1.5 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors text-sm font-mono cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring shrink-0",
+            className,
+          )}
+        >
+          <Sparkles size={14} className="text-primary/70 shrink-0" />
+          {/* Responsive max-width restricts expansion and forces truncation */}
+          <span className="font-bricolage truncate max-w-[90px] xs:max-w-[120px] sm:max-w-[160px]">
+            {currentModel.name}
+          </span>
           <ChevronDown size={14} className="opacity-50 shrink-0" />
         </button>
       </DropdownMenuTrigger>
 
       <DropdownMenuContent
         align="start"
-        // Removed hardcoded bg-zinc-950 and border-zinc-800.
-        // shadcn's base components handle their own theme backgrounds natively.
         className="w-56 border-border shadow-lg"
       >
         <DropdownMenuLabel className="text-xs text-muted-foreground font-normal">
           Select Model
         </DropdownMenuLabel>
 
-        {/* Replaced bg-zinc-800 with standard border color */}
         <DropdownMenuSeparator className="bg-border/50" />
 
         {AVAILABLE_MODELS.map((model) => (
           <DropdownMenuItem
             key={model.id}
             onClick={() => onModelSelect(model.id)}
-            // Standardized hover/focus states to use semantic accent variables
             className="flex items-center justify-between cursor-pointer transition-colors focus:bg-accent focus:text-accent-foreground"
           >
-            <span className="font-bricolage">{model.name}</span>
+            <span className="font-bricolage text-sm">{model.name}</span>
             {selectedModelId === model.id && (
-              <Check size={14} className="text-primary" />
+              <Check size={14} className="text-primary shrink-0" />
             )}
           </DropdownMenuItem>
         ))}

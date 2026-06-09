@@ -89,10 +89,10 @@ export default function ProfilePage() {
 
   return (
     <>
-      <main className="flex-1 overflow-y-auto p-6 md:p-10">
+      <main className="flex-1 overflow-y-auto px-4 py-6 md:px-10 md:py-10 pt-16">
         <div className="max-w-5xl mx-auto space-y-8">
-          <div>
-            <h1 className="text-3xl font-bricolage font-bold text-foreground tracking-tight">
+          <div className="space-y-1 md:space-y-2">
+            <h1 className="text-2xl md:text-3xl font-bricolage font-bold text-foreground tracking-tight">
               Athlete Dashboard
             </h1>
             <p className="text-muted-foreground mt-1">
@@ -106,7 +106,7 @@ export default function ProfilePage() {
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
                 {Object.entries(summary).map(
                   ([metricName, data]: [string, any]) => {
                     const Icon = categoryIcons[data.category] || Activity;
@@ -114,17 +114,17 @@ export default function ProfilePage() {
                     return (
                       <div
                         key={metricName}
-                        className="p-5 rounded-2xl border border-border/50 bg-card shadow-sm flex flex-col justify-between"
+                        className="p-4 md:p-5 rounded-2xl border border-border/50 bg-card shadow-sm flex flex-col justify-between"
                       >
                         <div className="flex items-start gap-4">
-                          <div className="p-3 rounded-xl bg-primary/10 text-primary">
-                            <Icon size={24} />
+                          <div className="p-2.5 md:p-3 rounded-xl bg-primary/10 text-primary">
+                            <Icon size={20} className="md:w-6 md:h-6" />
                           </div>
                           <div className="flex-1 overflow-hidden">
                             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider truncate">
                               {metricName.replace("_", " ")}
                             </p>
-                            <h3 className="text-xl font-bold text-foreground mt-1 truncate">
+                            <h3 className="text-lg md:text-xl font-bold text-foreground mt-1 break-words">
                               {data.value} {data.unit}
                             </h3>
                           </div>
@@ -132,7 +132,7 @@ export default function ProfilePage() {
 
                         {data.meta_data &&
                           Object.keys(data.meta_data).length > 0 && (
-                            <div className="mt-4 pt-3 border-t border-border/50 text-xs text-muted-foreground flex gap-3">
+                            <div className="mt-4 pt-3 border-t border-border/50 text-xs text-muted-foreground flex flex-wrap gap-2">
                               {data.meta_data.deadline && (
                                 <span className="flex items-center gap-1">
                                   <Calendar size={12} />{" "}
@@ -152,7 +152,8 @@ export default function ProfilePage() {
                 )}
 
                 {Object.keys(summary).length === 0 && (
-                  <p className="col-span-3 text-muted-foreground p-4 text-center border rounded-xl border-dashed">
+                  <p className="col-span-1 sm:col-span-2 lg:col-span-3 text-muted-foreground p-4 text-center border rounded-xl border-dashed text-sm">
+                    {" "}
                     No metrics logged yet. Tell Risbo your PRs, diet goals, or
                     training plans!
                   </p>
@@ -161,7 +162,7 @@ export default function ProfilePage() {
 
               {Object.keys(summary).length > 0 && (
                 <div className="p-6 rounded-2xl border border-border/50 bg-card shadow-sm mt-8">
-                  <div className="flex items-center justify-between mb-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 md:mb-6">
                     <div className="flex items-center gap-2">
                       <TrendingUp className="text-primary" size={20} />
                       <h2 className="text-xl font-bold text-foreground">
@@ -172,7 +173,7 @@ export default function ProfilePage() {
                     <select
                       value={activeChartMetric}
                       onChange={(e) => setActiveChartMetric(e.target.value)}
-                      className="bg-background border border-border rounded-lg px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/50"
+                      className="w-full sm:w-auto bg-background border border-border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/50"
                     >
                       {Object.entries(summary)
                         .filter(
@@ -188,7 +189,8 @@ export default function ProfilePage() {
                   </div>
 
                   {chartData.length > 0 ? (
-                    <div className="h-[350px] w-full">
+                    <div className="h-[260px] sm:h-[300px] md:h-[350px] w-full">
+                      {" "}
                       <ResponsiveContainer width="100%" height="100%">
                         <LineChart
                           data={chartData}
