@@ -314,7 +314,6 @@ export default function AthleteDetailView() {
                               contentStyle={{
                                 backgroundColor: "hsl(var(--background))",
                                 borderRadius: "0.75rem",
-                                border: "1px solid hsl(var(--border))",
                               }}
                               itemStyle={{
                                 color: "hsl(var(--foreground))",
@@ -324,10 +323,21 @@ export default function AthleteDetailView() {
                             <Line
                               type="monotone"
                               dataKey="value"
-                              stroke="hsl(var(--primary))"
+                              stroke="var(--color-risbo-green-500, #10b981)"
                               strokeWidth={3}
-                              dot={{ r: chartData.length === 1 ? 6 : 4, fill: "hsl(var(--background))" }}
-                              activeDot={{ r: 6, strokeWidth: 0 }}
+                              dot={{
+                                r: chartData.length === 1 ? 6 : 4,
+                                fill: "var(--background)",
+                                stroke: "var(--color-risbo-green-500, #10b981)",
+                                strokeWidth: 2,
+                              }}
+                              activeDot={{
+                                r: 6,
+                                fill: "var(--color-risbo-green-600, #059669)",
+                                stroke: "var(--background)",
+                              }}
+                              isAnimationActive={true}
+                              connectNulls={true}
                             />
                           </LineChart>
                         </ResponsiveContainer>
