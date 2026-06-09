@@ -80,7 +80,7 @@ export default function AthleteDetailView() {
           const numericMetrics = Object.entries(
             athleteSummaryObj.metrics,
           ).filter(
-            ([_, data]: [string, any]) => typeof data.value === "number",
+            ([_, data]: [string, any]) => typeof data.value === "number" || !isNaN(parseFloat(data.value)),
           );
           if (numericMetrics.length > 0) {
             setActiveMetric(numericMetrics[0][0]);
@@ -112,7 +112,7 @@ export default function AthleteDetailView() {
         );
 
         const formattedData = res.data
-          .filter((item: any) => typeof item.value === "number")
+          .filter((item: any) => typeof item.value === "number" || !isNaN(parseFloat(item.value)))
           .map((item: any) => ({
             ...item,
             displayDate: format(parseISO(item.date), "MMM d"),
@@ -250,7 +250,7 @@ export default function AthleteDetailView() {
                     {Object.entries(summaryMetrics)
                       .filter(
                         ([_, data]: [string, any]) =>
-                          typeof data.value === "number",
+                          typeof data.value === "number" || !isNaN(parseFloat(data.value)),
                       )
                       .map(([key, _]) => (
                         <option key={key} value={key}>
