@@ -14,6 +14,7 @@ import {
 import { toast } from "sonner";
 import api from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
+import CinematicIntro from "@/components/common/CinematicIntro";
 
 type Role = "coach" | "athlete" | "scout" | "analyst";
 type Sport = "football" | "basketball";
@@ -68,6 +69,7 @@ const TOTAL_STEPS = 4;
 export default function OnboardingPage() {
   const navigate = useNavigate();
   const { user, setOnboardingComplete, login } = useAuth();
+  const [showIntro, setShowIntro] = useState(false);
 
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [step, setStep] = useState(1);
@@ -126,7 +128,7 @@ export default function OnboardingPage() {
       toast.success("You're all set!", {
         description: "Risbo is now tailored to your profile.",
       });
-      navigate("/chat");
+      setShowIntro(true);
     } catch (error: any) {
       toast.error("Could not save profile", {
         description:
@@ -135,6 +137,11 @@ export default function OnboardingPage() {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleIntroComplete = () => {
+    localStorage.setItem("risbo_intro_seen", "true");
+    navigate("/chat");
   };
 
   const next = () => setStep((s) => Math.min(s + 1, TOTAL_STEPS));
@@ -146,6 +153,10 @@ export default function OnboardingPage() {
         <Loader2 className="animate-spin text-primary" size={32} />
       </div>
     );
+  }
+
+  if (showIntro) {
+    return <CinematicIntro onComplete={handleIntroComplete} />;
   }
 
   return (
