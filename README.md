@@ -1,11 +1,11 @@
-# RizzBo AI — Sports & Analytical Assistant
-RizzBo is a specialized AI assistant designed for athletes, coaches, and sports analysts. It provides deep expertise in football (soccer) and basketball, player statistics, and training optimization.
+# Risbo AI — Sports & Analytical Assistant
+Risbo is a specialized AI assistant designed for athletes, coaches, and sports analysts. It provides deep expertise in football (soccer) and basketball, player statistics, and training optimization.
 
 ---
 
 ## 🚀 Project Overview
 
-RizzBo is a full-stack web application that leverages Large Language Models (LLMs) to provide data-driven sports analytics. The system is designed to help users analyze player performance, scout emerging talents, and optimize training regimes based on biomechanics, nutrition, and recovery data.
+Risbo is a full-stack web application that leverages Large Language Models (LLMs) to provide data-driven sports analytics. The system is designed to help users analyze player performance, scout emerging talents, and optimize training regimes based on biomechanics, nutrition, and recovery data.
 
 ### Core Domains
 | Domain | Use Case |
@@ -53,7 +53,7 @@ $\quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \text{MongoDB} \qua
 ## 📂 Project Structure
 
 ```text
-rizzbo/
+Risbo/
 ├── ai-backend/             # AI Orchestration Layer
 │   ├── main.py             # FastAPI entry point
 │   ├── intent.py           # Intent classification for sports domains
@@ -86,7 +86,7 @@ rizzbo/
 
 ## ⚙️ Local Setup (Docker)
 
-The easiest way to run RizzBo is using Docker Compose.
+The easiest way to run Risbo is using Docker Compose.
 
 ### Prerequisites
 - Docker & Docker Compose installed.
@@ -105,7 +105,7 @@ Create an `.env` file in `ai-backend/`:
 AI_STUDIO_API=google_studio_api_key
 AI_STUDIO_MODEL=baseline_model
 FOOTBALL_DATA_API_KEY=football_data_api_key
-SEARX_URL=https://searx.be
+SEARXNG_URL=http://searxng:8080
 ```
 
 Create an `.env` file in `app-backend/`:
@@ -136,7 +136,7 @@ docker compose up --build
 ---
 
 ## Deployment
-Access to deployed version: [risbo.vercel.app](https://risbo.vercel.app)
+Access to deployed version: [risbo.app](https://risbo.app)
 
 ---
 
