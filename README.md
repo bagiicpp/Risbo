@@ -91,42 +91,99 @@ Risbo/
 
 ---
 
-## ⚙️ Local Setup (Docker)
+# ⚙️ Local Setup (Docker)
 
-The easiest way to run Risbo is using Docker Compose.
+The easiest way to run Risbo locally is with Docker Compose.
 
-### Prerequisites
-- Docker & Docker Compose installed.
-- A Google Gemini API Key (via AI Studio) or a running Ollama instance.
+## Prerequisites
 
-### 1. Clone the Repository
+Before starting, make sure you have:
+
+* Docker installed
+* Docker Compose installed
+* A Google Gemini API key (via Google AI Studio) **or** a running Ollama instance
+
+---
+
+## 1. Clone the Repository
+
 ```bash
 git clone https://github.com/bagiicpp/Risbo.git
 cd Risbo
 ```
 
-### 2. Environment Configuration
+---
 
-Create an `.env` file in `ai-backend/`:
-```env
-AI_STUDIO_API=google_studio_api_key
-AI_STUDIO_MODEL=baseline_model
-FOOTBALL_DATA_API_KEY=football_data_api_key
-SEARXNG_URL=http://searxng:8080
+## 2. Configure Environment Variables
+
+Risbo ships with preconfigured example environment files. Simply copy them and update the values where indicated.
+
+### AI Backend
+
+```bash
+cd ai-backend
+cp .env.example .env
+cd ..
 ```
 
-Create an `.env` file in `app-backend/`:
-```env
-AI_BACKEND_URL=http://ai-backend:8000
-MONGODB_URI=mongodb://mongodb:27017/rizzbo
-JWT_SECRET_KEY=your_secret_jwt_key
-APP_ENV=development
+### App Backend
+
+```bash
+cd app-backend
+cp .env.example .env
+cd ..
 ```
 
-### 3. Launch the Application
+### Frontend
+
+```bash
+cd frontend
+cp .env.development .env
+cd ..
+```
+
+After copying the files, open each `.env` file and replace any placeholder values with your own configuration (API keys, secrets, etc.).
+
+---
+
+## 3. Launch the Application
+
+From the project root:
+
 ```bash
 docker compose up --build
 ```
+
+The first startup may take several minutes while Docker builds the containers.
+
+---
+
+## 4. Access the Application
+
+Once all services are running:
+
+| Service              | URL                        |
+| -------------------- | -------------------------- |
+| Frontend             | http://localhost:5173      |
+| App Backend API Docs | http://localhost:8080/docs |
+| AI Backend API Docs  | http://localhost:8000/docs |
+
+---
+
+## Stopping Risbo
+
+To stop all services:
+
+```bash
+docker compose down
+```
+
+To remove containers and volumes:
+
+```bash
+docker compose down -v
+```
+
 
 **Access Points:**
 - **Frontend:** [http://localhost:5173](http://localhost:5173)
