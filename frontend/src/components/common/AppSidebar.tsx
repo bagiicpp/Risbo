@@ -313,10 +313,12 @@ export function AppSidebar({ onNewChat }: { onNewChat?: () => void } = {}) {
               onClick={() => isCollapsed && toggleSidebar()}
               className={`relative w-8 h-8 flex items-center justify-center shrink-0 transition-all duration-300 ${isCollapsed ? "cursor-pointer" : "cursor-default"}`}
             >
-              <div className="absolute inset-0 bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center rounded-xl shadow-sm shadow-primary/20 transition-opacity duration-200 group-data-[collapsible=icon]:group-hover/header:opacity-0 pointer-events-none">
-                <span className="text-primary-foreground font-bricolage font-extrabold italic text-lg leading-none">
-                  R
-                </span>
+              <div className="absolute inset-0 rounded-xl overflow-hidden shadow-sm shadow-primary/20 transition-opacity duration-200 group-data-[collapsible=icon]:group-hover/header:opacity-0 pointer-events-none">
+                <img
+                  src="/logo-icon.png"
+                  alt="Risbo"
+                  className="w-full h-full object-cover"
+                />
               </div>
               <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-accent text-foreground opacity-0 transition-opacity duration-200 group-data-[collapsible=icon]:group-hover/header:opacity-100 pointer-events-none">
                 <PanelLeftOpen size={18} />

@@ -915,8 +915,9 @@ async def chat(
                     async for line in response.aiter_lines():
                         if line.startswith("data: "):
                             try:
-                                clean_text = json.loads(line.replace("data: ", ""))
-                                ai_content += clean_text
+                                parsed = json.loads(line.replace("data: ", ""))
+                                if isinstance(parsed, str):
+                                    ai_content += parsed
                             except json.JSONDecodeError:
                                 pass
                         yield line + "\n"

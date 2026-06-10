@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router";
 import { ProtectedRoute } from "./components/common/ProtectedRoute";
+import { IntroAnimation } from "./components/common/IntroAnimation";
 import { MainLayout } from "./components/layout/MainLayout";
 import LoginPage from "./pages/LoginPage";
 import ChatPage from "./pages/ChatPage";
@@ -20,9 +22,21 @@ import { useTheme } from "@/context/ThemeProvider";
 
 function App() {
   const { theme } = useTheme();
+  const [showIntro, setShowIntro] = useState(
+    () => !localStorage.getItem("risbo_intro_seen")
+  );
 
   return (
     <>
+      {showIntro && (
+        <IntroAnimation
+          onComplete={() => {
+            localStorage.setItem("risbo_intro_seen", "true");
+            setShowIntro(false);
+          }}
+        />
+      )}
+
       <BrowserRouter>
         <Routes>
           {/* --- PUBLIC ROUTES (No Sidebar) --- */}

@@ -631,9 +631,11 @@ export default function ChatPage() {
               transition={{ duration: 0.5, ease: "easeOut" }}
               className="w-16 h-16 bg-gradient-to-br from-primary/20 to-primary/10 rounded-2xl flex items-center justify-center shadow-sm border border-primary/20 shrink-0"
             >
-              <span className="text-primary text-2xl font-bricolage font-black italic leading-none">
-                R
-              </span>
+              <img
+                src="/logo-icon.png"
+                alt="Risbo"
+                className="w-full h-full object-contain p-1.5"
+              />
             </motion.div>
             <motion.div
               initial={{ opacity: 0, y: -20 }}

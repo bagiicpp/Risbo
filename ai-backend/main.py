@@ -19,7 +19,14 @@ from typing import Union
 from intent import classify_intent
 from pydantic import BaseModel
 from search import bilingual_search
-from wiki_search import WikiSearcher, build_wiki_context
+try:
+    from wiki_search import WikiSearcher, build_wiki_context
+except Exception as _wiki_import_err:
+    import logging as _logging
+    _logging.getLogger(__name__).error("[wiki] import failed, wiki search disabled: %s", _wiki_import_err)
+    WikiSearcher = None  # type: ignore[assignment,misc]
+    def build_wiki_context(*_a, **_kw):  # type: ignore[misc]
+        return None
 
 # --- Tenacity for robust API retries ---
 from tenacity import (

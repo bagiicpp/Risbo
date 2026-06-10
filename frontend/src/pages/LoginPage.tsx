@@ -79,6 +79,17 @@ const LoginPage: React.FC = () => {
         animate="visible"
         className="w-full max-w-md z-10"
       >
+        <motion.div
+          variants={itemVariants}
+          className="flex justify-center mb-6"
+        >
+          <img
+            src="/logo-icon.png"
+            alt="Risbo"
+            className="w-16 h-16 object-contain drop-shadow-[0_0_25px_rgba(16,185,129,0.4)]"
+          />
+        </motion.div>
+
         <Card className="border-border/40 shadow-2xl bg-card/80 backdrop-blur-xl rounded-2xl">
           <CardHeader className="space-y-2 text-center pt-10 pb-6">
             <motion.div variants={itemVariants}>
