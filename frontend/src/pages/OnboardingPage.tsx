@@ -14,6 +14,7 @@ import {
 import { toast } from "sonner";
 import api from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
+import CinematicIntro from "@/components/common/CinematicIntro";
 
 type Role = "coach" | "athlete" | "scout" | "analyst";
 type Sport = "football" | "basketball";
@@ -68,6 +69,7 @@ const TOTAL_STEPS = 4;
 export default function OnboardingPage() {
   const navigate = useNavigate();
   const { user, setOnboardingComplete, login } = useAuth();
+  const [showIntro, setShowIntro] = useState(false);
 
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [step, setStep] = useState(1);
@@ -115,7 +117,7 @@ export default function OnboardingPage() {
         focus,
       });
       setOnboardingComplete(true);
-      
+
       try {
         const refreshRes = await api.post("/auth/refresh");
         login(refreshRes.data.access_token);
@@ -126,7 +128,7 @@ export default function OnboardingPage() {
       toast.success("You're all set!", {
         description: "Risbo is now tailored to your profile.",
       });
-      navigate("/chat");
+      setShowIntro(true);
     } catch (error: any) {
       toast.error("Could not save profile", {
         description:
@@ -135,6 +137,11 @@ export default function OnboardingPage() {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleIntroComplete = () => {
+    localStorage.setItem("risbo_intro_seen", "true");
+    navigate("/chat");
   };
 
   const next = () => setStep((s) => Math.min(s + 1, TOTAL_STEPS));
@@ -148,6 +155,10 @@ export default function OnboardingPage() {
     );
   }
 
+  if (showIntro) {
+    return <CinematicIntro onComplete={handleIntroComplete} />;
+  }
+
   return (
     <div className="flex h-screen w-full items-center justify-center bg-background text-foreground font-dmsans px-4">
       <div className="w-full max-w-xl">
@@ -157,13 +168,6 @@ export default function OnboardingPage() {
             <span className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
               Step {step} of {TOTAL_STEPS}
             </span>
-            <button
-              onClick={submit}
-              disabled={isSaving}
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer disabled:opacity-50"
-            >
-              Skip for now
-            </button>
           </div>
           <div className="h-1.5 w-full rounded-full bg-accent overflow-hidden">
             <div
@@ -230,9 +234,13 @@ export default function OnboardingPage() {
                         : "border-border/60 hover:border-border hover:bg-accent/40"
                     }`}
                   >
-                    <Trophy size={18} />
-                    {s.label}
-                    {active && <Check size={16} />}
+                    <span className="flex items-center justify-center w-5 h-5 shrink-0">
+                      <Trophy size={18} />
+                    </span>
+
+                    <span className="truncate">{s.label}</span>
+
+                    {active && <Check size={16} className="shrink-0" />}
                   </button>
                 );
               })}

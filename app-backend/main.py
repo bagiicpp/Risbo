@@ -4,7 +4,6 @@ import io
 import json
 import os
 import random
-import resend
 import re
 import uuid
 from contextlib import asynccontextmanager
@@ -42,11 +41,11 @@ from fastapi import (
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.security import OAuth2PasswordRequestForm
+from mailersend import EmailBuilder, MailerSendClient
 from models import (
     ChatRequest,
     Conversation,
     ConversationRename,
-    EmailVerifyRequest,
     Message,
     MessagePayload,
     PantryItem,
@@ -94,9 +93,6 @@ async def lifespan(app: FastAPI):
     db = db_client.get_database()
     print("✅ Connected to MongoDB")
 
-    # Auto-expire pending registrations after 15 minutes
-    await db.pending_users.create_index("created_at", expireAfterSeconds=900)
-
     yield
 
     db_client.close()
@@ -125,120 +121,13 @@ async def register_user(user: UserCreate):
     if await db.users.find_one({"email": user.email}):
         raise HTTPException(status_code=400, detail="Email already registered")
 
-    code = str(random.randint(100000, 999999))
     hashed_pwd = get_password_hash(user.password)
 
-    pending_doc = {
+    user_doc = {
         "email": user.email,
         "name": user.name.strip(),
         "hashed_password": hashed_pwd,
         "role": user.role,
-        "code": code,
-        "created_at": datetime.now(timezone.utc),
-    }
-
-    await db.pending_users.update_one(
-        {"email": user.email}, {"$set": pending_doc}, upsert=True
-    )
-
-    env = os.getenv("APP_ENV", "development")
-
-    if env == "production":
-        try:
-            resend.api_key = os.getenv("RESEND_API_KEY")
-            resend.Emails.send({
-                "from": "Risbo <onboarding@resend.dev>",
-                "to": user.email,
-                "subject": "Verify Your Account",
-                "html": f"""
-                <!DOCTYPE html>
-                <html>
-                <head><meta charset="utf-8"></head>
-                <body style="margin:0;padding:0;background-color:#f4f4f4;font-family:Arial,Helvetica,sans-serif;">
-                    <table width="100%" cellpadding="0" cellspacing="0">
-                        <tr>
-                            <td align="center" style="padding:40px 20px;">
-                                <table width="600" cellpadding="0" cellspacing="0"
-                                    style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,0.08);">
-                                    <tr>
-                                        <td style="background:#2563eb;color:white;text-align:center;padding:24px;font-size:24px;font-weight:bold;">
-                                            Verify Your Account
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td style="padding:40px;">
-                                            <p style="font-size:16px;color:#333;">Hi {user.name},</p>
-                                            <p style="font-size:16px;color:#333;line-height:1.6;">
-                                                Thanks for registering. Use the verification code below to complete your account setup.
-                                            </p>
-                                            <div style="text-align:center;margin:32px 0;">
-                                                <div style="display:inline-block;background:#f3f4f6;border:2px dashed #2563eb;border-radius:10px;padding:18px 32px;font-size:32px;font-weight:bold;letter-spacing:6px;color:#111827;">
-                                                    {code}
-                                                </div>
-                                            </div>
-                                            <p style="font-size:14px;color:#666;">This code will expire in 10 minutes.</p>
-                                            <p style="font-size:14px;color:#666;">If you didn't create an account, you can safely ignore this email.</p>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td style="background:#f9fafb;text-align:center;padding:20px;color:#888;font-size:12px;">
-                                            © 2026 RisboAI. All rights reserved.
-                                        </td>
-                                    </tr>
-                                </table>
-                            </td>
-                        </tr>
-                    </table>
-                </body>
-                </html>
-                """,
-            })
-        except Exception as e:
-            print(f"Resend Error: {e}")
-            raise HTTPException(
-                status_code=500,
-                detail="Failed to send verification email.",
-            )
-    else:
-        print(f"\n{'=' * 40}")
-        print(f"🚀 DEV MODE: Registration Code Generated")
-        print(f"📧 Email: {user.email}")
-        print(f"🔑 Code:  {code}")
-        print(f"{'=' * 40}\n")
-
-    return {
-        "message": "Verification code generated",
-        "dev_code": code if env != "production" else None,
-    }
-
-
-@app.post("/verify-email", status_code=status.HTTP_201_CREATED)
-async def verify_email(payload: EmailVerifyRequest):
-    pending = await db.pending_users.find_one({"email": payload.email})
-
-    if not pending:
-        raise HTTPException(
-            status_code=404, detail="No pending registration for this email"
-        )
-
-    # Expire after 15 minutes
-    age = datetime.now(timezone.utc) - pending["created_at"].replace(
-        tzinfo=timezone.utc
-    )
-    if age.total_seconds() > 900:
-        await db.pending_users.delete_one({"email": payload.email})
-        raise HTTPException(
-            status_code=400, detail="Code expired, please register again"
-        )
-
-    if pending["code"] != payload.code:
-        raise HTTPException(status_code=400, detail="Invalid code")
-
-    user_doc = {
-        "email": pending["email"],
-        "name": pending["name"],
-        "hashed_password": pending["hashed_password"],
-        "role": pending["role"],
         "plan": "Free plan",
         "onboarding_complete": False,
         "target_weight": None,
@@ -254,9 +143,8 @@ async def verify_email(payload: EmailVerifyRequest):
     }
 
     await db.users.insert_one(user_doc)
-    await db.pending_users.delete_one({"email": payload.email})
 
-    return {"message": "Email verified, account created"}
+    return {"message": "Account created successfully"}
 
 
 @app.post("/login", response_model=Token)
@@ -543,6 +431,8 @@ async def extract_metrics_background(
                 if line.startswith("data: "):
                     try:
                         clean_chunk = json.loads(line.replace("data: ", ""))
+                        if isinstance(clean_chunk, dict):  # skip __sources and any other metadata
+                            continue
                         raw_json += clean_chunk
                     except json.JSONDecodeError:
                         pass
@@ -915,9 +805,9 @@ async def chat(
                     async for line in response.aiter_lines():
                         if line.startswith("data: "):
                             try:
-                                parsed = json.loads(line.replace("data: ", ""))
-                                if isinstance(parsed, str):
-                                    ai_content += parsed
+                                clean_text = json.loads(line.replace("data: ", ""))
+                                if isinstance(clean_text, str):
+                                    ai_content += clean_text
                             except json.JSONDecodeError:
                                 pass
                         yield line + "\n"

@@ -1,32 +1,46 @@
 import { useState, useEffect } from "react";
+
 import { Save, Loader2 } from "lucide-react";
+
 import { SettingsCard } from "@/components/common/SettingsCard";
+
 import { SettingsInput } from "@/components/common/SettingsInput";
+
 import { toast } from "sonner";
+
 import api from "@/lib/api";
 
 export function ProfileSettings() {
   const [isSaving, setIsSaving] = useState(false);
+
   const [isLoading, setIsLoading] = useState(true);
 
   const [formData, setFormData] = useState({
     name: "",
+
     email: "",
+
     target_weight: "",
+
     activity_multiplier: "",
   });
 
   // Hydrate form from the database on mount
+
   useEffect(() => {
     const fetchProfile = async () => {
       try {
         const response = await api.get("/users/me");
+
         const data = response.data;
 
         setFormData({
           name: data.name || "",
+
           email: data.email || "",
+
           target_weight: data.target_weight?.toString() || "",
+
           activity_multiplier: data.activity_multiplier?.toString() || "1.55",
         });
       } catch (error) {
@@ -45,12 +59,15 @@ export function ProfileSettings() {
 
   const handleSave = async () => {
     setIsSaving(true);
+
     try {
       const payload = {
         name: formData.name,
+
         target_weight: formData.target_weight
           ? parseFloat(formData.target_weight)
           : null,
+
         activity_multiplier: formData.activity_multiplier
           ? parseFloat(formData.activity_multiplier)
           : null,
@@ -84,25 +101,28 @@ export function ProfileSettings() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
-      <div className="border-b border-border/50 pb-4 flex justify-between items-end">
+      <div className="border-b border-border/50 pb-4 flex flex-col sm:flex-row gap-4 sm:justify-between sm:items-end">
         <div>
-          <h3 className="text-xl font-semibold text-foreground font-bricolage">
+          <h3 className="text-lg sm:text-xl font-semibold text-foreground font-bricolage">
             User Profile
           </h3>
+
           <p className="text-sm text-muted-foreground mt-1">
             Manage your foundational biometric and account data.
           </p>
         </div>
+
         <button
           onClick={handleSave}
           disabled={isSaving}
-          className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer"
+          className="flex items-center justify-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer w-full sm:w-auto"
         >
           {isSaving ? (
             <Loader2 size={16} className="animate-spin" />
           ) : (
             <Save size={16} />
           )}
+
           {isSaving ? "Saving..." : "Save Changes"}
         </button>
       </div>
@@ -118,6 +138,7 @@ export function ProfileSettings() {
             value={formData.name}
             onChange={handleChange}
           />
+
           <SettingsInput
             label="Email Address"
             name="email"
@@ -128,8 +149,6 @@ export function ProfileSettings() {
           />
         </div>
       </SettingsCard>
-
-
     </div>
   );
 }

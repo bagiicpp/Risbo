@@ -23,7 +23,7 @@ python-docx
 openpyxl
 reportlab
 
-resend
+mailersend
 
 # Testing
 pytest

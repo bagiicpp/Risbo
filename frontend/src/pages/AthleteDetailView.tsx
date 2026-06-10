@@ -22,9 +22,6 @@ import {
 import { format, parseISO } from "date-fns";
 import api from "@/lib/api";
 
-import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
-import { AppSidebar } from "@/components/common/AppSidebar";
-
 // Map backend categories to specific Lucide icons
 const categoryIcons: Record<string, any> = {
   body_stats: Scale,
@@ -83,7 +80,7 @@ export default function AthleteDetailView() {
           const numericMetrics = Object.entries(
             athleteSummaryObj.metrics,
           ).filter(
-            ([_, data]: [string, any]) => typeof data.value === "number",
+            ([_, data]: [string, any]) => typeof data.value === "number" || !isNaN(parseFloat(data.value)),
           );
           if (numericMetrics.length > 0) {
             setActiveMetric(numericMetrics[0][0]);
@@ -115,7 +112,7 @@ export default function AthleteDetailView() {
         );
 
         const formattedData = res.data
-          .filter((item: any) => typeof item.value === "number")
+          .filter((item: any) => typeof item.value === "number" || !isNaN(parseFloat(item.value)))
           .map((item: any) => ({
             ...item,
             displayDate: format(parseISO(item.date), "MMM d"),
@@ -151,9 +148,6 @@ export default function AthleteDetailView() {
   }
 
   return (
-    <SidebarProvider className="h-screen w-full overflow-hidden bg-background font-dmsans">
-      <AppSidebar />
-      <SidebarInset className="flex flex-col h-full relative overflow-hidden bg-background">
         <main className="flex-1 overflow-y-auto p-6 md:p-10">
           <div className="max-w-5xl mx-auto space-y-8">
             {/* Navigation & Header */}
@@ -256,7 +250,7 @@ export default function AthleteDetailView() {
                     {Object.entries(summaryMetrics)
                       .filter(
                         ([_, data]: [string, any]) =>
-                          typeof data.value === "number",
+                          typeof data.value === "number" || !isNaN(parseFloat(data.value)),
                       )
                       .map(([key, _]) => (
                         <option key={key} value={key}>
@@ -320,7 +314,6 @@ export default function AthleteDetailView() {
                               contentStyle={{
                                 backgroundColor: "hsl(var(--background))",
                                 borderRadius: "0.75rem",
-                                border: "1px solid hsl(var(--border))",
                               }}
                               itemStyle={{
                                 color: "hsl(var(--foreground))",
@@ -330,17 +323,28 @@ export default function AthleteDetailView() {
                             <Line
                               type="monotone"
                               dataKey="value"
-                              stroke="hsl(var(--primary))"
+                              stroke="var(--color-risbo-green-500, #10b981)"
                               strokeWidth={3}
-                              dot={{ r: 4, fill: "hsl(var(--background))" }}
-                              activeDot={{ r: 6, strokeWidth: 0 }}
+                              dot={{
+                                r: chartData.length === 1 ? 6 : 4,
+                                fill: "var(--background)",
+                                stroke: "var(--color-risbo-green-500, #10b981)",
+                                strokeWidth: 2,
+                              }}
+                              activeDot={{
+                                r: 6,
+                                fill: "var(--color-risbo-green-600, #059669)",
+                                stroke: "var(--background)",
+                              }}
+                              isAnimationActive={true}
+                              connectNulls={true}
                             />
                           </LineChart>
                         </ResponsiveContainer>
                       </motion.div>
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-muted-foreground text-sm border border-dashed border-border/50 rounded-xl">
-                        Not enough numeric data points to render a chart.
+                        No data logged for this metric yet.
                       </div>
                     )}
                   </AnimatePresence>
@@ -349,7 +353,6 @@ export default function AthleteDetailView() {
             )}
           </div>
         </main>
-      </SidebarInset>
-    </SidebarProvider>
+
   );
 }

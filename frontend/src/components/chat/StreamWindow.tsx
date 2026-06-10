@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
+import "katex/dist/katex.min.css";
 import {
   Download,
   FileText,
@@ -139,18 +142,18 @@ const MessageBubble = React.memo(
       >
         {msg.role === "user" ? (
           <div className="max-w-full flex gap-4 w-full justify-end flex-row">
-            <div className="flex flex-col items-end gap-2 max-w-[80%]">
+            <div className="flex flex-col items-end gap-2 max-w-[90%] sm:max-w-[80%]">
               {attachedFileName && (
                 <div className="flex items-center gap-2 bg-muted/50 border border-border text-muted-foreground px-3 py-1.5 rounded-lg text-sm font-medium shadow-sm">
                   <FileText size={16} className="text-primary/80" />
-                  <span className="truncate max-w-[220px] tracking-tight">
+                  <span className="truncate max-w-[140px] sm:max-w-[220px] tracking-tight">
                     {attachedFileName}
                   </span>
                 </div>
               )}
 
               {isEditing ? (
-                <div className="bg-card border border-primary/30 text-card-foreground p-3 rounded-2xl rounded-tr-sm shadow-sm w-full min-w-[300px]">
+                <div className="bg-card border border-primary/30 text-card-foreground p-3 rounded-2xl rounded-tr-sm shadow-sm w-full min-w-0 sm:min-w-[300px]">
                   <textarea
                     ref={textareaRef}
                     value={editDraft}
@@ -202,7 +205,7 @@ const MessageBubble = React.memo(
             </div>
           </div>
         ) : (
-          <div className="max-w-full flex gap-4 w-full flex-col md:flex-row group/ai">
+          <div className="max-w-full flex gap-2 sm:gap-4 w-full flex-col md:flex-row group/ai">
             <div className="flex gap-4 w-full">
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center shrink-0 border border-primary/20 mt-1">
                 <span className="text-primary font-bold italic text-sm leading-none">
@@ -213,14 +216,15 @@ const MessageBubble = React.memo(
                 {displayContent ? (
                   <div className="prose prose-sm md:prose-base dark:prose-invert max-w-none break-words leading-relaxed">
                     <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
+                      remarkPlugins={[remarkGfm, remarkMath]}
+                      rehypePlugins={[rehypeKatex]}
                       components={{
                         table: ({ node, ...props }) => (
                           // Reduced outer margin (my-3 instead of my-6) and forced zero padding
                           <div className="my-3 w-full overflow-hidden rounded-xl border border-border/50 shadow-sm bg-card !p-0">
                             <div className="w-full overflow-x-auto !m-0 !p-0">
                               <table
-                                className="!m-0 !p-0 w-full text-sm text-left border-collapse whitespace-nowrap"
+                                className="!m-0 !p-0 w-full text-sm text-left border-collapse"
                                 {...props}
                               />
                             </div>
@@ -246,7 +250,7 @@ const MessageBubble = React.memo(
                         ),
                         td: ({ node, ...props }) => (
                           <td
-                            className="px-4 py-4 align-middle text-foreground/80 font-medium first:pl-6 last:pr-6 !mt-0 !mb-0"
+                            className="px-4 py-4 align-middle text-foreground/80 font-medium first:pl-6 last:pr-6 break-words !mt-0 !mb-0"
                             {...props}
                           />
                         ),
@@ -260,7 +264,7 @@ const MessageBubble = React.memo(
                 ) : null}
 
                 {displayContent && !loading && (
-                  <div className="mt-2 flex items-center gap-1 opacity-0 group-hover/ai:opacity-100 transition-opacity duration-200">
+                  <div className="mt-2 flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover/ai:opacity-100 transition-opacity duration-200">
                     <button
                       onClick={handleCopy}
                       className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors cursor-pointer"

@@ -21,9 +21,6 @@ async def test_ping(async_client):
 async def test_register_user_success(async_client, mocker):
     main.db.users.find_one = mocker.AsyncMock(return_value=None)
     main.db.users.insert_one = mocker.AsyncMock()
-    main.db.pending_users.find_one = mocker.AsyncMock(return_value=None)
-    main.db.pending_users.update_one = mocker.AsyncMock()
-    mocker.patch("main.resend.Emails.send")
 
     response = await async_client.post("/register", json={
         "email": "newathlete@test.com",
@@ -33,8 +30,8 @@ async def test_register_user_success(async_client, mocker):
     })
 
     assert response.status_code == 201
-    assert response.json()["message"] == "Verification code generated"
-    main.db.pending_users.update_one.assert_called_once()
+    assert response.json()["message"] == "Account created successfully"
+    main.db.users.insert_one.assert_called_once()
 
 @pytest.mark.asyncio
 async def test_login_success(async_client, mocker):

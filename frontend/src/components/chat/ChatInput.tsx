@@ -4,7 +4,7 @@ import { ModelSelector } from "./ModelSelector";
 
 interface ChatInputProps {
   input: string;
-  setInput: (value: React.SetStateAction<string>) => void;
+  setInput: (value: string) => void;
   onSend: () => void;
   loading: boolean;
   onUpload: (file: File) => void;
@@ -36,12 +36,15 @@ export default function ChatInput({
 }: ChatInputProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const [isDragging, setIsDragging] = useState(false);
 
+  const [isDragging, setIsDragging] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
   const recognitionRef = useRef<any>(null);
   const originalInputRef = useRef<string>("");
 
+  // Speech Recognition Initializer
   useEffect(() => {
     if (typeof window !== "undefined") {
       const SpeechRecognition =
@@ -61,7 +64,6 @@ export default function ChatInput({
 
           const base = originalInputRef.current;
           const separator = base && !base.endsWith(" ") ? " " : "";
-
           setInput(base + separator + currentTranscript);
         };
 
@@ -76,6 +78,30 @@ export default function ChatInput({
       }
     }
   }, [setInput]);
+
+  // Deterministic Object URL Lifecycle Management
+  useEffect(() => {
+    if (!uploadedFile || !uploadedFile.type.startsWith("image/")) {
+      setPreviewUrl(null);
+      return;
+    }
+
+    const url = URL.createObjectURL(uploadedFile);
+    setPreviewUrl(url);
+
+    return () => {
+      URL.revokeObjectURL(url);
+    };
+  }, [uploadedFile]);
+
+  // Declarative Height Calculations (Batched via React render cycle)
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    textarea.style.height = "auto";
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
+  }, [input]);
 
   const toggleRecording = () => {
     if (!recognitionRef.current) {
@@ -98,10 +124,6 @@ export default function ChatInput({
       e.preventDefault();
       if (input.trim() || uploadedFile) {
         onSend();
-
-        if (textareaRef.current) {
-          textareaRef.current.style.height = "auto";
-        }
       }
     }
   };
@@ -132,71 +154,81 @@ export default function ChatInput({
   };
 
   return (
-    <div className="w-full max-w-4xl mx-auto">
-      <div className="flex gap-2 mb-3 px-2 overflow-x-auto pb-1 no-scrollbar"></div>
-
+    <div className="w-full max-w-4xl mx-auto px-3 sm:px-0 antialiased font-sans">
+      {/* Main Input Card Wrapper */}
       <div
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        className="relative w-full bg-card border border-border/50 rounded-2xl shadow-lg transition-all duration-300 flex flex-col"
+        className={`relative w-full bg-card/80 backdrop-blur-md border rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.02)] transition-all duration-300 flex flex-col focus-within:ring-2 focus-within:ring-primary/10 focus-within:border-primary/40 ${
+          isDragging
+            ? "border-primary bg-primary/5 ring-2 ring-primary/10"
+            : "border-border/60"
+        }`}
       >
         <input
           type="file"
           className="hidden"
           ref={fileInputRef}
           onChange={handleFileChange}
-          accept=".txt,.pdf,.docx,.md,.csv, ,image/jpeg,image/png,image/gif,image/webp"
+          accept=".txt,.pdf,.docx,.md,.csv,image/jpeg,image/png,image/gif,image/webp"
         />
 
+        {/* Text Area Input Viewport */}
         <div className="p-4 pb-2">
           {isDragging ? (
-            <div className="h-24 flex flex-col items-center justify-center text-primary font-dmsans border-2 border-dashed border-primary/30 rounded-xl bg-primary/10">
-              <FileText size={24} className="mb-2 opacity-80" />
-              <span className="font-medium">Drop file to analyze</span>
+            <div className="h-28 flex flex-col items-center justify-center text-primary border-2 border-dashed border-primary/20 rounded-xl bg-primary/5 transition-colors">
+              <FileText size={26} className="mb-2 animate-pulse" />
+              <span className="font-medium text-xs tracking-wide">
+                Drop file to analyze
+              </span>
             </div>
           ) : (
             <textarea
               ref={textareaRef}
               value={input}
-              onChange={(e) => {
-                setInput(e.target.value);
-                e.target.style.height = "auto";
-                e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`;
-              }}
+              onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Query the system or detail your workout parameters..."
-              className="w-full bg-transparent border-0 resize-none outline-none text-foreground placeholder:text-muted-foreground font-dmsans text-base leading-relaxed min-h-[60px]"
+              className="w-full bg-transparent border-0 resize-none outline-none text-foreground placeholder:text-muted-foreground/50 text-[15px] sm:text-base leading-relaxed min-h-[44px] sm:min-h-[56px] p-0 focus:ring-0"
               rows={1}
             />
           )}
         </div>
 
+        {/* Dynamic File Upload Preview Node */}
         {uploadedFile && !isDragging && (
-          <div className="px-4 pb-2">
-            {uploadedFile.type.startsWith("image/") ? (
-              <div className="relative inline-block">
+          <div className="px-4 pb-3 flex items-center animate-in fade-in-50 slide-in-from-bottom-1 duration-200">
+            {previewUrl ? (
+              <div className="relative inline-block group">
                 <img
-                  src={URL.createObjectURL(uploadedFile)}
+                  src={previewUrl}
                   alt={uploadedFile.name}
-                  className="h-20 w-20 object-cover rounded-lg border border-border/50"
+                  className="h-16 w-16 object-cover rounded-xl border border-border/80 shadow-sm transition-transform group-hover:scale-[1.01]"
                 />
                 {onClearFile && (
                   <button
+                    type="button"
                     onClick={onClearFile}
-                    className="absolute -top-1.5 -right-1.5 bg-background border border-border rounded-full p-0.5 hover:bg-muted transition-colors cursor-pointer"
+                    className="absolute -top-1.5 -right-1.5 bg-background border border-border rounded-full p-1 hover:bg-muted shadow-md transition-all touch-manipulation cursor-pointer"
                   >
-                    <X size={12} />
+                    <X size={10} className="text-foreground" />
                   </button>
                 )}
               </div>
             ) : (
-              <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 text-primary rounded-lg px-3 py-1.5 text-sm font-dmsans">
-                <FileText size={14} />
-                <span className="truncate max-w-[200px]">{uploadedFile.name}</span>
+              <div className="inline-flex items-center gap-2 bg-secondary/50 border border-border/60 text-secondary-foreground rounded-xl px-3 py-1.5 text-xs font-medium shadow-sm max-w-xs backdrop-blur-sm">
+                <FileText size={14} className="text-primary shrink-0" />
+                <span className="truncate max-w-[140px] sm:max-w-[220px]">
+                  {uploadedFile.name}
+                </span>
                 {onClearFile && (
-                  <button onClick={onClearFile} className="hover:text-primary-foreground hover:bg-primary rounded-full p-0.5 transition-colors ml-1 cursor-pointer">
-                    <X size={14} />
+                  <button
+                    type="button"
+                    onClick={onClearFile}
+                    className="text-muted-foreground hover:text-foreground hover:bg-muted p-1 rounded-md transition-colors ml-1 touch-manipulation cursor-pointer"
+                  >
+                    <X size={10} />
                   </button>
                 )}
               </div>
@@ -204,49 +236,48 @@ export default function ChatInput({
           </div>
         )}
 
-        <div className="flex items-center justify-between p-2 pl-3">
-          <div className="flex items-center gap-1">
+        {/* Lower Toolbar Tray Layout */}
+        <div className="flex items-center justify-between gap-2 px-3 py-2 bg-muted/20 border-t border-border/40 rounded-b-2xl">
+          {/* Action Modalities (Left) */}
+          <div className="flex items-center gap-1.5 min-w-0">
             <button
               type="button"
               disabled={isUploading}
               onClick={() => fileInputRef.current?.click()}
-              className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              className="h-10 w-10 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed shrink-0 touch-manipulation cursor-pointer"
               title="Upload File"
             >
               <Plus size={20} />
             </button>
 
-            <ModelSelector
-              selectedModelId={selectedModel}
-              onModelSelect={setSelectedModel}
-            />
-
             <button
               type="button"
               onClick={() => setEnableSearch(!enableSearch)}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 cursor-pointer ${
+              className={`h-10 px-3 flex items-center gap-1.5 rounded-xl text-xs font-semibold transition-all duration-200 shrink-0 touch-manipulation cursor-pointer ${
                 enableSearch
-                  ? "bg-primary/15 text-primary border border-primary/30 shadow-[0_0_8px_rgba(34,197,94,0.15)]"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                  ? "bg-primary/10 text-primary border border-primary/20 shadow-inner"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted border border-transparent"
               }`}
-              title={
-                enableSearch
-                  ? "Web search on — click to disable"
-                  : "Enable web search"
-              }
+              title={enableSearch ? "Web search enabled" : "Enable web search"}
             >
-              <Globe size={14} />
-              <span>Web</span>
+              <Globe
+                size={15}
+                className={
+                  enableSearch ? "text-primary" : "text-muted-foreground"
+                }
+              />
+              <span className="hidden sm:inline">Web Search</span>
             </button>
           </div>
 
-          <div className="flex items-center gap-1">
+          {/* Submission and Hardware Controls (Right) */}
+          <div className="flex items-center gap-1.5 shrink-0">
             <button
               type="button"
               onClick={toggleRecording}
-              className={`p-2.5 rounded-xl transition-all duration-300 cursor-pointer flex items-center justify-center shrink-0 outline-none ${
+              className={`h-10 w-10 flex items-center justify-center rounded-xl transition-all duration-300 outline-none touch-manipulation cursor-pointer ${
                 isRecording
-                  ? "bg-primary/20 text-primary shadow-[0_0_15px_rgba(34,197,94,0.2)] animate-pulse"
+                  ? "bg-destructive/10 text-destructive shadow-[0_0_12px_rgba(239,68,68,0.15)] animate-pulse"
                   : "bg-transparent text-muted-foreground hover:text-foreground hover:bg-muted"
               }`}
               title="Voice Typing"
@@ -254,27 +285,39 @@ export default function ChatInput({
               <Mic size={18} />
             </button>
 
-            {/* --- SLEEK GREEN OUTLINE (Stop Button) --- */}
             <button
               type="button"
               onClick={loading ? stopStream : onSend}
               disabled={!loading && !input.trim() && !uploadedFile}
-              className={`p-2.5 rounded-xl transition-all duration-300 flex items-center justify-center shrink-0 cursor-pointer ${
+              className={`h-10 w-10 flex items-center justify-center rounded-xl transition-all duration-300 touch-manipulation cursor-pointer ${
                 loading
-                  ? "bg-transparent text-emerald-600 dark:text-emerald-500 border border-emerald-500/30 hover:bg-emerald-500/10 hover:border-emerald-500/60"
+                  ? "bg-transparent text-destructive border border-destructive/30 hover:bg-destructive/10"
                   : input.trim() || uploadedFile
-                    ? "bg-primary text-primary-foreground shadow-[0_0_15px_rgba(var(--primary),0.3)] hover:scale-105"
-                    : "bg-transparent text-muted-foreground/50 cursor-not-allowed border border-transparent"
+                    ? "bg-primary text-primary-foreground shadow-[0_4px_12px_rgba(var(--primary),0.15)] hover:scale-[1.02] active:scale-[0.98]"
+                    : "bg-muted/40 text-muted-foreground/20 border border-transparent cursor-not-allowed"
               }`}
               title={loading ? "Stop generating" : "Send message"}
             >
               {loading ? (
-                <Square size={16} className="fill-current opacity-80" />
+                <Square size={13} className="fill-current" />
               ) : (
-                <Send size={18} />
+                <Send
+                  size={15}
+                  className="translate-x-[0.5px] -translate-y-[0.5px]"
+                />
               )}
             </button>
           </div>
+        </div>
+      </div>
+
+      {/* Dropdown position: Completely outside and below the main input card wrapper div */}
+      <div className="mt-2.5 flex justify-start px-1.5 animate-in fade-in duration-300">
+        <div className="transition-transform duration-200 active:scale-[0.98]">
+          <ModelSelector
+            selectedModelId={selectedModel}
+            onModelSelect={setSelectedModel}
+          />
         </div>
       </div>
     </div>

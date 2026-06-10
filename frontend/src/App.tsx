@@ -44,12 +44,13 @@ function App() {
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/guest" element={<ChatPage />} />
 
-          {/* --- PERSISTENT LAYOUT ROUTES (Sidebar + SSE live here) --- */}
-          <Route path="/settings" element={<SettingsLayout />}>
-            <Route index element={<Navigate to="profile" replace />} />
-            <Route path="profile" element={<ProfileSettings />} />
-            <Route path="preferences" element={<PreferencesSettings />} />
-            <Route path="sport" element={<SportProfileSettings />} />
+          <Route element={<MainLayout />}>
+            <Route path="/settings" element={<SettingsLayout />}>
+              <Route index element={<Navigate to="profile" replace />} />
+              <Route path="profile" element={<ProfileSettings />} />
+              <Route path="preferences" element={<PreferencesSettings />} />
+              <Route path="sport" element={<SportProfileSettings />} />
+            </Route>
           </Route>
           <Route path="/onboarding" element={<OnboardingPage />} />
           <Route element={<MainLayout />}>
