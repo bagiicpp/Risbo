@@ -55,6 +55,8 @@ $\quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \text{MongoDB} \qua
 ```text
 Risbo/
 ├── ai-backend/             # AI Orchestration Layer
+│   ├── wiki/
+│   ├── wiki_search/
 │   ├── main.py             # FastAPI entry point
 │   ├── intent.py           # Intent classification for sports domains
 │   ├── search.py           # Integration with SearxNG/Web search
@@ -73,7 +75,12 @@ Risbo/
 │   ├── src/                # React components, hooks, and pages
 │   │   ├── components/     # UI components (shadcn/ui)
 │   │   ├── pages/          # Chat, Settings, and Analytics views
-│   │   └── hooks/          # Custom React hooks for API interaction
+│   │   ├── context/
+│   │   ├── lib/
+│   │   ├── hooks/          # Custom React hooks for API interaction
+│   │   ├── App.tsx
+│   │   ├── index.css
+│   │   └── main.tsx
 │   ├── Dockerfile
 │   └── package.json
 │
