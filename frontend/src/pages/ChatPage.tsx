@@ -54,7 +54,16 @@ export default function ChatPage() {
   const [dragActive, setDragActive] = useState(false);
   const [stagedFile, setStagedFile] = useState<File | null>(null);
   const [selectedModel, setSelectedModel] = useState("gemma-4-26b-a4b-it");
-  const [enableSearch, setEnableSearch] = useState(false);
+  // Web search toggle is persisted so it stays ON across reloads and
+  // conversation switches — when enabled, every message runs a real web
+  // search deterministically (no reliance on the [NEEDS_WEB_SEARCH] tag).
+  const [enableSearch, setEnableSearch] = useState(
+    () => localStorage.getItem("risbo_web_search") === "true",
+  );
+
+  useEffect(() => {
+    localStorage.setItem("risbo_web_search", String(enableSearch));
+  }, [enableSearch]);
 
   const isChatActive = !!conversationId || messages.length > 0 || loading;
 
