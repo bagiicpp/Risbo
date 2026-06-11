@@ -1,0 +1,23 @@
+Risbo
+
+Risbo je specializiran asistent z umetno inteligenco, zasnovan za športnike, trenerje in športne analitike. Zagotavlja poglobljeno strokovno znanje na področju nogometa in košarke, statistike igralcev, optimizacije treningov in prehrane.
+
+Leto izdelave: 2026
+
+Filip Sekulović
+Blagoja Vasilev
+Jovan Obrenović
+
+Domača stran: https://www.risbo.app/
+
+Koda: https://github.com/bagiicpp/Risbo
+
+Kategorizacija: spletna aplikacija
+
+Oznake: ReactTS, MongoDB, Python, AgilenRazvoj, GitHub, UporabaAI, Docker, Nginx, REST, SearXNG, llmwiki
+
+Risbo je specializiran pametni pomočnik, namenjen športnikom, trenerjem in športnim analitikom. Rešuje izziv ročne obdelave obsežnih športnih podatkov z zagotavljanjem hitrih in poglobljenih analiz nogometnih ter košarkarskih statistik.
+
+Glavna uporabnost platforme je v tem, da uporabnikom omogoča preprosto nalaganje lastnih statističnih dokumentov (PDF, Word, Excel). Umetna inteligenca iz teh virov takoj izlušči ključne informacije in ustvari natančna, podatkovno podprta skavtska poročila za iskanje talentov in oceno trenutnih igralcev.
+
+Poleg analitike Risbo ponuja celostno podporo pri razvoju športnika, saj generira z dokazi podprte nasvete za optimizacijo obremenitve na treningih, biomehaniko, osnovno prehrano in strategije regeneracije. S tem avtomatizira zamudne analitične procese in strokovnjakom omogoča hitrejše in bolj informirane odločitve pri vodenju ter razvoju ekip.
