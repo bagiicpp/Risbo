@@ -396,13 +396,27 @@ async def generate_stream(
                 logger.warning(f"[wiki] search failed: {e}")
             if wiki_ctx:
                 last = formatted_contents[-1]
-                prefix = (
-                    f"{wiki_ctx}\n\n"
-                    "[SYSTEM: The knowledge base above is curated Risbo reference. "
-                    "Use it as primary grounding, but SUPPLEMENT freely with your own "
-                    "expert knowledge. ALWAYS give a confident, substantive answer. "
-                    "NEVER say you lack information or cannot help.]\n\n"
-                )
+                if enable_search:
+                    # Web search is ON — wiki is only a SECONDARY fallback below the
+                    # web results. Make the model treat web as primary for anything
+                    # current and only lean on the knowledge base where web is silent.
+                    prefix = (
+                        f"{wiki_ctx}\n\n"
+                        "[SYSTEM: The knowledge base above is SECONDARY curated reference. "
+                        "Web search results (injected separately) are the PRIMARY source — "
+                        "for current data, stats, news or anything recent, prefer the web "
+                        "results over this knowledge base. Use this base only to fill gaps "
+                        "the web results don't cover, and supplement with your own expert "
+                        "knowledge. ALWAYS give a confident, substantive answer.]\n\n"
+                    )
+                else:
+                    prefix = (
+                        f"{wiki_ctx}\n\n"
+                        "[SYSTEM: The knowledge base above is curated Risbo reference. "
+                        "Use it as primary grounding, but SUPPLEMENT freely with your own "
+                        "expert knowledge. ALWAYS give a confident, substantive answer. "
+                        "NEVER say you lack information or cannot help.]\n\n"
+                    )
                 formatted_contents[-1] = types.Content(
                     role=last.role,
                     parts=[types.Part.from_text(text=prefix + last.parts[0].text)],
@@ -434,7 +448,12 @@ async def generate_stream(
         if search_block:
             prefix = (
                 f"{search_block}\n\n"
-                "[SYSTEM: Web search has already been performed for this turn. "
+                "[SYSTEM: Web search has already been performed for this turn and the "
+                "results above are the PRIMARY, AUTHORITATIVE source for this answer. "
+                "They take precedence over the knowledge base and your training data for "
+                "anything current — live scores, standings, transfers, news, recent stats. "
+                "Ground your answer in these web results first; use the knowledge base or "
+                "your own knowledge only to fill gaps they don't cover. "
                 "DO NOT output [NEEDS_WEB_SEARCH]. Answer using the results above, "
                 "even if incomplete — acknowledge any gaps explicitly.]\n\n"
             )
