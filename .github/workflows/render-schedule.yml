@@ -33,7 +33,7 @@ jobs:
 
           echo "Resuming SPP Service..."
           curl -s -X POST \
-            "https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_SPP_ID }}/resume" \
+            "https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_APP_ID }}/resume" \
             -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
             -H "Content-Type: application/json"
 
@@ -48,6 +48,6 @@ jobs:
 
           echo "Suspending SPP Service..."
           curl -s -X POST \
-            "https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_SPP_ID }}/suspend" \
+            "https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_APP_ID }}/suspend" \
             -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
             -H "Content-Type: application/json"
