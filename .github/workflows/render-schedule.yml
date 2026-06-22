@@ -1,0 +1,53 @@
+name: Render Service Schedule
+
+on:
+  schedule:
+    # PALI u 7:00 UTC (9:00 CET / 8:00 zimsko)
+    - cron: '0 7 * * *'
+    # GASI u 19:00 UTC (21:00 CET)
+    - cron: '0 19 * * *'
+  workflow_dispatch: # možeš ručno trigerovat
+
+jobs:
+  toggle-service:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determine action (resume or suspend)
+        id: action
+        run: |
+          HOUR=$(date -u +%H)
+          if [ "$HOUR" = "07" ]; then
+            echo "action=resume" >> $GITHUB_OUTPUT
+          else
+            echo "action=suspend" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Resume services
+        if: steps.action.outputs.action == 'resume'
+        run: |
+          echo "Resuming AI Service..."
+          curl -s -X POST \
+            "https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_AI_ID }}/resume" \
+            -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
+            -H "Content-Type: application/json"
+
+          echo "Resuming SPP Service..."
+          curl -s -X POST \
+            "https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_SPP_ID }}/resume" \
+            -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
+            -H "Content-Type: application/json"
+
+      - name: Suspend services
+        if: steps.action.outputs.action == 'suspend'
+        run: |
+          echo "Suspending AI Service..."
+          curl -s -X POST \
+            "https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_AI_ID }}/suspend" \
+            -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
+            -H "Content-Type: application/json"
+
+          echo "Suspending SPP Service..."
+          curl -s -X POST \
+            "https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_SPP_ID }}/suspend" \
+            -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
+            -H "Content-Type: application/json"
