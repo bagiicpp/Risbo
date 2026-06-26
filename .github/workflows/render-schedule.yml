@@ -2,9 +2,16 @@ name: Render Service Schedule
 
 on:
   schedule:
-    # PALI u 7:00 UTC (9:00 CET / 8:00 zimsko)
+    # PALI u 8:00 po beogradskom vremenu
+    # Leto (CEST, UTC+2): 6:00 UTC
+    - cron: '0 6 * * *'
+    # Zima (CET, UTC+1): 7:00 UTC
     - cron: '0 7 * * *'
-    # GASI u 19:00 UTC (21:00 CET)
+
+    # GASI u 20:00 po beogradskom vremenu
+    # Leto (CEST, UTC+2): 18:00 UTC
+    - cron: '0 18 * * *'
+    # Zima (CET, UTC+1): 19:00 UTC
     - cron: '0 19 * * *'
   workflow_dispatch: # možeš ručno trigerovat
 
@@ -15,11 +22,16 @@ jobs:
       - name: Determine action (resume or suspend)
         id: action
         run: |
-          HOUR=$(date -u +%H)
-          if [ "$HOUR" = "07" ]; then
+          # Koristimo beogradsko vreme da odredimo akciju
+          HOUR=$(TZ=Europe/Belgrade date +%H)
+          echo "Beogradsko vreme: $HOUR:xx"
+          if [ "$HOUR" = "08" ]; then
             echo "action=resume" >> $GITHUB_OUTPUT
-          else
+          elif [ "$HOUR" = "20" ]; then
             echo "action=suspend" >> $GITHUB_OUTPUT
+          else
+            echo "action=skip" >> $GITHUB_OUTPUT
+            echo "Nije 08:xx ni 20:xx po beogradskom vremenu, preskacemo."
           fi
 
       - name: Resume services
