@@ -2,13 +2,21 @@ name: Render Service Schedule
 
 on:
   schedule:
-    # PALI u 8:00 po beogradskom vremenu
-    - cron: "0 6 * * *" # Leto (CEST)
-    - cron: "0 7 * * *" # Zima (CET)
-    # GASI u 20:00 po beogradskom vremenu
-    - cron: "0 18 * * *" # Leto (CEST)
-    - cron: "0 19 * * *" # Zima (CET)
+    - cron: "0 6 * * *"
+    - cron: "0 7 * * *"
+    - cron: "0 18 * * *"
+    - cron: "0 19 * * *"
   workflow_dispatch:
+    inputs:
+      action:
+        description: "Force action (ili ostavi auto za time-based logiku)"
+        required: false
+        default: "auto"
+        type: choice
+        options:
+          - auto
+          - resume
+          - suspend
 
 jobs:
   toggle-service:
@@ -17,6 +25,13 @@ jobs:
       - name: Determine action
         id: action
         run: |
+          INPUT_ACTION="${{ github.event.inputs.action }}"
+          if [ -n "$INPUT_ACTION" ] && [ "$INPUT_ACTION" != "auto" ]; then
+            echo "action=$INPUT_ACTION" >> $GITHUB_OUTPUT
+            echo "Manual override: $INPUT_ACTION"
+            exit 0
+          fi
+
           HOUR=$(TZ=Europe/Belgrade date +%H)
           echo "Trenutno beogradsko vreme: $HOUR:xx"
           if [ "$HOUR" = "08" ]; then
