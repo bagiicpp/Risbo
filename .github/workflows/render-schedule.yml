@@ -3,63 +3,77 @@ name: Render Service Schedule
 on:
   schedule:
     # PALI u 8:00 po beogradskom vremenu
-    # Leto (CEST, UTC+2): 6:00 UTC
-    - cron: '0 6 * * *'
-    # Zima (CET, UTC+1): 7:00 UTC
-    - cron: '0 7 * * *'
-
+    - cron: "0 6 * * *" # Leto (CEST)
+    - cron: "0 7 * * *" # Zima (CET)
     # GASI u 20:00 po beogradskom vremenu
-    # Leto (CEST, UTC+2): 18:00 UTC
-    - cron: '0 18 * * *'
-    # Zima (CET, UTC+1): 19:00 UTC
-    - cron: '0 19 * * *'
-  workflow_dispatch: # možeš ručno trigerovat
+    - cron: "0 18 * * *" # Leto (CEST)
+    - cron: "0 19 * * *" # Zima (CET)
+  workflow_dispatch:
 
 jobs:
   toggle-service:
     runs-on: ubuntu-latest
     steps:
-      - name: Determine action (resume or suspend)
+      - name: Determine action
         id: action
         run: |
-          # Koristimo beogradsko vreme da odredimo akciju
           HOUR=$(TZ=Europe/Belgrade date +%H)
-          echo "Beogradsko vreme: $HOUR:xx"
+          echo "Trenutno beogradsko vreme: $HOUR:xx"
           if [ "$HOUR" = "08" ]; then
             echo "action=resume" >> $GITHUB_OUTPUT
           elif [ "$HOUR" = "20" ]; then
             echo "action=suspend" >> $GITHUB_OUTPUT
           else
             echo "action=skip" >> $GITHUB_OUTPUT
-            echo "Nije 08:xx ni 20:xx po beogradskom vremenu, preskacemo."
+            echo "Nije 08:xx ni 20:xx. Preskacem izvršavanje."
           fi
 
       - name: Resume services
         if: steps.action.outputs.action == 'resume'
         run: |
           echo "Resuming AI Service..."
-          curl -s -X POST \
+          RESPONSE_AI=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -X POST \
             "https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_AI_ID }}/resume" \
             -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
-            -H "Content-Type: application/json"
+            -H "Content-Type: application/json")
+          echo "$RESPONSE_AI"
+          if [[ "$RESPONSE_AI" != *"HTTP_STATUS:202"* && "$RESPONSE_AI" != *"HTTP_STATUS:200"* ]]; then 
+            echo "Kritična greška: Render API odbio zahtev za AI Service."
+            exit 1
+          fi
 
           echo "Resuming SPP Service..."
-          curl -s -X POST \
+          RESPONSE_APP=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -X POST \
             "https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_APP_ID }}/resume" \
             -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
-            -H "Content-Type: application/json"
+            -H "Content-Type: application/json")
+          echo "$RESPONSE_APP"
+          if [[ "$RESPONSE_APP" != *"HTTP_STATUS:202"* && "$RESPONSE_APP" != *"HTTP_STATUS:200"* ]]; then 
+            echo "Kritična greška: Render API odbio zahtev za SPP Service."
+            exit 1
+          fi
 
       - name: Suspend services
         if: steps.action.outputs.action == 'suspend'
         run: |
           echo "Suspending AI Service..."
-          curl -s -X POST \
+          RESPONSE_AI=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -X POST \
             "https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_AI_ID }}/suspend" \
             -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
-            -H "Content-Type: application/json"
+            -H "Content-Type: application/json")
+          echo "$RESPONSE_AI"
+          if [[ "$RESPONSE_AI" != *"HTTP_STATUS:202"* && "$RESPONSE_AI" != *"HTTP_STATUS:200"* ]]; then 
+            echo "Kritična greška: Render API odbio zahtev za AI Service."
+            exit 1
+          fi
 
           echo "Suspending SPP Service..."
-          curl -s -X POST \
+          RESPONSE_APP=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -X POST \
             "https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_APP_ID }}/suspend" \
             -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
-            -H "Content-Type: application/json"
+            -H "Content-Type: application/json")
+          echo "$RESPONSE_APP"
+          if [[ "$RESPONSE_APP" != *"HTTP_STATUS:202"* && "$RESPONSE_APP" != *"HTTP_STATUS:200"* ]]; then 
+            echo "Kritična greška: Render API odbio zahtev za SPP Service."
+            exit 1
+          fi
